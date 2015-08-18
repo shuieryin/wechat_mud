@@ -1,0 +1,12 @@
+{application, wechat_mud,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { wechat_mud_app, []}},
+  {env, []}
+ ]}.
