@@ -4,6 +4,8 @@
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/deps/cowboy" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/deps/cowlib" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/deps/eredis" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/deps/erlsom" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/deps/ranch" vcs="Git" />
   </component>
 </project>

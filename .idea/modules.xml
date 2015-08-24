@@ -4,6 +4,8 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/deps/cowboy/cowboy.iml" filepath="$PROJECT_DIR$/deps/cowboy/cowboy.iml" />
       <module fileurl="file://$PROJECT_DIR$/deps/cowlib/cowlib.iml" filepath="$PROJECT_DIR$/deps/cowlib/cowlib.iml" />
+      <module fileurl="file://$PROJECT_DIR$/deps/eredis/eredis.iml" filepath="$PROJECT_DIR$/deps/eredis/eredis.iml" />
+      <module fileurl="file://$PROJECT_DIR$/deps/erlsom/erlsom.iml" filepath="$PROJECT_DIR$/deps/erlsom/erlsom.iml" />
       <module fileurl="file://$PROJECT_DIR$/deps/ranch/ranch.iml" filepath="$PROJECT_DIR$/deps/ranch/ranch.iml" />
       <module fileurl="file://$PROJECT_DIR$/wechat_mud.iml" filepath="$PROJECT_DIR$/wechat_mud.iml" />
     </modules>

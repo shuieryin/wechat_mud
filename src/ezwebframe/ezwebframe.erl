@@ -43,9 +43,8 @@ web_server_start(Port, Dispatcher) ->
     end.
 
 init(Req, E0) ->
-    io:format("Req:~p~n", [Req]),
+    error_logger:info_msg("Request raw:~p~n", [Req]),
     Resource = path(Req),
-    io:format("Resource:~p~n", [Resource]),
     case Resource of
         ["/", "websocket", ModStr] ->
             Self = self(),
