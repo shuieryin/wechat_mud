@@ -25,8 +25,7 @@
 %% @end
 %%--------------------------------------------------------------------
 start(Req) ->
-    HeaderParams = cowboy_req:qs(Req),
-    case HeaderParams of
+    case cowboy_req:qs(Req) of
         <<>> ->
             case ?ISDEBUG of
                 true ->
@@ -35,7 +34,7 @@ start(Req) ->
                     error_logger:error_msg("Header params empty~n", []),
                     ""
             end;
-        _ ->
+        HeaderParams ->
             ParamsMap = gen_qs_params_map(size(HeaderParams) - 1, HeaderParams, #{}),
             error_logger:info_msg("ParamsMap:~p~n", [ParamsMap]),
             ValidationParamsMap = maps:with([signature, timestamp, nonce], ParamsMap),
@@ -134,30 +133,10 @@ reply_text(UserId, PlatformId, Content) ->
 %% @end
 %%--------------------------------------------------------------------
 parse_xml_request(Req) ->
-    try cowboy_req:body_qs(Req) of
-        {ok, MessageList, _} ->
-            Message = retreive_post_data(MessageList, []),
-            error_logger:info_msg("Message:~p~n", [Message]),
-            {ok, {"xml", [], Params}, _} = erlsom:simple_form(binary_to_list(Message)),
-            unmarshall_params(Params, #{});
-        {badlength, Req} ->
-            error_logger:format("parse_xml_request failed:{badlength}~n", []),
-            parse_failed
-    catch
-        CauseType:Any ->
-            error_logger:error_msg("parse_xml_request failed:{~p, ~p}~n", [CauseType, Any]),
-            parse_failed
-    end.
-
-retreive_post_data([], Result) ->
-    list_to_binary(lists:reverse(lists:flatten(Result)));
-retreive_post_data([Head | Tail], Result) ->
-    case Head of
-        {InnerMessageHead, true} ->
-            retreive_post_data(Tail, [InnerMessageHead | Result]);
-        {InnerMessageHead, InnerMessageTail} ->
-            retreive_post_data(Tail, [InnerMessageTail | [InnerMessageHead | Result]])
-    end.
+    {ok, Message, _} = cowboy_req:body(Req),
+    error_logger:info_msg("Message:~p~n", [Message]),
+    {ok, {"xml", [], Params}, _} = erlsom:simple_form(binary_to_list(Message)),
+    unmarshall_params(Params, #{}).
 
 unmarshall_params([], ParamsMap) ->
     ParamsMap;
