@@ -23,5 +23,24 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-    {ok, { {one_for_one, 5, 10}, []} }.
+    {ok, {
+        {one_for_one, 5, 10},
+        [
+            {redis_client,
+                {redis_client_server, start_link, []},
+                permanent,
+                10000,
+                worker,
+                [redis_client_server]
+            },
+
+            {login,
+                {login_server, start_link, []},
+                permanent,
+                10000,
+                worker,
+                [login_server]
+            }
+        ]
+    }}.
 

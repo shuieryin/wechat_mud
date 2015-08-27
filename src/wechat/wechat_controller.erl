@@ -12,7 +12,8 @@
 %%%-------------------------------------------------------------------
 -author("Li").
 
--define(ISDEBUG, true).
+-define(IS_DEBUG, true).
+-define(MAX_TEXT_SIZE, 2048).
 
 %%%===================================================================
 %%% API
@@ -27,7 +28,7 @@
 start(Req) ->
     case cowboy_req:qs(Req) of
         <<>> ->
-            case ?ISDEBUG of
+            case ?IS_DEBUG of
                 true ->
                     process_request(Req);
                 _ ->
@@ -107,24 +108,53 @@ process_request(Req) ->
             "";
         ReqParamsMap ->
             error_logger:info_msg("ReqParamsMap:~p~n", [ReqParamsMap]),
+            #{'MsgType' := MsgType, 'ToUserName' := PlatformId, 'FromUserName' := Uid} = ReqParamsMap,
 
-            PlatformId = maps:get('ToUserName', ReqParamsMap),
-            UserId = maps:get('FromUserName', ReqParamsMap),
-            _MsgId = maps:get('MsgId', ReqParamsMap),
+            Response = case list_to_atom(MsgType) of
+                           event ->
+                               case list_to_atom(maps:get('Event', ReqParamsMap)) of
+                                   subscribe ->
+                                       reply_text(Uid, PlatformId, "欢迎加入");
+                                   unsubscribe ->
+                                       "";
+                                   _ ->
+                                       ""
+                               end;
+                           text ->
+                               _MsgId = maps:get('MsgId', ReqParamsMap),
+                               [ModuleName | CommandArgs] = string:tokens(maps:get('Content', ReqParamsMap), " "),
+                               ReplyText = try
+                                               false = is_integer(ModuleName),
+                                               Module = list_to_atom(ModuleName),
+                                               true = common_api:is_module_exists(Module),
 
-            Response = reply_text(UserId, PlatformId, maps:get('Content', ReqParamsMap) ++ pid_to_list(self())),
-            error_logger:info_msg("Response:~p~n", [Response]),
+                                               StateMap = #{uid => list_to_atom(Uid), args => CommandArgs},
+                                               error_logger:info_msg("Executing Module:~p, Args:~p~n", [Module, CommandArgs]),
+                                               apply(Module, exec, [StateMap])
+                                           catch
+                                               error:_ ->
+                                                   "不支持该指令: " ++ ModuleName;
+                                               Type:Reason ->
+                                                   error_logger:error_msg("Command error~n Type:~p~nReason:~p~n", [Type, Reason]),
+                                                   "非法指令"
+                                           end,
+                               reply_text(Uid, PlatformId, ReplyText);
+                           _ ->
+                               reply_text(Uid, PlatformId, "暂不支持该类型信息")
+                       end,
+
+            error_logger:info_msg("Response:~ts~n", [Response]),
             Response
     end.
 
-reply_text(UserId, PlatformId, Content) ->
-    "<xml><ToUserName><![CDATA[" ++ UserId ++ "]]></ToUserName><FromUserName><![CDATA[" ++ PlatformId ++ "]]></FromUserName><CreateTime>" ++ integer_to_list(timestamp()) ++ "</CreateTime><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[" ++ Content ++ "]]></Content></xml>".
+reply_text(Uid, PlatformId, Content) ->
+    list_to_binary([<<"<xml><Content><![CDATA[">>, unicode:characters_to_binary(Content), <<"]]></Content><ToUserName><![CDATA[">>, list_to_binary(Uid), <<"]]></ToUserName><FromUserName><![CDATA[">>, list_to_binary(PlatformId), <<"]]></FromUserName><CreateTime>">>, integer_to_binary(timestamp()), <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>]).
 
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
 %% [{"ToUserName", [], [PlatFormId]},
-%% {"FromUserName", [], [UserId]},
+%% {"FromUserName", [], [Uid]},
 %% {"CreateTime", [], [CreateTime]},
 %% {"MsgType", [], [MsgType]},
 %% {"Content", [], [Content]},
@@ -135,8 +165,13 @@ reply_text(UserId, PlatformId, Content) ->
 parse_xml_request(Req) ->
     {ok, Message, _} = cowboy_req:body(Req),
     error_logger:info_msg("Message:~p~n", [Message]),
-    {ok, {"xml", [], Params}, _} = erlsom:simple_form(binary_to_list(Message)),
-    unmarshall_params(Params, #{}).
+    case Message of
+        <<>> ->
+            parse_failed;
+        _ ->
+            {ok, {"xml", [], Params}, _} = erlsom:simple_form(Message),
+            unmarshall_params(Params, #{})
+    end.
 
 unmarshall_params([], ParamsMap) ->
     ParamsMap;
