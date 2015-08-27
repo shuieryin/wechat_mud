@@ -3,14 +3,14 @@
 -export([start/1]).
 
 %%%-------------------------------------------------------------------
-%%% @author Li
-%%% @copyright (C) 2015, <COMPANY>
+%%% @author Shuieryin
+%%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
 %%% @end
 %%% Created : 19. Aug 2015 10:06 PM
 %%%-------------------------------------------------------------------
--author("Li").
+-author("Shuieryin").
 
 -define(IS_DEBUG, true).
 -define(MAX_TEXT_SIZE, 2048).

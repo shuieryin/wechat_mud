@@ -1,13 +1,13 @@
 %%%-------------------------------------------------------------------
-%%% @author Li
-%%% @copyright (C) 2015, <COMPANY>
+%%% @author Shuieryin
+%%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
 %%% @end
 %%% Created : 26. Aug 2015 10:00 AM
 %%%-------------------------------------------------------------------
 -module(redis_client_server).
--author("Li").
+-author("Shuieryin").
 
 -behaviour(gen_server).
 

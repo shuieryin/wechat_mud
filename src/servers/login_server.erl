@@ -1,13 +1,13 @@
 %%%-------------------------------------------------------------------
-%%% @author Li
-%%% @copyright (C) 2015, <COMPANY>
+%%% @author Shuieryin
+%%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
 %%% @end
 %%% Created : 25. Aug 2015 9:11 PM
 %%%-------------------------------------------------------------------
 -module(login_server).
--author("Li").
+-author("Shuieryin").
 
 -behaviour(gen_server).
 
