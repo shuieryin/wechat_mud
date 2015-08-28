@@ -1,4 +1,4 @@
--module(wechat_controller).
+-module(command_dispatcher).
 %% API
 -export([start/1]).
 
