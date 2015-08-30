@@ -138,7 +138,7 @@ process_request(Req) ->
                             text ->
                                 % _MsgId = maps:get('MsgId', ReqParamsMap),
                                 % todo: check if there's regsiter fsm, process it if exists.
-                                RawInput = maps:get('Content', ReqParamsMap),
+                                RawInput = string:strip(maps:get('Content', ReqParamsMap), both, $ ),
                                 [ModuleName | CommandArgs] = string:tokens(RawInput, " "),
                                 case login_server:is_in_registration(Uid) of
                                     true ->

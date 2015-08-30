@@ -146,7 +146,7 @@ input_born_month({MonthStr, DispatcherPid}, State) ->
             NewState = maps:put(born_month, Month, State),
             GenText = gen_summary_text(?STATE_NAMES, "", NewState),
             command_dispatcher:return_text(DispatcherPid, GenText),
-            {next_state, input_confirmation, NewState};
+            {next_state, input_confirmation, NewState#{gen_text => GenText}};
         {false, MonthStr} ->
             command_dispatcher:return_text(DispatcherPid, "无效月份: " ++ MonthStr ++ "\n请输入角色的出生月份"),
             {next_state, input_born_month, State}
@@ -208,7 +208,10 @@ input_confirmation({"yes", DispatcherPid}, State) ->
     {stop, done, State};
 input_confirmation({"no", DispatcherPid}, State) ->
     command_dispatcher:return_text(DispatcherPid, "请输入角色的性别"),
-    {next_state, input_gender, #{uid => maps:get(uid, State)}}.
+    {next_state, input_gender, #{uid => maps:get(uid, State)}};
+input_confirmation({Other, DispatcherPid}, State) ->
+    command_dispatcher:return_text(DispatcherPid, "无效指令: " ++ Other ++ "\n\n" ++ maps:get(gen_text, State)),
+    {next_state, input_confirmation, State}.
 
 %%--------------------------------------------------------------------
 %% @private
