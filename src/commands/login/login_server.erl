@@ -13,9 +13,13 @@
 
 %% API
 -export([start_link/0,
-    is_uid_registered/1]).
+    is_uid_registered/1,
+    is_in_registration/1,
+    register_uid/2,
+    registration_done/1]).
 
 -define(REDIS_REGISTERED_UID_MAP, registered_uid_map).
+-define(REGISTRATION_FSM_MAP, registration_fsm_map).
 
 %% gen_server callbacks
 -export([init/1,
@@ -50,12 +54,36 @@ start_link() ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Stops the server
+%% Check if uid is registered
 %%
 %% @end
 %%--------------------------------------------------------------------
+-spec is_uid_registered(Uid) -> boolean() when
+    Uid :: atom().
 is_uid_registered(Uid) ->
     gen_server:call(?MODULE, {is_uid_registered, Uid}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Check if uid is in registration process
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec is_in_registration(Uid) -> boolean() when
+    Uid :: atom().
+is_in_registration(Uid) ->
+    gen_server:call(?MODULE, {is_in_registration, Uid}).
+
+-spec register_uid(DispatcherUid, Uid) -> no_return() when
+    Uid :: atom(),
+    DispatcherUid :: pid().
+register_uid(DispatcherUid, Uid) ->
+    gen_server:call(?MODULE, {register_uid, DispatcherUid, Uid}).
+
+-spec registration_done(State) -> no_return() when
+    State :: map().
+registration_done(State) ->
+    gen_server:call(?MODULE, {registration_done, State}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -91,7 +119,7 @@ init([]) ->
                            OldMap ->
                                OldMap
                        end,
-    {ok, RegisteredUidMap}.
+    {ok, #{?REDIS_REGISTERED_UID_MAP => RegisteredUidMap, ?REGISTRATION_FSM_MAP => #{}}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -108,15 +136,37 @@ init([]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: {is_uid_registered, Uid},
+    Request :: {is_uid_registered | is_in_registration | registration_done, Uid} |
+    {register_uid, DispatcherPid, Uid},
     Uid :: atom(),
+    DispatcherPid :: pid(),
     From :: {pid(), Tag :: term()},
     Reply :: term(),
     State :: map(),
     NewState :: map(),
     Reason :: term().
 handle_call({is_uid_registered, Uid}, _From, State) ->
-    {reply, maps:is_key(Uid, State), State}.
+    RegisteredUidMap = maps:get(?REDIS_REGISTERED_UID_MAP, State),
+    {reply, maps:is_key(Uid, RegisteredUidMap), State};
+handle_call({is_in_registration, Uid}, _From, State) ->
+    RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
+    {reply, maps:is_key(Uid, RegistrationFsmMap), State};
+handle_call({register_uid, DispatcherPid, Uid}, _From, State) ->
+    RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
+    case maps:is_key(Uid, RegistrationFsmMap) of
+        false ->
+            {ok, FsmPid} = register_fsm:start(DispatcherPid, Uid),
+            UpdatedState = State#{?REGISTRATION_FSM_MAP => maps:put(Uid, FsmPid, RegistrationFsmMap)};
+        _ ->
+            gen_fsm:send_all_state_event(Uid, {restart, DispatcherPid}),
+            UpdatedState = State
+    end,
+    {reply, ok, UpdatedState};
+handle_call({registration_done, UserState}, _From, State) ->
+    RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
+    RedisRegistrationUidMap = maps:get(?REDIS_REGISTERED_UID_MAP, State),
+    Uid = maps:get(uid, UserState),
+    {reply, ok, State#{?REDIS_REGISTERED_UID_MAP => maps:put(Uid, UserState, RedisRegistrationUidMap), ?REGISTRATION_FSM_MAP => maps:remove(Uid, RegistrationFsmMap)}}.
 
 %%--------------------------------------------------------------------
 %% @private

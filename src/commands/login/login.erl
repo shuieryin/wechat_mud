@@ -1,6 +1,6 @@
 -module(login).
 %% API
--export([exec/1]).
+-export([exec/2]).
 
 %%%-------------------------------------------------------------------
 %%% @author Shuieryin
@@ -22,16 +22,18 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(State) -> string() when
-    State :: map().
-exec(State) ->
+-spec exec(DispacherPid, State) -> string() when
+    State :: map(),
+    DispacherPid :: pid().
+exec(DispacherPid, State) ->
     Uid = maps:get(uid, State),
-%%     case login_server:(Uid) of
+%%     case login_server:is_uid_registered(Uid) of
 %%         false ->
-%%
+%%             register
 %%     end,
-%%     io:format("is_uid_registered:~p~n", [IsUidExist]),
-    atom_to_list(Uid).
+%%     atom_to_list(Uid).
+    command_dispatcher:return_text(DispacherPid, "success:" ++ atom_to_list(Uid)).
+%%     register_fsm:start_link(Uid).
 
 %%%===================================================================
 %%% Internal functions

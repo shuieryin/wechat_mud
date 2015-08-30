@@ -1,6 +1,7 @@
 -module(command_dispatcher).
 %% API
--export([start/1]).
+-export([start/1,
+    return_text/2]).
 
 %%%-------------------------------------------------------------------
 %%% @author Shuieryin
@@ -14,6 +15,7 @@
 
 -define(IS_DEBUG, true).
 -define(MAX_TEXT_SIZE, 2048).
+-define(EMPTY_RESPONSE, "").
 
 %%%===================================================================
 %%% API
@@ -25,6 +27,8 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
+-spec start(Req) -> string() when
+    Req :: cowboy_req:req().
 start(Req) ->
     case cowboy_req:qs(Req) of
         <<>> ->
@@ -33,7 +37,7 @@ start(Req) ->
                     process_request(Req);
                 _ ->
                     error_logger:error_msg("Header params empty~n", []),
-                    ""
+                    ?EMPTY_RESPONSE
             end;
         HeaderParams ->
             ParamsMap = gen_qs_params_map(size(HeaderParams) - 1, HeaderParams, #{}),
@@ -49,42 +53,48 @@ start(Req) ->
                             maps:get(echostr, ParamsMap)
                     end;
                 _ ->
-                    ""
+                    ?EMPTY_RESPONSE
             end
     end.
 
+-spec gen_qs_params_map(Pos, Bin, ParamsMap) -> map() when
+    Pos :: integer(),
+    Bin :: binary(),
+    ParamsMap :: map().
 gen_qs_params_map(-1, _, ParamsMap) ->
     ParamsMap;
 gen_qs_params_map(Pos, Bin, ParamsMap) ->
     {ValueBin, CurPosByValue} = qs_value(binary:at(Bin, Pos), [], Pos - 1, Bin),
     {KeyBin, CurPosByKey} = qs_key(binary:at(Bin, CurPosByValue), [], CurPosByValue - 1, Bin),
     gen_qs_params_map(CurPosByKey, Bin, maps:put(binary_to_atom(KeyBin, unicode), ValueBin, ParamsMap)).
-qs_key($&, KeyBin, Pos, _) ->
-    {list_to_binary(KeyBin), Pos};
+
+-spec qs_key(CurByte, KeyBinList, Pos, SrcBin) -> binary() when
+    CurByte :: binary(),
+    KeyBinList :: list(),
+    Pos :: integer(),
+    SrcBin :: binary().
+qs_key($&, KeyBinList, Pos, _) ->
+    {list_to_binary(KeyBinList), Pos};
 qs_key(CurByte, KeyBinList, -1, _) ->
     {list_to_binary([CurByte | KeyBinList]), -1};
-qs_key(CurByte, KeyBinList, Pos, Bin) ->
-    qs_key(binary:at(Bin, Pos), [CurByte | KeyBinList], Pos - 1, Bin).
+qs_key(CurByte, KeyBinList, Pos, SrcBin) ->
+    qs_key(binary:at(SrcBin, Pos), [CurByte | KeyBinList], Pos - 1, SrcBin).
+
+-spec qs_value(CurByte, ValueBinList, Pos, SrcBin) -> binary() when
+    CurByte :: binary(),
+    ValueBinList :: list(),
+    Pos :: integer(),
+    SrcBin :: binary().
 qs_value($=, ValueBinList, Pos, _) ->
     {list_to_binary(ValueBinList), Pos};
-qs_value(CurByte, ValueBinList, Pos, Bin) ->
-    qs_value(binary:at(Bin, Pos), [CurByte | ValueBinList], Pos - 1, Bin).
-
-
-%% get GET params
-%%     Params = cowboy_req:qs(Req),
-%%     io:format("Params:~p~n", [Params]),
-%%     binary_to_list(Params).
-
-%% get POST params
-%%     {ok, Result, _} = cowboy_req:body_qs(Req),
-%%     io:format("Result:~p~n", [Result]),
-%%     "test".
+qs_value(CurByte, ValueBinList, Pos, SrcBin) ->
+    qs_value(binary:at(SrcBin, Pos), [CurByte | ValueBinList], Pos - 1, SrcBin).
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
+-spec validate_signature(OriginalParamMap) -> boolean() when
+    OriginalParamMap :: map().
 validate_signature(OriginalParamMap) ->
     ParamList = maps:to_list(maps:without([signature], OriginalParamMap)),
     GeneratedSignature = generate_signature(ParamList),
@@ -97,58 +107,99 @@ validate_signature(OriginalParamMap) ->
             false
     end.
 
+-spec generate_signature(OriginParamList) -> string() when
+    OriginParamList :: list().
 generate_signature(OriginParamList) ->
     ConcatedParamContent = [<<"collinguo">> | concat_param_content(OriginParamList, [])],
     SortedParamContent = lists:sort(ConcatedParamContent),
     string:to_lower(sha1:hexstring(SortedParamContent)).
 
+-spec process_request(Req) -> string() when
+    Req :: cowboy_req:req().
 process_request(Req) ->
     case parse_xml_request(Req) of
         parse_failed ->
-            "";
+            ?EMPTY_RESPONSE;
         ReqParamsMap ->
             error_logger:info_msg("ReqParamsMap:~p~n", [ReqParamsMap]),
-            #{'MsgType' := MsgType, 'ToUserName' := PlatformId, 'FromUserName' := Uid} = ReqParamsMap,
+            #{'MsgType' := MsgType, 'ToUserName' := PlatformId, 'FromUserName' := UidStr} = ReqParamsMap,
 
-            Response = case list_to_atom(MsgType) of
-                           event ->
-                               case list_to_atom(maps:get('Event', ReqParamsMap)) of
-                                   subscribe ->
-                                       reply_text(Uid, PlatformId, "欢迎加入");
-                                   unsubscribe ->
-                                       "";
-                                   _ ->
-                                       ""
-                               end;
-                           text ->
-                               _MsgId = maps:get('MsgId', ReqParamsMap),
-                               [ModuleName | CommandArgs] = string:tokens(maps:get('Content', ReqParamsMap), " "),
-                               ReplyText = try
-                                               false = is_integer(ModuleName),
-                                               Module = list_to_atom(ModuleName),
-                                               true = common_api:is_module_exists(Module),
+            Uid = list_to_atom(UidStr),
+            ReplyText = case list_to_atom(MsgType) of
+                            event ->
+                                case list_to_atom(maps:get('Event', ReqParamsMap)) of
+                                    subscribe ->
+                                        pending_text(login_server, register_uid, [Uid]);
+                                    unsubscribe ->
+                                        ?EMPTY_RESPONSE;
+                                    _ ->
+                                        ?EMPTY_RESPONSE
+                                end;
+                            text ->
+                                % _MsgId = maps:get('MsgId', ReqParamsMap),
+                                % todo: check if there's regsiter fsm, process it if exists.
+                                RawInput = maps:get('Content', ReqParamsMap),
+                                [ModuleName | CommandArgs] = string:tokens(RawInput, " "),
+                                case login_server:is_in_registration(Uid) of
+                                    true ->
+                                        pending_text(register_fsm, input, [Uid, RawInput]);
+                                    _ ->
+                                        try
+                                            false = is_integer(ModuleName),
+                                            Module = list_to_atom(ModuleName),
+                                            true = common_api:is_module_exists(Module),
 
-                                               StateMap = #{uid => list_to_atom(Uid), args => CommandArgs},
-                                               error_logger:info_msg("Executing Module:~p, Args:~p~n", [Module, CommandArgs]),
-                                               apply(Module, exec, [StateMap])
-                                           catch
-                                               error:_ ->
-                                                   "不支持该指令: " ++ ModuleName;
-                                               Type:Reason ->
-                                                   error_logger:error_msg("Command error~n Type:~p~nReason:~p~n", [Type, Reason]),
-                                                   "非法指令"
-                                           end,
-                               reply_text(Uid, PlatformId, ReplyText);
-                           _ ->
-                               reply_text(Uid, PlatformId, "暂不支持该类型信息")
-                       end,
+                                            StateMap = #{uid => Uid, args => CommandArgs},
+                                            error_logger:info_msg("Executing Module:~p, Args:~p~n", [Module, CommandArgs]),
 
+                                            pending_text(Module, exec, [StateMap])
+                                        catch
+                                            error:_ ->
+                                                "不支持该指令: " ++ ModuleName;
+                                            Type:Reason ->
+                                                error_logger:error_msg("Command error~n Type:~p~nReason:~p~n", [Type, Reason]),
+                                                "非法指令"
+                                        end
+                                end;
+                            _ ->
+                                "暂不支持该类型信息"
+                        end,
+
+            error_logger:info_msg("ReplyText:~p~n", [ReplyText]),
+            Response = compose_response_xml(Uid, PlatformId, ReplyText),
             error_logger:info_msg("Response:~ts~n", [Response]),
             Response
     end.
 
-reply_text(Uid, PlatformId, Content) ->
-    list_to_binary([<<"<xml><Content><![CDATA[">>, unicode:characters_to_binary(Content), <<"]]></Content><ToUserName><![CDATA[">>, list_to_binary(Uid), <<"]]></ToUserName><FromUserName><![CDATA[">>, list_to_binary(PlatformId), <<"]]></FromUserName><CreateTime>">>, integer_to_binary(timestamp()), <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>]).
+-spec pending_text(Module, Function, Args) -> string() when
+    Module :: atom(),
+    Function :: atom(),
+    Args :: [term()].
+pending_text(Module, Function, Args) ->
+    Self = self(),
+    spawn_link(Module, Function, [Self] ++ Args),
+    receive
+        {execed, Self, ReturnText} ->
+            ReturnText
+    end.
+
+-spec return_text(DispatcherPid, ReturnText) -> no_return() when
+    ReturnText :: string(),
+    DispatcherPid :: pid().
+return_text(DispatcherPid, ReturnText) ->
+    DispatcherPid ! {execed, DispatcherPid, ReturnText}.
+
+-spec compose_response_xml(Uid, PlatformId, Content) -> binary() when
+    Uid :: term(),
+    PlatformId :: term(),
+    Content :: term().
+compose_response_xml(Uid, PlatformId, Content) ->
+    case Content of
+        ?EMPTY_RESPONSE ->
+            ?EMPTY_RESPONSE;
+        Response ->
+            list_to_binary([<<"<xml><Content><![CDATA[">>, unicode:characters_to_binary(Response), <<"]]></Content><ToUserName><![CDATA[">>, atom_to_binary(Uid, utf8), <<"]]></ToUserName><FromUserName><![CDATA[">>, list_to_binary(PlatformId), <<"]]></FromUserName><CreateTime>">>, integer_to_binary(timestamp()), <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>])
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -162,6 +213,9 @@ reply_text(Uid, PlatformId, Content) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
+-spec parse_xml_request(Req) -> Result when
+    Req :: cowboy_req:req(),
+    Result :: parse_failed | map().
 parse_xml_request(Req) ->
     {ok, Message, _} = cowboy_req:body(Req),
     error_logger:info_msg("Message:~p~n", [Message]),
@@ -173,16 +227,23 @@ parse_xml_request(Req) ->
             unmarshall_params(Params, #{})
     end.
 
+-spec unmarshall_params(SrcList, ParamsMap) -> map() when
+    SrcList :: list(),
+    ParamsMap :: map().
 unmarshall_params([], ParamsMap) ->
     ParamsMap;
 unmarshall_params([{Key, [], [Value]} | Tail], ParamsMap) ->
     unmarshall_params(Tail, maps:put(list_to_atom(Key), Value, ParamsMap)).
 
+-spec concat_param_content(SrcList, ConcatedParamContent) -> list() when
+    SrcList :: list(),
+    ConcatedParamContent :: list().
 concat_param_content([], ConcatedParamContent) ->
     lists:reverse(ConcatedParamContent);
 concat_param_content([{_, ParamContent} | Tail], ConcatedParamContent) ->
     concat_param_content(Tail, [ParamContent | ConcatedParamContent]).
 
+-spec timestamp() -> integer().
 timestamp() ->
     {Hour, Minute, _} = os:timestamp(),
     Hour * 1000000 + Minute.
