@@ -155,7 +155,7 @@ process_request(Req) ->
                                             pending_text(Module, exec, [StateMap])
                                         catch
                                             error:_ ->
-                                                [<<"不支持该指令: "/utf8>> | ModuleName];
+                                                [<<"不支持该指令: "/utf8>>, ModuleName];
                                             Type:Reason ->
                                                 error_logger:error_msg("Command error~n Type:~p~nReason:~p~n", [Type, Reason]),
                                                 <<"非法指令"/utf8>>
@@ -198,7 +198,9 @@ compose_response_xml(Uid, PlatformId, Content) ->
         ?EMPTY_RESPONSE ->
             ?EMPTY_RESPONSE;
         Response ->
-            list_to_binary(lists:flatten([<<"<xml><Content><![CDATA[">>, Response, <<"]]></Content><ToUserName><![CDATA[">>, Uid, <<"]]></ToUserName><FromUserName><![CDATA[">>, PlatformId, <<"]]></FromUserName><CreateTime>">>, integer_to_binary(timestamp()), <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>]))
+            ResponseList = lists:flatten([<<"<xml><Content><![CDATA[">>, Response, <<"]]></Content><ToUserName><![CDATA[">>, Uid, <<"]]></ToUserName><FromUserName><![CDATA[">>, PlatformId, <<"]]></FromUserName><CreateTime>">>, integer_to_binary(timestamp()), <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>]),
+            error_logger:info_msg("ResponseList:~p~n", [ResponseList]),
+            list_to_binary(ResponseList)
     end.
 
 %%--------------------------------------------------------------------
@@ -233,7 +235,7 @@ parse_xml_request(Req) ->
 unmarshall_params([], ParamsMap) ->
     ParamsMap;
 unmarshall_params([{Key, [], [Value]} | Tail], ParamsMap) ->
-    unmarshall_params(Tail, maps:put(list_to_atom(Key), list_to_binary(string:strip(Value, both, $ )), ParamsMap)).
+    unmarshall_params(Tail, maps:put(list_to_atom(Key), unicode:characters_to_binary(string:strip(Value)), ParamsMap)).
 
 -spec concat_param_content(SrcList, ConcatedParamContent) -> list() when
     SrcList :: list(),

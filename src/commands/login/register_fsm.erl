@@ -1,4 +1,3 @@
-
 %%% @author Shuieryin
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
@@ -14,6 +13,7 @@
 %% API
 -export([start/2,
     input/3,
+    select_lang/2,
     input_gender/2,
     input_born_month/2,
     input_confirmation/2,
@@ -31,8 +31,10 @@
     code_change/4,
     format_status/2]).
 
--define(SERVER, ?MODULE).
--define(STATE_NAMES, [{gender, <<"性别: "/utf8>>}, {born_month, <<"出生月份: "/utf8>>}]).
+-import(command_dispatcher, [return_text/2]).
+
+-include_lib("wechat_mud/src/nls/register_fsm_nls.hrl").
+-define(STATE_NAMES, [{gender, gender_label}, {born_month, born_month_label}]).
 
 %%%===================================================================
 %%% API
@@ -93,8 +95,38 @@ stop(State) ->
     Reason :: term().
 init([DispatcherPid, Uid]) ->
     error_logger:info_msg("register fsm init~n", []),
-    command_dispatcher:return_text(DispatcherPid, <<"请输入角色的性别"/utf8>>),
-    {ok, input_gender, #{uid => Uid}}.
+    return_text(DispatcherPid, maps:get(select_lang, ?NLS_CONTENT)),
+    {ok, select_lang, #{uid => Uid}}.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Select language
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec select_lang({Lang, DispatcherPid}, State) ->
+    {next_state, NextStateName, NextState} |
+    {next_state, NextStateName, NextState, timeout() | hibernate} |
+    {stop, Reason, NewState} when
+    Lang :: binary(),
+    DispatcherPid :: pid(),
+    State :: map(),
+    NextStateName :: atom(),
+    NextState :: map(),
+    NewState :: map(),
+    Reason :: term().
+select_lang({LangBin, DispatcherPid}, State) ->
+    case ?IS_VALID_LANG(LangBin) of
+        true ->
+            Lang = binary_to_atom(LangBin, utf8),
+            return_text(DispatcherPid, ?NLS(please_input_sex, Lang)),
+            {next_state, input_gender, State#{lang => Lang}};
+        _ ->
+            return_text(DispatcherPid, maps:get(select_lang, ?NLS_CONTENT)),
+            {next_state, select_lang, State}
+    end.
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -114,15 +146,17 @@ init([DispatcherPid, Uid]) ->
     NextState :: map(),
     NewState :: map(),
     Reason :: term().
-input_gender({<<"male">>, DispatcherPid}, State) ->
+input_gender({Gender, DispatcherPid}, State) when Gender == <<"m">> orelse Gender == <<"M">> ->
     input_gender(male, DispatcherPid, State);
-input_gender({<<"female">>, DispatcherPid}, State) ->
+input_gender({Gender, DispatcherPid}, State) when Gender == <<"f">> orelse Gender == <<"F">> ->
     input_gender(female, DispatcherPid, State);
 input_gender({Other, DispatcherPid}, State) ->
-    command_dispatcher:return_text(DispatcherPid, [<<"无效性别: "/utf8>>, Other, <<"\n请输入角色的性别"/utf8>>]),
+    Lang = maps:get(lang, State),
+    return_text(DispatcherPid, [?NLS(invalid_sex, Lang), Other, <<"\n\n">>, ?NLS(please_input_sex, Lang)]),
     {next_state, input_gender, State}.
 input_gender(Gender, DispatcherPid, State) ->
-    command_dispatcher:return_text(DispatcherPid, <<"请输入角色的出生月份"/utf8>>),
+    Lang = maps:get(lang, State),
+    return_text(DispatcherPid, ?NLS(please_input_born_month, Lang)),
     {next_state, input_born_month, maps:put(gender, Gender, State)}.
 
 %%--------------------------------------------------------------------
@@ -146,12 +180,14 @@ input_gender(Gender, DispatcherPid, State) ->
 input_born_month({MonthBin, DispatcherPid}, State) ->
     case valid_month(MonthBin) of
         {ok, Month} ->
+            Lang = maps:get(lang, State),
             NewState = maps:put(born_month, Month, State),
-            GenText = gen_summary_text(?STATE_NAMES, <<>>, NewState),
-            command_dispatcher:return_text(DispatcherPid, GenText),
+            GenText = gen_summary_text(?STATE_NAMES, <<>>, NewState, Lang),
+            return_text(DispatcherPid, GenText),
             {next_state, input_confirmation, NewState#{gen_text => GenText}};
         {false, MonthBin} ->
-            command_dispatcher:return_text(DispatcherPid, [<<"无效月份: "/utf8>>, MonthBin, <<"\n请输入角色的出生月份"/utf8>>]),
+            Lang = maps:get(lang, State),
+            return_text(DispatcherPid, [?NLS(invalid_month, Lang), MonthBin, <<"\n\n">>, ?NLS(please_input_born_month, Lang)]),
             {next_state, input_born_month, State}
     end.
 
@@ -170,23 +206,24 @@ valid_month(MonthBin) ->
             {false, MonthBin}
     end.
 
--spec gen_summary_text(StateNames, AccText, State) -> binary() when
+-spec gen_summary_text(StateNames, AccText, State, Lang) -> binary() when
     StateNames :: [{Key, Desc}],
     Key :: atom(),
     Desc :: binary(),
     AccText :: list(),
-    State :: map().
-gen_summary_text([], AccText, _) ->
-    [AccText, <<"\n确定吗?"/utf8>>];
-gen_summary_text([{Key, Desc} | Tail], AccText, State) ->
-    Value = value_to_binary(maps:get(Key, State)),
-    gen_summary_text(Tail, [AccText, Desc, Value, <<"\n">>], State).
+    State :: map(),
+    Lang :: atom().
+gen_summary_text([], AccText, _, Lang) ->
+    [AccText, <<"\n">>, ?NLS(is_confirmed, Lang)];
+gen_summary_text([{Key, Desc} | Tail], AccText, State, Lang) ->
+    Value = value_to_binary(maps:get(Key, State), Lang),
+    gen_summary_text(Tail, [AccText, ?NLS(Desc, Lang), Value, <<"\n">>], State, Lang).
 
-value_to_binary(Value) when is_integer(Value) ->
+value_to_binary(Value, _) when is_integer(Value) ->
     integer_to_binary(Value);
-value_to_binary(Value) when is_atom(Value) ->
-    atom_to_binary(Value, utf8);
-value_to_binary(Value) ->
+value_to_binary(Value, Lang) when is_atom(Value) ->
+    ?NLS(Value, Lang);
+value_to_binary(Value, _) ->
     Value.
 
 %%--------------------------------------------------------------------
@@ -207,14 +244,17 @@ value_to_binary(Value) ->
     NextState :: map(),
     NewState :: map(),
     Reason :: term().
-input_confirmation({<<"yes">>, DispatcherPid}, State) ->
-    command_dispatcher:return_text(DispatcherPid, <<"欢迎加入"/utf8>>),
+input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"y">> orelse Answer == <<"Y">> ->
+    Lang = maps:get(lang, State),
+    return_text(DispatcherPid, ?NLS(welcome_join, Lang)),
     {stop, done, State};
-input_confirmation({<<"no">>, DispatcherPid}, State) ->
-    command_dispatcher:return_text(DispatcherPid, <<"请输入角色的性别"/utf8>>),
-    {next_state, input_gender, #{uid => maps:get(uid, State)}};
+input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"n">> orelse Answer == <<"N">> ->
+    Lang = maps:get(lang, State),
+    return_text(DispatcherPid, ?NLS(please_input_sex, Lang)),
+    {next_state, input_gender, #{uid => maps:get(uid, State), lang => Lang}};
 input_confirmation({Other, DispatcherPid}, State) ->
-    command_dispatcher:return_text(DispatcherPid, [<<"无效指令: "/utf8>>, Other, <<"\n\n">>, maps:get(gen_text, State)]),
+    Lang = maps:get(lang, State),
+    return_text(DispatcherPid, [?NLS(invalid_command, Lang), Other, <<"\n\n">>, maps:get(gen_text, State)]),
     {next_state, input_confirmation, State}.
 
 %%--------------------------------------------------------------------
