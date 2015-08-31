@@ -32,7 +32,7 @@
     format_status/2]).
 
 -define(SERVER, ?MODULE).
--define(STATE_NAMES, [{gender, "性别: "}, {born_month, "出生月份: "}]).
+-define(STATE_NAMES, [{gender, <<"性别: "/utf8>>}, {born_month, <<"出生月份: "/utf8>>}]).
 
 %%%===================================================================
 %%% API
@@ -93,7 +93,7 @@ stop(State) ->
     Reason :: term().
 init([DispatcherPid, Uid]) ->
     error_logger:info_msg("register fsm init~n", []),
-    command_dispatcher:return_text(DispatcherPid, "请输入角色的性别"),
+    command_dispatcher:return_text(DispatcherPid, <<"请输入角色的性别"/utf8>>),
     {ok, input_gender, #{uid => Uid}}.
 
 %%--------------------------------------------------------------------
@@ -103,25 +103,26 @@ init([DispatcherPid, Uid]) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec input_gender(Gender, State) ->
+-spec input_gender({Gender, DispatcherPid}, State) ->
     {next_state, NextStateName, NextState} |
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
-    Gender :: male | female,
+    Gender :: binary(),
+    DispatcherPid :: pid(),
     State :: map(),
     NextStateName :: atom(),
     NextState :: map(),
     NewState :: map(),
     Reason :: term().
-input_gender({"male", DispatcherPid}, State) ->
+input_gender({<<"male">>, DispatcherPid}, State) ->
     input_gender(male, DispatcherPid, State);
-input_gender({"female", DispatcherPid}, State) ->
+input_gender({<<"female">>, DispatcherPid}, State) ->
     input_gender(female, DispatcherPid, State);
 input_gender({Other, DispatcherPid}, State) ->
-    command_dispatcher:return_text(DispatcherPid, "无效性别: " ++ Other ++ "\n请输入角色的性别"),
+    command_dispatcher:return_text(DispatcherPid, [<<"无效性别: "/utf8>>, Other, <<"\n请输入角色的性别"/utf8>>]),
     {next_state, input_gender, State}.
 input_gender(Gender, DispatcherPid, State) ->
-    command_dispatcher:return_text(DispatcherPid, "请输入角色的出生月份"),
+    command_dispatcher:return_text(DispatcherPid, <<"请输入角色的出生月份"/utf8>>),
     {next_state, input_born_month, maps:put(gender, Gender, State)}.
 
 %%--------------------------------------------------------------------
@@ -131,59 +132,61 @@ input_gender(Gender, DispatcherPid, State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec input_born_month(timeout, State) ->
+-spec input_born_month({MonthBin, DispatcherPid}, State) ->
     {next_state, NextStateName, NextState} |
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
+    MonthBin :: binary(),
+    DispatcherPid :: pid(),
     State :: map(),
     NextStateName :: atom(),
     NextState :: map(),
     NewState :: map(),
     Reason :: term().
-input_born_month({MonthStr, DispatcherPid}, State) ->
-    case valid_month(MonthStr) of
+input_born_month({MonthBin, DispatcherPid}, State) ->
+    case valid_month(MonthBin) of
         {ok, Month} ->
             NewState = maps:put(born_month, Month, State),
-            GenText = gen_summary_text(?STATE_NAMES, "", NewState),
+            GenText = gen_summary_text(?STATE_NAMES, <<>>, NewState),
             command_dispatcher:return_text(DispatcherPid, GenText),
             {next_state, input_confirmation, NewState#{gen_text => GenText}};
-        {false, MonthStr} ->
-            command_dispatcher:return_text(DispatcherPid, "无效月份: " ++ MonthStr ++ "\n请输入角色的出生月份"),
+        {false, MonthBin} ->
+            command_dispatcher:return_text(DispatcherPid, [<<"无效月份: "/utf8>>, MonthBin, <<"\n请输入角色的出生月份"/utf8>>]),
             {next_state, input_born_month, State}
     end.
 
 -spec valid_month(MonthStr) -> {ok, 1..12} | false when
     MonthStr :: string().
-valid_month(MonthStr) ->
+valid_month(MonthBin) ->
     try
-        case list_to_integer(MonthStr) of
+        case binary_to_integer(MonthBin) of
             Month when Month >= 1, Month =< 12 ->
                 {ok, Month};
             _ ->
-                {false, MonthStr}
+                {false, MonthBin}
         end
     catch
         _:_ ->
-            {false, MonthStr}
+            {false, MonthBin}
     end.
 
--spec gen_summary_text(StateNames, AccText, State) -> string() when
+-spec gen_summary_text(StateNames, AccText, State) -> binary() when
     StateNames :: [{Key, Desc}],
     Key :: atom(),
-    Desc :: string(),
-    AccText :: string(),
+    Desc :: binary(),
+    AccText :: list(),
     State :: map().
 gen_summary_text([], AccText, _) ->
-    AccText ++ "\n确定吗?";
+    [AccText, <<"\n确定吗?"/utf8>>];
 gen_summary_text([{Key, Desc} | Tail], AccText, State) ->
-    Value = value_tostring(maps:get(Key, State)),
-    gen_summary_text(Tail, AccText ++ Desc ++ Value ++ "\n", State).
+    Value = value_to_binary(maps:get(Key, State)),
+    gen_summary_text(Tail, [AccText, Desc, Value, <<"\n">>], State).
 
-value_tostring(Value) when is_integer(Value) ->
-    integer_to_list(Value);
-value_tostring(Value) when is_atom(Value) ->
-    atom_to_list(Value);
-value_tostring(Value) ->
+value_to_binary(Value) when is_integer(Value) ->
+    integer_to_binary(Value);
+value_to_binary(Value) when is_atom(Value) ->
+    atom_to_binary(Value, utf8);
+value_to_binary(Value) ->
     Value.
 
 %%--------------------------------------------------------------------
@@ -193,24 +196,25 @@ value_tostring(Value) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec input_confirmation({yes | no, DispatcherPid}, State) ->
+-spec input_confirmation({Event, DispatcherPid}, State) ->
     {next_state, NextStateName, NextState} |
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
     DispatcherPid :: pid(),
     State :: map(),
+    Event :: binary(),
     NextStateName :: atom(),
     NextState :: map(),
     NewState :: map(),
     Reason :: term().
-input_confirmation({"yes", DispatcherPid}, State) ->
-    command_dispatcher:return_text(DispatcherPid, "欢迎加入"),
+input_confirmation({<<"yes">>, DispatcherPid}, State) ->
+    command_dispatcher:return_text(DispatcherPid, <<"欢迎加入"/utf8>>),
     {stop, done, State};
-input_confirmation({"no", DispatcherPid}, State) ->
-    command_dispatcher:return_text(DispatcherPid, "请输入角色的性别"),
+input_confirmation({<<"no">>, DispatcherPid}, State) ->
+    command_dispatcher:return_text(DispatcherPid, <<"请输入角色的性别"/utf8>>),
     {next_state, input_gender, #{uid => maps:get(uid, State)}};
 input_confirmation({Other, DispatcherPid}, State) ->
-    command_dispatcher:return_text(DispatcherPid, "无效指令: " ++ Other ++ "\n\n" ++ maps:get(gen_text, State)),
+    command_dispatcher:return_text(DispatcherPid, [<<"无效指令: "/utf8>>, Other, <<"\n\n">>, maps:get(gen_text, State)]),
     {next_state, input_confirmation, State}.
 
 %%--------------------------------------------------------------------

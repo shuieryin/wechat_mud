@@ -15,7 +15,7 @@
 
 -define(IS_DEBUG, true).
 -define(MAX_TEXT_SIZE, 2048).
--define(EMPTY_RESPONSE, "").
+-define(EMPTY_RESPONSE, <<>>).
 
 %%%===================================================================
 %%% API
@@ -122,12 +122,12 @@ process_request(Req) ->
             ?EMPTY_RESPONSE;
         ReqParamsMap ->
             error_logger:info_msg("ReqParamsMap:~p~n", [ReqParamsMap]),
-            #{'MsgType' := MsgType, 'ToUserName' := PlatformId, 'FromUserName' := UidStr} = ReqParamsMap,
+            #{'MsgType' := MsgType, 'ToUserName' := PlatformId, 'FromUserName' := UidBin} = ReqParamsMap,
 
-            Uid = list_to_atom(UidStr),
-            ReplyText = case list_to_atom(MsgType) of
+            Uid = binary_to_atom(UidBin, utf8),
+            ReplyText = case binary_to_atom(MsgType, utf8) of
                             event ->
-                                case list_to_atom(maps:get('Event', ReqParamsMap)) of
+                                case binary_to_atom(maps:get('Event', ReqParamsMap), utf8) of
                                     subscribe ->
                                         pending_text(login_server, register_uid, [Uid]);
                                     unsubscribe ->
@@ -138,15 +138,15 @@ process_request(Req) ->
                             text ->
                                 % _MsgId = maps:get('MsgId', ReqParamsMap),
                                 % todo: check if there's regsiter fsm, process it if exists.
-                                RawInput = string:strip(maps:get('Content', ReqParamsMap), both, $ ),
-                                [ModuleName | CommandArgs] = string:tokens(RawInput, " "),
+                                RawInput = maps:get('Content', ReqParamsMap),
+                                [ModuleName | CommandArgs] = binary:split(RawInput, <<" ">>),
                                 case login_server:is_in_registration(Uid) of
                                     true ->
                                         pending_text(register_fsm, input, [Uid, RawInput]);
                                     _ ->
                                         try
                                             false = is_integer(ModuleName),
-                                            Module = list_to_atom(ModuleName),
+                                            Module = binary_to_atom(ModuleName, utf8),
                                             true = common_api:is_module_exists(Module),
 
                                             StateMap = #{uid => Uid, args => CommandArgs},
@@ -155,18 +155,18 @@ process_request(Req) ->
                                             pending_text(Module, exec, [StateMap])
                                         catch
                                             error:_ ->
-                                                "不支持该指令: " ++ ModuleName;
+                                                [<<"不支持该指令: "/utf8>> | ModuleName];
                                             Type:Reason ->
                                                 error_logger:error_msg("Command error~n Type:~p~nReason:~p~n", [Type, Reason]),
-                                                "非法指令"
+                                                <<"非法指令"/utf8>>
                                         end
                                 end;
                             _ ->
-                                "暂不支持该类型信息"
+                                <<"暂不支持该类型信息"/utf8>>
                         end,
 
             error_logger:info_msg("ReplyText:~p~n", [ReplyText]),
-            Response = compose_response_xml(Uid, PlatformId, ReplyText),
+            Response = compose_response_xml(UidBin, PlatformId, ReplyText),
             error_logger:info_msg("Response:~ts~n", [Response]),
             Response
     end.
@@ -198,7 +198,7 @@ compose_response_xml(Uid, PlatformId, Content) ->
         ?EMPTY_RESPONSE ->
             ?EMPTY_RESPONSE;
         Response ->
-            list_to_binary([<<"<xml><Content><![CDATA[">>, unicode:characters_to_binary(Response), <<"]]></Content><ToUserName><![CDATA[">>, atom_to_binary(Uid, utf8), <<"]]></ToUserName><FromUserName><![CDATA[">>, list_to_binary(PlatformId), <<"]]></FromUserName><CreateTime>">>, integer_to_binary(timestamp()), <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>])
+            list_to_binary(lists:flatten([<<"<xml><Content><![CDATA[">>, Response, <<"]]></Content><ToUserName><![CDATA[">>, Uid, <<"]]></ToUserName><FromUserName><![CDATA[">>, PlatformId, <<"]]></FromUserName><CreateTime>">>, integer_to_binary(timestamp()), <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>]))
     end.
 
 %%--------------------------------------------------------------------
@@ -233,7 +233,7 @@ parse_xml_request(Req) ->
 unmarshall_params([], ParamsMap) ->
     ParamsMap;
 unmarshall_params([{Key, [], [Value]} | Tail], ParamsMap) ->
-    unmarshall_params(Tail, maps:put(list_to_atom(Key), Value, ParamsMap)).
+    unmarshall_params(Tail, maps:put(list_to_atom(Key), list_to_binary(string:strip(Value, both, $ )), ParamsMap)).
 
 -spec concat_param_content(SrcList, ConcatedParamContent) -> list() when
     SrcList :: list(),

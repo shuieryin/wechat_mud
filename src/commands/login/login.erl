@@ -32,7 +32,7 @@ exec(DispacherPid, State) ->
 %%             register
 %%     end,
 %%     atom_to_list(Uid).
-    command_dispatcher:return_text(DispacherPid, "success:" ++ atom_to_list(Uid)).
+    command_dispatcher:return_text(DispacherPid, [<<"success:">>, atom_to_binary(Uid, utf8)]).
 %%     register_fsm:start_link(Uid).
 
 %%%===================================================================
