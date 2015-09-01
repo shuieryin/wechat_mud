@@ -17,7 +17,7 @@
 -define(IS_DEBUG, true).
 -define(MAX_TEXT_SIZE, 2048).
 -define(EMPTY_RESPONSE, <<>>).
--include_lib("wechat_mud/src/nls/command_dispatcher.hrl").
+-include_lib("wechat_mud/src/nls/command_dispatcher_nls.hrl").
 
 %%%===================================================================
 %%% API
