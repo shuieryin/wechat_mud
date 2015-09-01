@@ -127,7 +127,7 @@ process_request(Req) ->
             #{'MsgType' := MsgType, 'ToUserName' := PlatformId, 'FromUserName' := UidBin} = ReqParamsMap,
 
             Uid = binary_to_atom(UidBin, utf8),
-            {InputForUnregister, FuncForRegsiter} = get_action_from_message_type(MsgType, Uid, ReqParamsMap),
+            {InputForUnregister, FuncForRegsiter} = get_action_from_message_type(MsgType, ReqParamsMap),
             ReplyText = case InputForUnregister of
                             no_reply ->
                                 ?EMPTY_RESPONSE;
@@ -151,13 +151,12 @@ process_request(Req) ->
             Response
     end.
 
--spec get_action_from_message_type(MsgType, Uid, ReqParamsMap) -> {InputForUnregister, FuncForRegsiter} when
+-spec get_action_from_message_type(MsgType, ReqParamsMap) -> {InputForUnregister, FuncForRegsiter} when
     MsgType :: string(),
-    Uid :: atom(),
     ReqParamsMap :: map(),
     InputForUnregister :: binary() | no_reply,
     FuncForRegsiter :: function().
-get_action_from_message_type(MsgType, Uid, ReqParamsMap) ->
+get_action_from_message_type(MsgType, ReqParamsMap) ->
     case binary_to_atom(MsgType, utf8) of
         event ->
             Event = binary_to_atom(maps:get('Event', ReqParamsMap), utf8),
@@ -178,17 +177,16 @@ get_action_from_message_type(MsgType, Uid, ReqParamsMap) ->
             end;
         text ->
             % _MsgId = maps:get('MsgId', ReqParamsMap),
-            % todo: check if there's regsiter fsm, process it if exists.
             RawInput = maps:get('Content', ReqParamsMap),
             [ModuleName | CommandArgs] = binary:split(RawInput, <<" ">>),
-            {RawInput, fun(UidProfile) ->
-                Lang = maps:get(lang, UidProfile),
+            {RawInput, fun(UidProfileMap) ->
+                Lang = maps:get(lang, UidProfileMap),
                 try
                     false = is_integer(ModuleName),
                     Module = binary_to_atom(ModuleName, utf8),
                     true = common_api:is_module_exists(Module),
 
-                    StateMap = #{uid => Uid, args => CommandArgs},
+                    StateMap = UidProfileMap#{args => CommandArgs},
                     error_logger:info_msg("Executing Module:~p, Args:~p~n", [Module, CommandArgs]),
 
                     pending_text(Module, exec, [StateMap])
@@ -201,8 +199,8 @@ get_action_from_message_type(MsgType, Uid, ReqParamsMap) ->
                 end
             end};
         _ ->
-            {<<>>, fun(UidProfile) ->
-                Lang = maps:get(lang, UidProfile),
+            {<<>>, fun(UidProfileMap) ->
+                Lang = maps:get(lang, UidProfileMap),
                 ?NLS(message_type_not_support, Lang)
             end}
     end.
