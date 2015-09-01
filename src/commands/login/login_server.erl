@@ -16,7 +16,9 @@
     is_uid_registered/1,
     is_in_registration/1,
     register_uid/2,
-    registration_done/1]).
+    registration_done/1,
+    get_uid_profile/1,
+    remove_user/1]).
 
 -define(REDIS_REGISTERED_UID_MAP, registered_uid_map).
 -define(REGISTRATION_FSM_MAP, registration_fsm_map).
@@ -65,6 +67,18 @@ is_uid_registered(Uid) ->
 
 %%--------------------------------------------------------------------
 %% @doc
+%% Get user profile
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec get_uid_profile(Uid) -> UidProfile | null when
+    UidProfile :: map(),
+    Uid :: atom().
+get_uid_profile(Uid) ->
+    gen_server:call(?MODULE, {get_uid_profile, Uid}).
+
+%%--------------------------------------------------------------------
+%% @doc
 %% Check if uid is in registration process
 %%
 %% @end
@@ -84,6 +98,11 @@ register_uid(DispatcherUid, Uid) ->
     State :: map().
 registration_done(State) ->
     gen_server:call(?MODULE, {registration_done, State}).
+
+-spec remove_user(Uid) -> no_return() when
+    Uid :: atom().
+remove_user(Uid) ->
+    gen_server:call(?MODULE, {remove_user, Uid}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -136,7 +155,7 @@ init([]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: {is_uid_registered | is_in_registration | registration_done, Uid} |
+    Request :: {is_uid_registered | is_in_registration | registration_done | get_uid_profile | remove_user, Uid} |
     {register_uid, DispatcherPid, Uid},
     Uid :: atom(),
     DispatcherPid :: pid(),
@@ -166,7 +185,12 @@ handle_call({registration_done, UserState}, _From, State) ->
     RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
     RedisRegistrationUidMap = maps:get(?REDIS_REGISTERED_UID_MAP, State),
     Uid = maps:get(uid, UserState),
-    {reply, ok, State#{?REDIS_REGISTERED_UID_MAP => maps:put(Uid, UserState, RedisRegistrationUidMap), ?REGISTRATION_FSM_MAP => maps:remove(Uid, RegistrationFsmMap)}}.
+    {reply, ok, State#{?REDIS_REGISTERED_UID_MAP => maps:put(Uid, UserState, RedisRegistrationUidMap), ?REGISTRATION_FSM_MAP => maps:remove(Uid, RegistrationFsmMap)}};
+handle_call({get_uid_profile, Uid}, _From, State) ->
+    {reply, maps:get(Uid, maps:get(?REDIS_REGISTERED_UID_MAP, State), null), State};
+handle_call({remove_user, Uid}, _From, State) ->
+    RegisteredUidMap = maps:get(?REDIS_REGISTERED_UID_MAP, State),
+    {reply, ok, State#{?REDIS_REGISTERED_UID_MAP := maps:remove(Uid, RegisteredUidMap)}}.
 
 %%--------------------------------------------------------------------
 %% @private

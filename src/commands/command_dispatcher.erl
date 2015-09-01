@@ -1,7 +1,8 @@
 -module(command_dispatcher).
 %% API
 -export([start/1,
-    return_text/2]).
+    return_text/2,
+    pending_text/3]).
 
 %%%-------------------------------------------------------------------
 %%% @author Shuieryin
@@ -16,6 +17,7 @@
 -define(IS_DEBUG, true).
 -define(MAX_TEXT_SIZE, 2048).
 -define(EMPTY_RESPONSE, <<>>).
+-include_lib("wechat_mud/src/nls/command_dispatcher.hrl").
 
 %%%===================================================================
 %%% API
@@ -125,50 +127,84 @@ process_request(Req) ->
             #{'MsgType' := MsgType, 'ToUserName' := PlatformId, 'FromUserName' := UidBin} = ReqParamsMap,
 
             Uid = binary_to_atom(UidBin, utf8),
-            ReplyText = case binary_to_atom(MsgType, utf8) of
-                            event ->
-                                case binary_to_atom(maps:get('Event', ReqParamsMap), utf8) of
-                                    subscribe ->
-                                        pending_text(login_server, register_uid, [Uid]);
-                                    unsubscribe ->
-                                        ?EMPTY_RESPONSE;
-                                    _ ->
-                                        ?EMPTY_RESPONSE
-                                end;
-                            text ->
-                                % _MsgId = maps:get('MsgId', ReqParamsMap),
-                                % todo: check if there's regsiter fsm, process it if exists.
-                                RawInput = maps:get('Content', ReqParamsMap),
-                                [ModuleName | CommandArgs] = binary:split(RawInput, <<" ">>),
-                                case login_server:is_in_registration(Uid) of
-                                    true ->
-                                        pending_text(register_fsm, input, [Uid, RawInput]);
-                                    _ ->
-                                        try
-                                            false = is_integer(ModuleName),
-                                            Module = binary_to_atom(ModuleName, utf8),
-                                            true = common_api:is_module_exists(Module),
-
-                                            StateMap = #{uid => Uid, args => CommandArgs},
-                                            error_logger:info_msg("Executing Module:~p, Args:~p~n", [Module, CommandArgs]),
-
-                                            pending_text(Module, exec, [StateMap])
-                                        catch
-                                            error:_ ->
-                                                [<<"不支持该指令: "/utf8>>, ModuleName];
-                                            Type:Reason ->
-                                                error_logger:error_msg("Command error~n Type:~p~nReason:~p~n", [Type, Reason]),
-                                                <<"非法指令"/utf8>>
-                                        end
-                                end;
+            {InputForUnregister, FuncForRegsiter} = get_action_from_message_type(MsgType, Uid, ReqParamsMap),
+            ReplyText = case InputForUnregister of
+                            no_reply ->
+                                ?EMPTY_RESPONSE;
                             _ ->
-                                <<"暂不支持该类型信息"/utf8>>
+                                case login_server:get_uid_profile(Uid) of
+                                    null ->
+                                        case login_server:is_in_registration(Uid) of
+                                            true ->
+                                                pending_text(register_fsm, input, [Uid, InputForUnregister]);
+                                            _ ->
+                                                pending_text(login_server, register_uid, [Uid])
+                                        end;
+                                    UidProfile ->
+                                        FuncForRegsiter(UidProfile)
+                                end
                         end,
 
             error_logger:info_msg("ReplyText:~p~n", [ReplyText]),
             Response = compose_response_xml(UidBin, PlatformId, ReplyText),
             error_logger:info_msg("Response:~ts~n", [Response]),
             Response
+    end.
+
+-spec get_action_from_message_type(MsgType, Uid, ReqParamsMap) -> {InputForUnregister, FuncForRegsiter} when
+    MsgType :: string(),
+    Uid :: atom(),
+    ReqParamsMap :: map(),
+    InputForUnregister :: binary() | no_reply,
+    FuncForRegsiter :: function().
+get_action_from_message_type(MsgType, Uid, ReqParamsMap) ->
+    case binary_to_atom(MsgType, utf8) of
+        event ->
+            Event = binary_to_atom(maps:get('Event', ReqParamsMap), utf8),
+            case Event of
+                subscribe ->
+                    {<<>>, fun(UidProfile) ->
+                        Lang = maps:get(lang, UidProfile),
+                        ?NLS(welcome_back, Lang)
+                    end};
+                unsubscribe ->
+                    {no_reply, fun(_) ->
+                        ?EMPTY_RESPONSE
+                    end};
+                _ ->
+                    {no_reply, fun(_) ->
+                        ?EMPTY_RESPONSE
+                    end}
+            end;
+        text ->
+            % _MsgId = maps:get('MsgId', ReqParamsMap),
+            % todo: check if there's regsiter fsm, process it if exists.
+            RawInput = maps:get('Content', ReqParamsMap),
+            [ModuleName | CommandArgs] = binary:split(RawInput, <<" ">>),
+            {RawInput, fun(UidProfile) ->
+                Lang = maps:get(lang, UidProfile),
+                try
+                    false = is_integer(ModuleName),
+                    Module = binary_to_atom(ModuleName, utf8),
+                    true = common_api:is_module_exists(Module),
+
+                    StateMap = #{uid => Uid, args => CommandArgs},
+                    error_logger:info_msg("Executing Module:~p, Args:~p~n", [Module, CommandArgs]),
+
+                    pending_text(Module, exec, [StateMap])
+                catch
+                    error:_ ->
+                        [?NLS(invalid_command, Lang), ModuleName];
+                    Type:Reason ->
+                        error_logger:error_msg("Command error~n Type:~p~nReason:~p~n", [Type, Reason]),
+                        ?NLS(invalid_command, Lang)
+                end
+            end};
+        _ ->
+            {<<>>, fun(UidProfile) ->
+                Lang = maps:get(lang, UidProfile),
+                ?NLS(message_type_not_support, Lang)
+            end}
     end.
 
 -spec pending_text(Module, Function, Args) -> string() when

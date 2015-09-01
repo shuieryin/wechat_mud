@@ -117,9 +117,9 @@ init([DispatcherPid, Uid]) ->
     NewState :: map(),
     Reason :: term().
 select_lang({LangBin, DispatcherPid}, State) ->
-    case ?IS_VALID_LANG(LangBin) of
+    Lang = binary_to_atom(LangBin, utf8),
+    case ?IS_VALID_LANG(Lang) of
         true ->
-            Lang = binary_to_atom(LangBin, utf8),
             return_text(DispatcherPid, ?NLS(please_input_sex, Lang)),
             {next_state, input_gender, State#{lang => Lang}};
         _ ->
@@ -152,7 +152,13 @@ input_gender({Gender, DispatcherPid}, State) when Gender == <<"f">> orelse Gende
     input_gender(female, DispatcherPid, State);
 input_gender({Other, DispatcherPid}, State) ->
     Lang = maps:get(lang, State),
-    return_text(DispatcherPid, [?NLS(invalid_sex, Lang), Other, <<"\n\n">>, ?NLS(please_input_sex, Lang)]),
+    InvalidText = case Other of
+                      <<>> ->
+                          [];
+                      SomeInput ->
+                          [?NLS(invalid_sex, Lang), SomeInput, <<"\n\n">>]
+                  end,
+    return_text(DispatcherPid, [InvalidText, ?NLS(please_input_sex, Lang)]),
     {next_state, input_gender, State}.
 input_gender(Gender, DispatcherPid, State) ->
     Lang = maps:get(lang, State),
@@ -187,7 +193,13 @@ input_born_month({MonthBin, DispatcherPid}, State) ->
             {next_state, input_confirmation, NewState#{gen_text => GenText}};
         {false, MonthBin} ->
             Lang = maps:get(lang, State),
-            return_text(DispatcherPid, [?NLS(invalid_month, Lang), MonthBin, <<"\n\n">>, ?NLS(please_input_born_month, Lang)]),
+            InvalidText = case MonthBin of
+                              <<>> ->
+                                  [];
+                              SomeInput ->
+                                  [?NLS(invalid_month, Lang), SomeInput, <<"\n\n">>]
+                          end,
+            return_text(DispatcherPid, [InvalidText, ?NLS(please_input_born_month, Lang)]),
             {next_state, input_born_month, State}
     end.
 
@@ -254,7 +266,13 @@ input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"n">> orelse
     {next_state, input_gender, #{uid => maps:get(uid, State), lang => Lang}};
 input_confirmation({Other, DispatcherPid}, State) ->
     Lang = maps:get(lang, State),
-    return_text(DispatcherPid, [?NLS(invalid_command, Lang), Other, <<"\n\n">>, maps:get(gen_text, State)]),
+    InvalidText = case Other of
+                      <<>> ->
+                          [];
+                      SomeInput ->
+                          [?NLS(invalid_command, Lang), SomeInput, <<"\n\n">>]
+                  end,
+    return_text(DispatcherPid, [InvalidText, maps:get(gen_text, State)]),
     {next_state, input_confirmation, State}.
 
 %%--------------------------------------------------------------------

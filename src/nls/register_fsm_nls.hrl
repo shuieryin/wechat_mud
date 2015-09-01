@@ -16,8 +16,8 @@
     end
 ).
 
--define(NLS_CONTENT, #{
-    select_lang => [<<"请选择语言:\nPlease select language:\n"/utf8>>, [[X, <<"\n">>] || X <- ?SUPPORT_LANGUAGES]],
+-define(NLS_CONTENT, maps:merge(?COMMON_NLS_CONTENT, #{
+    select_lang => [<<"请选择语言:\nPlease select language:\n"/utf8>>, [[atom_to_binary(X, utf8), <<"\n">>] || X <- ?SUPPORT_LANGUAGES]],
 
     gender_label => #{
         zh => <<"性别: "/?ENCODING>>,
@@ -59,11 +59,6 @@
         en => <<"Welcome join">>
     },
 
-    invalid_command => #{
-        zh => <<"无效指令: "/?ENCODING>>,
-        en => <<"Invalid command: ">>
-    },
-
     male => #{
         zh => <<"男"/?ENCODING>>,
         en => <<"Male">>
@@ -74,4 +69,4 @@
         en => <<"Female">>
     }
 
-}).
+})).
