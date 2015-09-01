@@ -8,7 +8,7 @@
 %%%-------------------------------------------------------------------
 -author("Shuieryin").
 
--include("nls_default.hrl").
+-include("default_nls.hrl").
 
 -define(NLS(NlsKey, Lang),
     begin
