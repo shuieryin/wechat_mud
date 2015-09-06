@@ -15,5 +15,8 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module" module-name="cowboy" />
+    <orderEntry type="module" module-name="eredis" />
+    <orderEntry type="module" module-name="erlsom" />
   </component>
 </module>

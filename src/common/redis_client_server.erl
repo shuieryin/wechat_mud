@@ -313,7 +313,10 @@ connect_redis_loop(ParentPid) ->
 save(State) ->
     RedisClientPid = maps:get(redis_client_pid, State),
     {ok, Result} = eredis:q(RedisClientPid, ["SAVE"]),
-    if
-        Result /= <<"OK">> ->
-            error_logger:error_msg("Redis save failed:~p~n", [Result])
+    case Result of
+        <<"OK">> ->
+            ok;
+        Error ->
+            error_logger:error_msg("Redis save failed:~p~n", [Error]),
+            fail
     end.

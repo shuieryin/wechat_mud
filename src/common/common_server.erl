@@ -105,6 +105,7 @@ turn_off_wechat_debug() ->
     State :: map(),
     Reason :: term().
 init([]) ->
+    io:format("~p starting~n", [?MODULE]),
     CommonConfig = case redis_client_server:get(?R_COMMON_CONFIG) of
                        undefined ->
                            NewConfig = #{},
