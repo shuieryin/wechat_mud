@@ -48,12 +48,12 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start(Uid, DispatcherPid) -> {ok, pid()} | ignore | {error, Reason} when
+-spec start(DispatcherPid, Uid) -> {ok, pid()} | ignore | {error, Reason} when
     Uid :: atom(),
     DispatcherPid :: pid(),
     Reason :: term().
 start(DispatcherPid, Uid) ->
-    gen_fsm:start({local, Uid}, ?MODULE, [DispatcherPid, Uid], []).
+    gen_fsm:start({local, Uid}, ?MODULE, [{DispatcherPid, Uid}], []).
 
 -spec input(DispatcherPid, Uid, Input) -> ok when
     Uid :: atom(),
@@ -83,17 +83,17 @@ stop(State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec init({DispatcherPid, Uid}) ->
+-spec init([{DispatcherPid, Uid}]) ->
     {ok, StateName, StateData} |
     {ok, StateName, StateData, timeout() | hibernate} |
     {stop, Reason} |
     ignore when
     DispatcherPid :: pid(),
     Uid :: atom(),
-    StateName :: atom(),
+    StateName :: select_lang,
     StateData :: map(),
     Reason :: term().
-init([DispatcherPid, Uid]) ->
+init([{DispatcherPid, Uid}]) ->
     error_logger:info_msg("register fsm init~n", []),
     return_text(DispatcherPid, maps:get(select_lang, ?NLS_CONTENT)),
     {ok, select_lang, #{uid => Uid}}.
@@ -117,10 +117,10 @@ init([DispatcherPid, Uid]) ->
     NewState :: map(),
     Reason :: term().
 select_lang({LangBin, DispatcherPid}, State) ->
-    Lang = binary_to_atom(LangBin, utf8),
+    Lang = binary_to_atom(LangBin, ?ENCODING),
     case ?IS_VALID_LANG(Lang) of
         true ->
-            return_text(DispatcherPid, ?NLS(please_input_sex, Lang)),
+            return_text(DispatcherPid, ?NLS(please_input_gender, Lang)),
             {next_state, input_gender, State#{lang => Lang}};
         _ ->
             return_text(DispatcherPid, maps:get(select_lang, ?NLS_CONTENT)),
@@ -156,9 +156,9 @@ input_gender({Other, DispatcherPid}, State) ->
                       <<>> ->
                           [];
                       SomeInput ->
-                          [?NLS(invalid_sex, Lang), SomeInput, <<"\n\n">>]
+                          [?NLS(invalid_gender, Lang), SomeInput, <<"\n\n">>]
                   end,
-    return_text(DispatcherPid, [InvalidText, ?NLS(please_input_sex, Lang)]),
+    return_text(DispatcherPid, [InvalidText, ?NLS(please_input_gender, Lang)]),
     {next_state, input_gender, State}.
 input_gender(Gender, DispatcherPid, State) ->
     Lang = maps:get(lang, State),
@@ -179,7 +179,7 @@ input_gender(Gender, DispatcherPid, State) ->
     MonthBin :: binary(),
     DispatcherPid :: pid(),
     State :: map(),
-    NextStateName :: atom(),
+    NextStateName :: input_confirmation | input_born_month,
     NextState :: map(),
     NewState :: map(),
     Reason :: term().
@@ -188,7 +188,7 @@ input_born_month({MonthBin, DispatcherPid}, State) ->
         {ok, Month} ->
             Lang = maps:get(lang, State),
             NewState = maps:put(born_month, Month, State),
-            GenText = gen_summary_text(?STATE_NAMES, <<>>, NewState, Lang),
+            GenText = gen_summary_text(?STATE_NAMES, [], NewState, Lang),
             return_text(DispatcherPid, GenText),
             {next_state, input_confirmation, NewState#{gen_text => GenText}};
         {false, MonthBin} ->
@@ -218,11 +218,11 @@ valid_month(MonthBin) ->
             {false, MonthBin}
     end.
 
--spec gen_summary_text(StateNames, AccText, State, Lang) -> binary() when
+-spec gen_summary_text(StateNames, AccText, State, Lang) -> [binary()] when
     StateNames :: [{Key, Desc}],
     Key :: atom(),
-    Desc :: binary(),
-    AccText :: list(),
+    Desc :: atom(),
+    AccText :: [any()],
     State :: map(),
     Lang :: atom().
 gen_summary_text([], AccText, _, Lang) ->
@@ -262,7 +262,7 @@ input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"y">> orelse
     {stop, done, State};
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"n">> orelse Answer == <<"N">> ->
     Lang = maps:get(lang, State),
-    return_text(DispatcherPid, ?NLS(please_input_sex, Lang)),
+    return_text(DispatcherPid, ?NLS(please_input_gender, Lang)),
     {next_state, input_gender, #{uid => maps:get(uid, State), lang => Lang}};
 input_confirmation({Other, DispatcherPid}, State) ->
     Lang = maps:get(lang, State),

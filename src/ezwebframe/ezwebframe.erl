@@ -210,13 +210,13 @@ mime_type(gif) -> "image/gif";
 mime_type(jpg) -> "image/jpeg";
 mime_type(png) -> "image/png";
 mime_type(css) -> "text/css";
-mime_type(special) -> "text/plain; charset=x-user-defined";
-mime_type(json) -> "application/json";
-mime_type(swf) -> "application/x-shockwave-flash";
+%% mime_type(special) -> "text/plain; charset=x-user-defined";
+%% mime_type(json) -> "application/json";
+%% mime_type(swf) -> "application/x-shockwave-flash";
 mime_type(html) -> "text/html";
-mime_type(xul) -> "application/vnd.mozilla.xul+xml";
-mime_type(js) -> "application/x-javascript";
-mime_type(svg) -> "image/svg+xml".
+%% mime_type(xul) -> "application/vnd.mozilla.xul+xml";
+%% mime_type(svg) -> "image/svg+xml";
+mime_type(js) -> "application/x-javascript".
 
 pre(X) ->
     ["<pre>\n", quote(lists:flatten(io_lib:format("~p", [X]))), "</pre>"].

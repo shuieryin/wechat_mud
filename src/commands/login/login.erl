@@ -22,11 +22,11 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispacherPid, State) -> string() when
-    State :: map(),
+-spec exec(DispacherPid, UidProfile) -> no_return() when
+    UidProfile :: command_dispatcher:uid_profile(),
     DispacherPid :: pid().
-exec(DispacherPid, State) ->
-    Uid = maps:get(uid, State),
+exec(DispacherPid, UidProfile) ->
+    Uid = maps:get(uid, UidProfile),
 %%     case login_server:is_uid_registered(Uid) of
 %%         false ->
 %%             register

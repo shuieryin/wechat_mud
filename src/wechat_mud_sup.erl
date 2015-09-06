@@ -34,6 +34,14 @@ init([]) ->
                 [redis_client_server]
             },
 
+            {common,
+                {common_server, start_link, []},
+                permanent,
+                10000,
+                worker,
+                [common_server]
+            },
+
             {login,
                 {login_server, start_link, []},
                 permanent,

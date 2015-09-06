@@ -1,27 +1,21 @@
-%%%-------------------------------------------------------------------
+
 %%% @author Shuieryin
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
 %%% @end
-%%% Created : 25. Aug 2015 9:11 PM
+%%% Created : 03. Sep 2015 3:50 PM
 %%%-------------------------------------------------------------------
--module(login_server).
+-module(common_server).
 -author("Shuieryin").
 
 -behaviour(gen_server).
 
 %% API
 -export([start_link/0,
-    is_uid_registered/1,
-    is_in_registration/1,
-    register_uid/2,
-    registration_done/1,
-    get_uid_profile/1,
-    remove_user/1]).
-
--define(R_REGISTERED_UID_MAP, registered_uid_map).
--define(REGISTRATION_FSM_MAP, registration_fsm_map).
+    is_wechat_debug/0,
+    turn_on_wechat_debug/0,
+    turn_off_wechat_debug/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -33,6 +27,8 @@
     format_status/2]).
 
 -define(SERVER, ?MODULE).
+-define(R_COMMON_CONFIG, common_config).
+-define(DEFAULT_WECHAT_DEBUG_MODE, true).
 
 %%%===================================================================
 %%% API
@@ -56,54 +52,33 @@ start_link() ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Check if uid is registered
+%% check is in wechat debug mode
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec is_uid_registered(Uid) -> boolean() when
-    Uid :: atom().
-is_uid_registered(Uid) ->
-    gen_server:call(?MODULE, {is_uid_registered, Uid}).
+-spec is_wechat_debug() -> boolean().
+is_wechat_debug() ->
+    gen_server:call(?MODULE, {is_wechat_debug}).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Get user profile
+%% turn on wechat debug mode
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_uid_profile(Uid) -> UidProfile | null when
-    UidProfile :: map(),
-    Uid :: atom().
-get_uid_profile(Uid) ->
-    gen_server:call(?MODULE, {get_uid_profile, Uid}).
+-spec turn_on_wechat_debug() -> boolean().
+turn_on_wechat_debug() ->
+    gen_server:call(?MODULE, {set_wechat_debug, true}).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Check if uid is in registration process
+%% turn off wechat debug mode
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec is_in_registration(Uid) -> boolean() when
-    Uid :: atom().
-is_in_registration(Uid) ->
-    gen_server:call(?MODULE, {is_in_registration, Uid}).
-
--spec register_uid(DispatcherUid, Uid) -> no_return() when
-    Uid :: atom(),
-    DispatcherUid :: pid().
-register_uid(DispatcherUid, Uid) ->
-    gen_server:call(?MODULE, {register_uid, DispatcherUid, Uid}).
-
--spec registration_done(State) -> ok when
-    State :: map().
-registration_done(State) ->
-    gen_server:call(?MODULE, {registration_done, State}),
-    ok.
-
--spec remove_user(Uid) -> no_return() when
-    Uid :: atom().
-remove_user(Uid) ->
-    gen_server:call(?MODULE, {remove_user, Uid}).
+-spec turn_off_wechat_debug() -> boolean().
+turn_off_wechat_debug() ->
+    gen_server:call(?MODULE, {set_wechat_debug, false}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -130,16 +105,15 @@ remove_user(Uid) ->
     State :: map(),
     Reason :: term().
 init([]) ->
-    io:format("~p starting~n", [?MODULE]),
-    RegisteredUidMap = case redis_client_server:get(?R_REGISTERED_UID_MAP) of
-                           undefined ->
-                               NewMap = #{},
-                               redis_client_server:set(?R_REGISTERED_UID_MAP, NewMap, true),
-                               NewMap;
-                           OldMap ->
-                               OldMap
-                       end,
-    {ok, #{?R_REGISTERED_UID_MAP => RegisteredUidMap, ?REGISTRATION_FSM_MAP => #{}}}.
+    CommonConfig = case redis_client_server:get(?R_COMMON_CONFIG) of
+                       undefined ->
+                           NewConfig = #{},
+                           redis_client_server:set(?R_COMMON_CONFIG, NewConfig, true),
+                           NewConfig;
+                       ReturnValue ->
+                           ReturnValue
+                   end,
+    {ok, CommonConfig}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -156,42 +130,17 @@ init([]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: {is_uid_registered | is_in_registration | registration_done | get_uid_profile | remove_user, Uid} |
-    {register_uid, DispatcherPid, Uid},
-    Uid :: atom(),
-    DispatcherPid :: pid(),
+    Request :: {is_wechat_debug} | {set_wechat_debug, boolean()},
     From :: {pid(), Tag :: term()},
     Reply :: term(),
     State :: map(),
     NewState :: map(),
     Reason :: term().
-handle_call({is_uid_registered, Uid}, _From, State) ->
-    RegisteredUidMap = maps:get(?R_REGISTERED_UID_MAP, State),
-    {reply, maps:is_key(Uid, RegisteredUidMap), State};
-handle_call({is_in_registration, Uid}, _From, State) ->
-    RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
-    {reply, maps:is_key(Uid, RegistrationFsmMap), State};
-handle_call({register_uid, DispatcherPid, Uid}, _From, State) ->
-    RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
-    case maps:is_key(Uid, RegistrationFsmMap) of
-        false ->
-            {ok, FsmPid} = register_fsm:start(DispatcherPid, Uid),
-            UpdatedState = State#{?REGISTRATION_FSM_MAP => maps:put(Uid, FsmPid, RegistrationFsmMap)};
-        _ ->
-            gen_fsm:send_all_state_event(Uid, {restart, DispatcherPid}),
-            UpdatedState = State
-    end,
-    {reply, ok, UpdatedState};
-handle_call({registration_done, UserState}, _From, State) ->
-    RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
-    RedisRegistrationUidMap = maps:get(?R_REGISTERED_UID_MAP, State),
-    Uid = maps:get(uid, UserState),
-    {reply, ok, State#{?R_REGISTERED_UID_MAP => maps:put(Uid, UserState, RedisRegistrationUidMap), ?REGISTRATION_FSM_MAP => maps:remove(Uid, RegistrationFsmMap)}};
-handle_call({get_uid_profile, Uid}, _From, State) ->
-    {reply, maps:get(Uid, maps:get(?R_REGISTERED_UID_MAP, State), null), State};
-handle_call({remove_user, Uid}, _From, State) ->
-    RegisteredUidMap = maps:get(?R_REGISTERED_UID_MAP, State),
-    {reply, ok, State#{?R_REGISTERED_UID_MAP := maps:remove(Uid, RegisteredUidMap)}}.
+handle_call({is_wechat_debug}, _From, State) ->
+    IsWechatDebug = maps:get(is_wechat_debug, State, ?DEFAULT_WECHAT_DEBUG_MODE),
+    {reply, IsWechatDebug, State};
+handle_call({set_wechat_debug, IsOn}, _From, State) ->
+    {reply, IsOn, maps:put(is_wechat_debug, IsOn, State)}.
 
 %%--------------------------------------------------------------------
 %% @private

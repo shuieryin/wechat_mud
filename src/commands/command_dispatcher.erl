@@ -14,10 +14,13 @@
 %%%-------------------------------------------------------------------
 -author("Shuieryin").
 
--define(IS_DEBUG, true).
 -define(MAX_TEXT_SIZE, 2048).
 -define(EMPTY_RESPONSE, <<>>).
 -include_lib("wechat_mud/src/nls/command_dispatcher_nls.hrl").
+
+-export_type([uid_profile/0]).
+
+-type uid_profile() :: #{uid => atom(), gender => atom(), born_month => 1..12, args => [term()]}.
 
 %%%===================================================================
 %%% API
@@ -34,7 +37,8 @@
 start(Req) ->
     case cowboy_req:qs(Req) of
         <<>> ->
-            case ?IS_DEBUG of
+            IsWechatDebug = common_server:is_wechat_debug(),
+            case IsWechatDebug of
                 true ->
                     process_request(Req);
                 _ ->
@@ -70,9 +74,9 @@ gen_qs_params_map(Pos, Bin, ParamsMap) ->
     {KeyBin, CurPosByKey} = qs_key(binary:at(Bin, CurPosByValue), [], CurPosByValue - 1, Bin),
     gen_qs_params_map(CurPosByKey, Bin, maps:put(binary_to_atom(KeyBin, unicode), ValueBin, ParamsMap)).
 
--spec qs_key(CurByte, KeyBinList, Pos, SrcBin) -> binary() when
-    CurByte :: binary(),
-    KeyBinList :: list(),
+-spec qs_key(CurByte, KeyBinList, Pos, SrcBin) -> {binary(), integer()} when
+    CurByte :: byte(),
+    KeyBinList :: [byte()],
     Pos :: integer(),
     SrcBin :: binary().
 qs_key($&, KeyBinList, Pos, _) ->
@@ -82,9 +86,9 @@ qs_key(CurByte, KeyBinList, -1, _) ->
 qs_key(CurByte, KeyBinList, Pos, SrcBin) ->
     qs_key(binary:at(SrcBin, Pos), [CurByte | KeyBinList], Pos - 1, SrcBin).
 
--spec qs_value(CurByte, ValueBinList, Pos, SrcBin) -> binary() when
-    CurByte :: binary(),
-    ValueBinList :: list(),
+-spec qs_value(CurByte, ValueBinList, Pos, SrcBin) -> {binary(), integer()} when
+    CurByte :: byte(),
+    ValueBinList :: [byte()],
     Pos :: integer(),
     SrcBin :: binary().
 qs_value($=, ValueBinList, Pos, _) ->
@@ -116,7 +120,7 @@ generate_signature(OriginParamList) ->
     SortedParamContent = lists:sort(ConcatedParamContent),
     string:to_lower(sha1:hexstring(SortedParamContent)).
 
--spec process_request(Req) -> string() when
+-spec process_request(Req) -> binary() when
     Req :: cowboy_req:req().
 process_request(Req) ->
     case parse_xml_request(Req) of
@@ -126,11 +130,11 @@ process_request(Req) ->
             error_logger:info_msg("ReqParamsMap:~p~n", [ReqParamsMap]),
             #{'MsgType' := MsgType, 'ToUserName' := PlatformId, 'FromUserName' := UidBin} = ReqParamsMap,
 
-            Uid = binary_to_atom(UidBin, utf8),
+            Uid = binary_to_atom(UidBin, ?ENCODING),
             {InputForUnregister, FuncForRegsiter} = get_action_from_message_type(MsgType, ReqParamsMap),
             ReplyText = case InputForUnregister of
                             no_reply ->
-                                ?EMPTY_RESPONSE;
+                                FuncForRegsiter();
                             _ ->
                                 case login_server:get_uid_profile(Uid) of
                                     null ->
@@ -152,14 +156,14 @@ process_request(Req) ->
     end.
 
 -spec get_action_from_message_type(MsgType, ReqParamsMap) -> {InputForUnregister, FuncForRegsiter} when
-    MsgType :: string(),
+    MsgType :: binary(),
     ReqParamsMap :: map(),
     InputForUnregister :: binary() | no_reply,
     FuncForRegsiter :: function().
 get_action_from_message_type(MsgType, ReqParamsMap) ->
-    case binary_to_atom(MsgType, utf8) of
+    case binary_to_atom(MsgType, ?ENCODING) of
         event ->
-            Event = binary_to_atom(maps:get('Event', ReqParamsMap), utf8),
+            Event = binary_to_atom(maps:get('Event', ReqParamsMap), ?ENCODING),
             case Event of
                 subscribe ->
                     {<<>>, fun(UidProfile) ->
@@ -167,11 +171,11 @@ get_action_from_message_type(MsgType, ReqParamsMap) ->
                         ?NLS(welcome_back, Lang)
                     end};
                 unsubscribe ->
-                    {no_reply, fun(_) ->
+                    {no_reply, fun() ->
                         ?EMPTY_RESPONSE
                     end};
                 _ ->
-                    {no_reply, fun(_) ->
+                    {no_reply, fun() ->
                         ?EMPTY_RESPONSE
                     end}
             end;
@@ -183,7 +187,7 @@ get_action_from_message_type(MsgType, ReqParamsMap) ->
                 Lang = maps:get(lang, UidProfileMap),
                 try
                     false = is_integer(ModuleName),
-                    Module = binary_to_atom(ModuleName, utf8),
+                    Module = binary_to_atom(ModuleName, ?ENCODING),
                     true = common_api:is_module_exists(Module),
 
                     StateMap = UidProfileMap#{args => CommandArgs},
@@ -217,11 +221,12 @@ pending_text(Module, Function, Args) ->
             ReturnText
     end.
 
--spec return_text(DispatcherPid, ReturnText) -> no_return() when
-    ReturnText :: string(),
+-spec return_text(DispatcherPid, ReturnText) -> ok when
+    ReturnText :: binary() | [binary()],
     DispatcherPid :: pid().
 return_text(DispatcherPid, ReturnText) ->
-    DispatcherPid ! {execed, DispatcherPid, ReturnText}.
+    DispatcherPid ! {execed, DispatcherPid, ReturnText},
+    ok.
 
 -spec compose_response_xml(Uid, PlatformId, Content) -> binary() when
     Uid :: term(),

@@ -22,11 +22,11 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispacherPid, State) -> string() when
-    State :: map(),
+-spec exec(DispacherPid, UidProfile) -> string() when
+    UidProfile :: command_dispatcher:uid_profile(),
     DispacherPid :: pid().
-exec(DispacherPid, State) ->
-    Uid = maps:get(uid, State),
+exec(DispacherPid, UidProfile) ->
+    Uid = maps:get(uid, UidProfile),
     login_server:remove_user(Uid),
     login_server:register_uid(DispacherPid, Uid).
 

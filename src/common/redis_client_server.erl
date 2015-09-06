@@ -15,7 +15,8 @@
 -export([start_link/0,
     reconnect_redis/0,
     get/1,
-    set/2]).
+    set/3,
+    save/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -64,7 +65,7 @@ reconnect_redis() ->
 %% @end
 %%--------------------------------------------------------------------
 -spec get(Key) -> ReturnValue when
-    Key :: string(),
+    Key :: atom(),
     ReturnValue :: term() | undefined.
 get(Key) ->
     gen_server:call(?MODULE, {get, Key}).
@@ -75,12 +76,23 @@ get(Key) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec set(Key, Value) -> Result when
-    Key :: string(),
+-spec set(Key, Value, IsSave) -> Result when
+    Key :: atom(),
     Value :: term(),
+    IsSave :: boolean(),
     Result :: boolean().
-set(Key, Value) ->
-    gen_server:call(?MODULE, {set, Key, Value}).
+set(Key, Value, IsSave) ->
+    gen_server:call(?MODULE, {set, Key, Value, IsSave}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Save
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec save() -> no_return().
+save() ->
+    gen_server:call(?MODULE, {save}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -125,7 +137,7 @@ init([]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: {get, Key} | {set, Key, Value},
+    Request :: {get, Key} | {set, Key, Value} | {connect_redis | save},
     Key :: term(),
     Value :: term(),
     From :: {pid(), Tag :: term()},
@@ -145,7 +157,7 @@ handle_call({get, Key}, _From, State) ->
                     undefined
             end,
     {reply, Value, State};
-handle_call({set, Key, Value}, _From, State) ->
+handle_call({set, Key, Value, IsSave}, _From, State) ->
     RedisClientPid = maps:get(redis_client_pid, State),
     IsSet = case eredis:q(RedisClientPid, ["SET", Key, Value]) of
                 {ok, <<"OK">>} ->
@@ -154,9 +166,16 @@ handle_call({set, Key, Value}, _From, State) ->
                     error_logger:error_msg("Redis set value failed~n Type:~p, Reason:~p~n", [Type, Reason]),
                     false
             end,
+    if
+        IsSave == true ->
+            save(State)
+    end,
     {reply, IsSet, State};
 handle_call({connect_redis}, _From, State) ->
-    {rpely, ok, connect_reids(State)}.
+    {rpely, ok, connect_reids(State)};
+handle_call({save}, _From, State) ->
+    save(State),
+    {rpely, ok, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -257,6 +276,8 @@ format_status(Opt, StatusData) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+-spec connect_reids(State) -> map() when
+    State :: map().
 connect_reids(State) ->
     SelfPid = self(),
     ConnectRedisPid = spawn(
@@ -269,6 +290,9 @@ connect_reids(State) ->
         {connected, ConnectRedisPid, ClientPid} ->
             maps:put(redis_client_pid, ClientPid, State)
     end.
+
+-spec connect_redis_loop(ParentPid) -> no_return() when
+    ParentPid :: pid().
 connect_redis_loop(ParentPid) ->
     receive
         {connect, ParentPid} ->
@@ -282,4 +306,14 @@ connect_redis_loop(ParentPid) ->
     after
         1000 ->
             self() ! {connect, ParentPid}
+    end.
+
+-spec save(State) -> no_return() when
+    State :: map().
+save(State) ->
+    RedisClientPid = maps:get(redis_client_pid, State),
+    {ok, Result} = eredis:q(RedisClientPid, ["SAVE"]),
+    if
+        Result /= <<"OK">> ->
+            error_logger:error_msg("Redis save failed:~p~n", [Result])
     end.

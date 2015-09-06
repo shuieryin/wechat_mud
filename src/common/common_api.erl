@@ -46,8 +46,9 @@ is_module_exists(Module) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec type_of(X) -> tuple() when
-    X :: term().
+-spec type_of(X) -> Result when
+    X :: term(),
+    Result :: atom | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple | unknown.
 type_of(X) when is_integer(X) -> integer;
 type_of(X) when is_float(X) -> float;
 type_of(X) when is_list(X) -> list;

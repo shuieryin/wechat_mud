@@ -17,7 +17,7 @@
 ).
 
 -define(NLS_CONTENT, maps:merge(?COMMON_NLS_CONTENT, #{
-    select_lang => [<<"请选择语言:\nPlease select language:\n"/utf8>>, [[atom_to_binary(X, utf8), <<"\n">>] || X <- ?SUPPORT_LANGUAGES]],
+    select_lang => [<<"请选择语言:\nPlease select language:\n"/?ENCODING>>, [[atom_to_binary(X, ?ENCODING), <<"\n">>] || X <- ?SUPPORT_LANGUAGES]],
 
     gender_label => #{
         zh => <<"性别: "/?ENCODING>>,
@@ -29,14 +29,14 @@
         en => <<"Born month: ">>
     },
 
-    please_input_sex => #{
+    please_input_gender => #{
         zh => <<"请输入角色的性别:\n(男-m / 女-f)"/?ENCODING>>,
-        en => <<"Please input sex:\n(Male-m / Female-f)">>
+        en => <<"Please input gender:\n(Male-m / Female-f)">>
     },
 
-    invalid_sex => #{
+    invalid_gender => #{
         zh => <<"无效性别: "/?ENCODING>>,
-        en => <<"Invalid sex: ">>
+        en => <<"Invalid gender: ">>
     },
 
     please_input_born_month => #{
