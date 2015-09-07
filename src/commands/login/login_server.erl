@@ -136,8 +136,9 @@ init([]) ->
                                NewMap = #{},
                                redis_client_server:set(?R_REGISTERED_UID_MAP, NewMap, true),
                                NewMap;
-                           OldMap ->
-                               OldMap
+                           ExistingMap ->
+                               error_logger:info_msg("ExistingMap found:~p~n", [ExistingMap]),
+                               ExistingMap
                        end,
     {ok, #{?R_REGISTERED_UID_MAP => RegisteredUidMap, ?REGISTRATION_FSM_MAP => #{}}}.
 
@@ -185,8 +186,12 @@ handle_call({register_uid, DispatcherPid, Uid}, _From, State) ->
 handle_call({registration_done, UserState}, _From, State) ->
     RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
     RedisRegistrationUidMap = maps:get(?R_REGISTERED_UID_MAP, State),
+
     Uid = maps:get(uid, UserState),
-    {reply, ok, State#{?R_REGISTERED_UID_MAP => maps:put(Uid, UserState, RedisRegistrationUidMap), ?REGISTRATION_FSM_MAP => maps:remove(Uid, RegistrationFsmMap)}};
+    UpdatedRedisRegistrationUidMap = maps:put(Uid, UserState, RedisRegistrationUidMap),
+    redis_client_server:set(?R_REGISTERED_UID_MAP, UpdatedRedisRegistrationUidMap, true),
+
+    {reply, ok, State#{?R_REGISTERED_UID_MAP => UpdatedRedisRegistrationUidMap, ?REGISTRATION_FSM_MAP => maps:remove(Uid, RegistrationFsmMap)}};
 handle_call({get_uid_profile, Uid}, _From, State) ->
     {reply, maps:get(Uid, maps:get(?R_REGISTERED_UID_MAP, State), null), State};
 handle_call({remove_user, Uid}, _From, State) ->

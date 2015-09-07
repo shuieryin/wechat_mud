@@ -190,7 +190,7 @@ input_born_month({MonthBin, DispatcherPid}, State) ->
             NewState = maps:put(born_month, Month, State),
             GenText = gen_summary_text(?STATE_NAMES, [], NewState, Lang),
             return_text(DispatcherPid, GenText),
-            {next_state, input_confirmation, NewState#{gen_text => GenText}};
+            {next_state, input_confirmation, NewState#{confirmation_text => GenText}};
         {false, MonthBin} ->
             Lang = maps:get(lang, State),
             InvalidText = case MonthBin of
@@ -259,7 +259,7 @@ value_to_binary(Value, _) ->
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"y">> orelse Answer == <<"Y">> ->
     Lang = maps:get(lang, State),
     return_text(DispatcherPid, ?NLS(welcome_join, Lang)),
-    {stop, done, State};
+    {stop, done, maps:remove(confirmation_text, State)};
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"n">> orelse Answer == <<"N">> ->
     Lang = maps:get(lang, State),
     return_text(DispatcherPid, ?NLS(please_input_gender, Lang)),
@@ -272,7 +272,7 @@ input_confirmation({Other, DispatcherPid}, State) ->
                       SomeInput ->
                           [?NLS(invalid_command, Lang), SomeInput, <<"\n\n">>]
                   end,
-    return_text(DispatcherPid, [InvalidText, maps:get(gen_text, State)]),
+    return_text(DispatcherPid, [InvalidText, maps:get(confirmation_text, State)]),
     {next_state, input_confirmation, State}.
 
 %%--------------------------------------------------------------------
