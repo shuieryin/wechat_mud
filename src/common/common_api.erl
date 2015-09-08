@@ -1,7 +1,8 @@
 -module(common_api).
 %% API
 -export([is_module_exists/1,
-    type_of/1]).
+    type_of/1,
+    timestamp/0]).
 
 %%%-------------------------------------------------------------------
 %%% @author Shuieryin
@@ -62,6 +63,17 @@ type_of(X) when is_port(X) -> port;
 type_of(X) when is_reference(X) -> reference;
 type_of(X) when is_atom(X) -> atom;
 type_of(_X) -> unknown.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% timestamp long
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec timestamp() -> integer().
+timestamp() ->
+    {Hour, Minute, _} = os:timestamp(),
+    Hour * 1000000 + Minute.
 
 %%%===================================================================
 %%% Internal functions

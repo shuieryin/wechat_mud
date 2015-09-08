@@ -259,7 +259,9 @@ value_to_binary(Value, _) ->
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"y">> orelse Answer == <<"Y">> ->
     Lang = maps:get(lang, State),
     return_text(DispatcherPid, ?NLS(welcome_join, Lang)),
-    {stop, done, maps:remove(confirmation_text, State)};
+    State1 = maps:put(register_time, common_api:timestamp(), State),
+    State2 = maps:remove(confirmation_text, State1),
+    {stop, done, State2};
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"n">> orelse Answer == <<"N">> ->
     Lang = maps:get(lang, State),
     return_text(DispatcherPid, ?NLS(please_input_gender, Lang)),

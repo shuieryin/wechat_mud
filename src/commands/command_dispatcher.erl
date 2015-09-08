@@ -237,7 +237,16 @@ compose_response_xml(Uid, PlatformId, Content) ->
         ?EMPTY_RESPONSE ->
             ?EMPTY_RESPONSE;
         Response ->
-            ResponseList = lists:flatten([<<"<xml><Content><![CDATA[">>, Response, <<"]]></Content><ToUserName><![CDATA[">>, Uid, <<"]]></ToUserName><FromUserName><![CDATA[">>, PlatformId, <<"]]></FromUserName><CreateTime>">>, integer_to_binary(timestamp()), <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>]),
+            ResponseList = lists:flatten([<<"<xml><Content><![CDATA[">>,
+                Response,
+                <<"]]></Content><ToUserName><![CDATA[">>,
+                Uid,
+                <<"]]></ToUserName><FromUserName><![CDATA[">>,
+                PlatformId,
+                <<"]]></FromUserName><CreateTime>">>,
+                integer_to_binary(common_api:timestamp()),
+                <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>]),
+
             error_logger:info_msg("ResponseList:~p~n", [ResponseList]),
             list_to_binary(ResponseList)
     end.
@@ -283,8 +292,3 @@ concat_param_content([], ConcatedParamContent) ->
     lists:reverse(ConcatedParamContent);
 concat_param_content([{_, ParamContent} | Tail], ConcatedParamContent) ->
     concat_param_content(Tail, [ParamContent | ConcatedParamContent]).
-
--spec timestamp() -> integer().
-timestamp() ->
-    {Hour, Minute, _} = os:timestamp(),
-    Hour * 1000000 + Minute.
