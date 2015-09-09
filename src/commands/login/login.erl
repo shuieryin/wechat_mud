@@ -26,14 +26,8 @@
     UidProfile :: command_dispatcher:uid_profile(),
     DispacherPid :: pid().
 exec(DispacherPid, UidProfile) ->
-    Uid = maps:get(uid, UidProfile),
-%%     case login_server:is_uid_registered(Uid) of
-%%         false ->
-%%             register
-%%     end,
-%%     atom_to_list(Uid).
+    #{uid := Uid} = UidProfile,
     command_dispatcher:return_text(DispacherPid, [<<"success:">>, atom_to_binary(Uid, utf8)]).
-%%     register_fsm:start_link(Uid).
 
 %%%===================================================================
 %%% Internal functions

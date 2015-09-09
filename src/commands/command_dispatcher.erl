@@ -136,16 +136,16 @@ process_request(Req) ->
                             no_reply ->
                                 FuncForRegsiter();
                             _ ->
-                                case login_server:get_uid_profile(Uid) of
-                                    null ->
-                                        case login_server:is_in_registration(Uid) of
-                                            true ->
-                                                pending_text(register_fsm, input, [Uid, InputForUnregister]);
-                                            _ ->
-                                                pending_text(login_server, register_uid, [Uid])
-                                        end;
-                                    UidProfile ->
-                                        FuncForRegsiter(UidProfile)
+                                case login_server:is_in_registration(Uid) of
+                                    true ->
+                                        pending_text(register_fsm, input, [Uid, InputForUnregister]);
+                                    _ ->
+                                        case login_server:get_uid_profile(Uid) of
+                                            null ->
+                                                pending_text(login_server, register_uid, [Uid]);
+                                            UidProfile ->
+                                                FuncForRegsiter(UidProfile)
+                                        end
                                 end
                         end,
 
@@ -190,10 +190,20 @@ get_action_from_message_type(MsgType, ReqParamsMap) ->
                     Module = binary_to_atom(ModuleName, ?ENCODING),
                     true = common_api:is_module_exists(Module),
 
-                    StateMap = UidProfileMap#{args => CommandArgs},
-                    error_logger:info_msg("Executing Module:~p, Args:~p~n", [Module, CommandArgs]),
+                    Arity = length(CommandArgs),
+                    Args = case Arity of
+                               0 ->
+                                   [UidProfileMap];
+                               _ ->
+                                   [UidProfileMap, CommandArgs]
+                           end,
 
-                    pending_text(Module, exec, [StateMap])
+                    case erlang:function_exported(Module, exec, Arity + 2) of
+                        true ->
+                            pending_text(Module, exec, Args);
+                        _ ->
+                            [?NLS(invalid_argument, Lang), CommandArgs, <<"\n\n">>, apply(Module, info, [Lang])]
+                    end
                 catch
                     error:_ ->
                         [?NLS(invalid_command, Lang), ModuleName];
@@ -209,7 +219,7 @@ get_action_from_message_type(MsgType, ReqParamsMap) ->
             end}
     end.
 
--spec pending_text(Module, Function, Args) -> string() when
+-spec pending_text(Module, Function, Args) -> [binary()] when
     Module :: atom(),
     Function :: atom(),
     Args :: [term()].

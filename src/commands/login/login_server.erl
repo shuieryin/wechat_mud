@@ -92,12 +92,12 @@ is_in_registration(Uid) ->
     Uid :: atom(),
     DispatcherUid :: pid().
 register_uid(DispatcherUid, Uid) ->
-    gen_server:call(?MODULE, {register_uid, DispatcherUid, Uid}).
+    gen_server:cast(?MODULE, {register_uid, DispatcherUid, Uid}).
 
 -spec registration_done(State) -> ok when
     State :: map().
 registration_done(State) ->
-    gen_server:call(?MODULE, {registration_done, State}),
+    gen_server:cast(?MODULE, {registration_done, State}),
     ok.
 
 -spec remove_user(Uid) -> no_return() when
@@ -157,10 +157,8 @@ init([]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: {is_uid_registered | is_in_registration | registration_done | get_uid_profile | remove_user, Uid} |
-    {register_uid, DispatcherPid, Uid},
+    Request :: {is_uid_registered | is_in_registration | registration_done | get_uid_profile | remove_user, Uid},
     Uid :: atom(),
-    DispatcherPid :: pid(),
     From :: {pid(), Tag :: term()},
     Reply :: term(),
     State :: map(),
@@ -171,32 +169,15 @@ handle_call({is_uid_registered, Uid}, _From, State) ->
     {reply, maps:is_key(Uid, RegisteredUidMap), State};
 handle_call({is_in_registration, Uid}, _From, State) ->
     RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
-    {reply, maps:is_key(Uid, RegistrationFsmMap), State};
-handle_call({register_uid, DispatcherPid, Uid}, _From, State) ->
-    RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
-    case maps:is_key(Uid, RegistrationFsmMap) of
-        false ->
-            {ok, FsmPid} = register_fsm:start(DispatcherPid, Uid),
-            UpdatedState = State#{?REGISTRATION_FSM_MAP => maps:put(Uid, FsmPid, RegistrationFsmMap)};
-        _ ->
-            gen_fsm:send_all_state_event(Uid, {restart, DispatcherPid}),
-            UpdatedState = State
-    end,
-    {reply, ok, UpdatedState};
-handle_call({registration_done, UserState}, _From, State) ->
-    RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
-    RedisRegistrationUidMap = maps:get(?R_REGISTERED_UID_MAP, State),
-
-    Uid = maps:get(uid, UserState),
-    UpdatedRedisRegistrationUidMap = maps:put(Uid, UserState, RedisRegistrationUidMap),
-    redis_client_server:set(?R_REGISTERED_UID_MAP, UpdatedRedisRegistrationUidMap, true),
-
-    {reply, ok, State#{?R_REGISTERED_UID_MAP => UpdatedRedisRegistrationUidMap, ?REGISTRATION_FSM_MAP => maps:remove(Uid, RegistrationFsmMap)}};
+    Result = maps:is_key(Uid, RegistrationFsmMap),
+    {reply, Result, State};
 handle_call({get_uid_profile, Uid}, _From, State) ->
     {reply, maps:get(Uid, maps:get(?R_REGISTERED_UID_MAP, State), null), State};
 handle_call({remove_user, Uid}, _From, State) ->
     RegisteredUidMap = maps:get(?R_REGISTERED_UID_MAP, State),
-    {reply, ok, State#{?R_REGISTERED_UID_MAP := maps:remove(Uid, RegisteredUidMap)}}.
+    UpdatedRegisteredUidMap = maps:remove(Uid, RegisteredUidMap),
+    redis_client_server:set(?R_REGISTERED_UID_MAP, UpdatedRegisteredUidMap, true),
+    {reply, ok, State#{?R_REGISTERED_UID_MAP := UpdatedRegisteredUidMap}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -210,12 +191,33 @@ handle_call({remove_user, Uid}, _From, State) ->
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: term(),
+    Request :: {registration_done, UserState} | {register_uid, DispatcherPid, Uid},
+    DispatcherPid :: pid(),
+    Uid :: atom(),
+    UserState :: map(),
     State :: map(),
     NewState :: map(),
     Reason :: term().
-handle_cast(_Request, State) ->
-    {noreply, State}.
+handle_cast({registration_done, UserState}, State) ->
+    RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
+    RedisRegistrationUidMap = maps:get(?R_REGISTERED_UID_MAP, State),
+
+    Uid = maps:get(uid, UserState),
+    UpdatedRedisRegistrationUidMap = maps:put(Uid, UserState, RedisRegistrationUidMap),
+    redis_client_server:set(?R_REGISTERED_UID_MAP, UpdatedRedisRegistrationUidMap, true),
+
+    {noreply, State#{?R_REGISTERED_UID_MAP => UpdatedRedisRegistrationUidMap, ?REGISTRATION_FSM_MAP => maps:remove(Uid, RegistrationFsmMap)}};
+handle_cast({register_uid, DispatcherPid, Uid}, State) ->
+    RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
+    case maps:is_key(Uid, RegistrationFsmMap) of
+        false ->
+            {ok, FsmPid} = register_fsm:start(DispatcherPid, Uid),
+            UpdatedState = State#{?REGISTRATION_FSM_MAP => maps:put(Uid, FsmPid, RegistrationFsmMap)};
+        _ ->
+            gen_fsm:send_all_state_event(Uid, {restart, DispatcherPid}),
+            UpdatedState = State
+    end,
+    {noreply, UpdatedState}.
 
 %%--------------------------------------------------------------------
 %% @private

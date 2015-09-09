@@ -18,5 +18,13 @@
     invalid_command => #{
         zh => <<"无效指令: "/?ENCODING>>,
         en => <<"Invalid command: ">>
+    },
+
+    invalid_argument => #{
+        zh => <<"错误参数: "/?ENCODING>>,
+        en => <<"Invalid argument(s): ">>
     }
 }).
+
+-type lang() :: zh | en.
+-export_type([lang/0]).

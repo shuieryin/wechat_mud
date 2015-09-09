@@ -1,6 +1,7 @@
 -module(rereg).
 %% API
--export([exec/2]).
+-export([exec/2,
+    info/1]).
 
 %%%-------------------------------------------------------------------
 %%% @author Shuieryin
@@ -12,6 +13,8 @@
 %%%-------------------------------------------------------------------
 -author("Shuieryin").
 
+-include_lib("wechat_mud/src/nls/rereg_nls.hrl").
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -22,13 +25,23 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispacherPid, UidProfile) -> string() when
+-spec exec(DispatcherPid, UidProfile) -> no_return() when
     UidProfile :: command_dispatcher:uid_profile(),
-    DispacherPid :: pid().
-exec(DispacherPid, UidProfile) ->
-    Uid = maps:get(uid, UidProfile),
-    login_server:remove_user(Uid),
-    login_server:register_uid(DispacherPid, Uid).
+    DispatcherPid :: pid().
+exec(DispatcherPid, UidProfile) ->
+    #{uid := Uid} = UidProfile,
+    login_server:register_uid(DispatcherPid, Uid).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% return command info
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec info(Lang) -> binary() when
+    Lang :: lang().
+info(Lang) ->
+    ?NLS(info, Lang).
 
 %%%===================================================================
 %%% Internal functions
