@@ -18,5 +18,6 @@
     <orderEntry type="module" module-name="cowboy" />
     <orderEntry type="module" module-name="eredis" />
     <orderEntry type="module" module-name="erlsom" />
+    <orderEntry type="module" module-name="ecsv" />
   </component>
 </module>

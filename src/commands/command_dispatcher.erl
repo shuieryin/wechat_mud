@@ -16,7 +16,6 @@
 
 -define(MAX_TEXT_SIZE, 2048).
 -define(EMPTY_RESPONSE, <<>>).
--include_lib("wechat_mud/src/nls/command_dispatcher_nls.hrl").
 
 -export_type([uid_profile/0]).
 
@@ -130,7 +129,7 @@ process_request(Req) ->
             error_logger:info_msg("ReqParamsMap:~p~n", [ReqParamsMap]),
             #{'MsgType' := MsgType, 'ToUserName' := PlatformId, 'FromUserName' := UidBin} = ReqParamsMap,
 
-            Uid = binary_to_atom(UidBin, ?ENCODING),
+            Uid = binary_to_atom(UidBin, utf8),
             {InputForUnregister, FuncForRegsiter} = get_action_from_message_type(MsgType, ReqParamsMap),
             ReplyText = case InputForUnregister of
                             no_reply ->
@@ -161,14 +160,14 @@ process_request(Req) ->
     InputForUnregister :: binary() | no_reply,
     FuncForRegsiter :: function().
 get_action_from_message_type(MsgType, ReqParamsMap) ->
-    case binary_to_atom(MsgType, ?ENCODING) of
+    case binary_to_atom(MsgType, utf8) of
         event ->
-            Event = binary_to_atom(maps:get('Event', ReqParamsMap), ?ENCODING),
+            Event = binary_to_atom(maps:get('Event', ReqParamsMap), utf8),
             case Event of
                 subscribe ->
                     {<<>>, fun(UidProfile) ->
                         Lang = maps:get(lang, UidProfile),
-                        ?NLS(welcome_back, Lang)
+                        nls_server:get(?MODULE, welcome_back, Lang)
                     end};
                 unsubscribe ->
                     {no_reply, fun() ->
@@ -187,7 +186,7 @@ get_action_from_message_type(MsgType, ReqParamsMap) ->
                 Lang = maps:get(lang, UidProfileMap),
                 try
                     false = is_integer(ModuleName),
-                    Module = binary_to_atom(ModuleName, ?ENCODING),
+                    Module = binary_to_atom(ModuleName, utf8),
                     true = common_api:is_module_exists(Module),
 
                     Arity = length(CommandArgs),
@@ -202,20 +201,20 @@ get_action_from_message_type(MsgType, ReqParamsMap) ->
                         true ->
                             pending_text(Module, exec, Args);
                         _ ->
-                            [?NLS(invalid_argument, Lang), CommandArgs, <<"\n\n">>, apply(Module, info, [Lang])]
+                            [nls_server:get(common, invalid_argument, Lang), CommandArgs, <<"\n\n">>, apply(Module, info, [Lang])]
                     end
                 catch
                     error:_ ->
-                        [?NLS(invalid_command, Lang), ModuleName];
+                        [nls_server:get(common, invalid_argument, Lang), ModuleName];
                     Type:Reason ->
                         error_logger:error_msg("Command error~n Type:~p~nReason:~p~n", [Type, Reason]),
-                        ?NLS(invalid_command, Lang)
+                        nls_server:get(common, invalid_command, Lang)
                 end
             end};
         _ ->
             {<<>>, fun(UidProfileMap) ->
                 Lang = maps:get(lang, UidProfileMap),
-                ?NLS(message_type_not_support, Lang)
+                nls_server:get(?MODULE, message_type_not_support, Lang)
             end}
     end.
 

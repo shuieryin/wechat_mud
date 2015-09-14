@@ -2,7 +2,8 @@
 %% API
 -export([is_module_exists/1,
     type_of/1,
-    timestamp/0]).
+    timestamp/0,
+    reload_modules/1, test/0]).
 
 %%%-------------------------------------------------------------------
 %%% @author Shuieryin
@@ -75,6 +76,16 @@ timestamp() ->
     {Hour, Minute, _} = os:timestamp(),
     Hour * 1000000 + Minute.
 
+%%--------------------------------------------------------------------
+%% @doc
+%% timestamp long
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec reload_modules([atom()]) -> [{module, atom()} | {error, term()}].
+reload_modules(Modules) ->
+    [begin code:purge(M), code:load_file(M) end || M <- Modules].
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
@@ -86,3 +97,5 @@ timestamp() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
+test() ->
+    type_of(?MODULE).

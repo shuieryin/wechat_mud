@@ -42,6 +42,14 @@ init([]) ->
                 [common_server]
             },
 
+            {nls_sup,
+                {nls_sup, start_link, []},
+                permanent,
+                10000,
+                supervisor,
+                [nls_sup]
+            },
+
             {login,
                 {login_server, start_link, []},
                 permanent,

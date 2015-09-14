@@ -272,7 +272,7 @@ input_confirmation({Other, DispatcherPid}, State) ->
                       <<>> ->
                           [];
                       SomeInput ->
-                          [?NLS(invalid_command, Lang), SomeInput, <<"\n\n">>]
+                          [nls_server:get(common, invalid_command, Lang), SomeInput, <<"\n\n">>]
                   end,
     return_text(DispatcherPid, [InvalidText, maps:get(confirmation_text, State)]),
     {next_state, input_confirmation, State}.

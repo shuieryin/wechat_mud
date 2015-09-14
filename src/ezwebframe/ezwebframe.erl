@@ -43,7 +43,7 @@ web_server_start(Port, Dispatcher) ->
     end.
 
 init(Req, E0) ->
-    error_logger:info_msg("Request raw:~p~n", [Req]),
+%%     error_logger:info_msg("Request raw:~p~n", [Req]),
     Resource = path(Req),
     case Resource of
         ["/", "websocket", ModStr] ->
