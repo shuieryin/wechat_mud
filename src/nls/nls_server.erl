@@ -14,7 +14,8 @@
 %% API
 -export([start_link/1,
     read_line/2,
-    get/3]).
+    get/3,
+    is_valid_lang/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -24,6 +25,8 @@
     terminate/2,
     code_change/3,
     format_status/2]).
+
+-include("nls.hrl").
 
 %%%===================================================================
 %%% API
@@ -47,8 +50,30 @@ start_link(NlsFileName) ->
     ServerName = list_to_atom(filename:rootname(filename:basename(NlsFileName))),
     gen_server:start_link({local, ServerName}, ?MODULE, [NlsFileName], []).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% get nls content
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec get(ServerName, NlsKey, Lang) -> binary() when
+    ServerName :: atom(),
+    NlsKey :: atom(),
+    Lang :: atom().
 get(ServerName, NlsKey, Lang) ->
     gen_server:call(ServerName, {get, NlsKey, Lang}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% check has language
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec is_valid_lang(ServerName, Lang) -> boolean() when
+    ServerName :: atom(),
+    Lang :: atom().
+is_valid_lang(ServerName, Lang) ->
+    gen_server:call(ServerName, {is_valid_lang, Lang}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -66,8 +91,9 @@ get(ServerName, NlsKey, Lang) ->
     FinalValuesMap :: map().
 read_line({newline, NewLine}, {Counter, KeysMap, ValuesMap}) ->
     {Counter + 1, KeysMap, gen_valuesmap(NewLine, KeysMap, ValuesMap, 0)};
-read_line({newline, NewLine}, 0) ->
-    {1, gen_keysmap(NewLine, #{}, 0), #{}};
+read_line({newline, NewLine}, {0, ValuesMap}) ->
+    {KeysMap, NewValuesMap} = gen_keysmap(NewLine, #{}, 0, ValuesMap),
+    {1, KeysMap, NewValuesMap};
 read_line({eof}, {_, _, FinalValuesMap}) ->
     FinalValuesMap.
 
@@ -97,8 +123,15 @@ read_line({eof}, {_, _, FinalValuesMap}) ->
     Reason :: term().
 init([NlsFileName]) ->
     {ok, File} = file:open(NlsFileName, [read]),
-    {ok, ValuesMap} = ecsv:process_csv_file_with(File, fun read_line/2, 0),
-    {ok, ValuesMap}.
+    {ok, ValuesMap} = ecsv:process_csv_file_with(File, fun read_line/2, {0, #{}}),
+    ok = file:close(File),
+
+    {ok, CommonFile} = file:open(filename:append(?NLS_PATH, ?COMMON_NLS), [read]),
+    {ok, FinalValuesMap} = ecsv:process_csv_file_with(CommonFile, fun read_line/2, {0, ValuesMap}),
+    ok = file:close(CommonFile),
+
+    error_logger:info_msg("FinalValuesMap:~p~n", [FinalValuesMap]),
+    {ok, FinalValuesMap}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -115,7 +148,7 @@ init([NlsFileName]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: {get, NlsKey, Lang},
+    Request :: {get, NlsKey, Lang} | {is_valid_lang, Lang},
     NlsKey :: atom(),
     Lang :: atom(),
     From :: {pid(), Tag :: term()},
@@ -124,7 +157,10 @@ init([NlsFileName]) ->
     NewState :: map(),
     Reason :: term().
 handle_call({get, NlsKey, Lang}, _From, State) ->
-    {reply, maps:get(Lang, maps:get(NlsKey, State)), State}.
+    NlsValue = maps:get(NlsKey, maps:get(Lang, State)),
+    {reply, NlsValue, State};
+handle_call({is_valid_lang, Lang}, _From, State) ->
+    {reply, maps:is_key(Lang, State), State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -232,15 +268,28 @@ format_status(Opt, StatusData) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec gen_keysmap(NewLine, KeysMap, Pos) -> FinalKeysMap when
+-spec gen_keysmap(NewLine, KeysMap, Pos, ValuesMap) -> FinalKeysMap when
     NewLine :: [term()],
     KeysMap :: map(),
+    ValuesMap :: map(),
     Pos :: non_neg_integer(),
     FinalKeysMap :: map().
-gen_keysmap([], KeysMap, _) ->
-    KeysMap;
-gen_keysmap([Key | Tail], KeysMap, Pos) ->
-    gen_keysmap(Tail, KeysMap#{Pos => Key}, Pos + 1).
+gen_keysmap([], KeysMap, _, ValuesMap) ->
+    {KeysMap, ValuesMap};
+gen_keysmap([RawKey | Tail], KeysMap, Pos, ValuesMap) ->
+    Key = list_to_atom(RawKey),
+    NewValuesMap = case Pos of
+                       0 ->
+                           ValuesMap;
+                       _ ->
+                           case maps:is_key(Key, ValuesMap) of
+                               false ->
+                                   ValuesMap#{Key => #{}};
+                               _ ->
+                                   ValuesMap
+                           end
+                   end,
+    gen_keysmap(Tail, KeysMap#{Pos => Key}, Pos + 1, NewValuesMap).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -259,14 +308,14 @@ gen_valuesmap([], _, ValueMap, _) ->
 gen_valuesmap([[] | Tail], KeysMap, ValuesMap, Pos) ->
     gen_valuesmap(Tail, KeysMap, ValuesMap, Pos + 1);
 gen_valuesmap([Value | Tail], KeysMap, ValuesMap, Pos) ->
-    Key = list_to_atom(maps:get(Pos, KeysMap)),
+    Key = maps:get(Pos, KeysMap),
     {NewKeysMap, NewValueMap} = case Key of
                                     id ->
                                         Id = list_to_atom(Value),
-                                        {KeysMap#{cur_id => Id}, ValuesMap#{Id => #{}}};
+                                        {KeysMap#{cur_id => Id}, ValuesMap};
                                     Lang ->
                                         Id = maps:get(cur_id, KeysMap),
-                                        ItemMap = maps:get(Id, ValuesMap),
-                                        {KeysMap, ValuesMap#{Id := ItemMap#{Lang => unicode:characters_to_binary(Value)}}}
+                                        LangMap = maps:get(Lang, ValuesMap),
+                                        {KeysMap, ValuesMap#{Lang := LangMap#{Id => re:replace(Value, "~n", "\n", [global, {return, binary}])}}}
                                 end,
     gen_valuesmap(Tail, NewKeysMap, NewValueMap, Pos + 1).

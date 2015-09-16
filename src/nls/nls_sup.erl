@@ -18,7 +18,7 @@
 -export([init/1]).
 
 -define(SERVER, ?MODULE).
--define(NLS_PATH, "doc/nls").
+-include("nls.hrl").
 
 %%%===================================================================
 %%% API functions
@@ -64,7 +64,7 @@ init([]) ->
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
 
     ChildList = gen_child_list(),
-    error_logger:error_msg("ChildList:~p~n", [ChildList]),
+    error_logger:info_msg("ChildList:~p~n", [ChildList]),
     {ok, {SupFlags, ChildList}}.
 
 %%%===================================================================
@@ -82,4 +82,4 @@ gen_child_list() ->
     Type = worker,
 
     {ok, FileNameList} = file:list_dir(?NLS_PATH),
-    [{list_to_atom(FileName), {nls_server, start_link, [filename:join(?NLS_PATH, FileName)]}, Restart, Shutdown, Type, [nls_server]} || FileName <- FileNameList].
+    [{list_to_atom(FileName), {nls_server, start_link, [filename:join(?NLS_PATH, FileName)]}, Restart, Shutdown, Type, [nls_server]} || FileName <- FileNameList, filename:extension(FileName) == ?NLS_EXTENSION, FileName /= ?COMMON_NLS].

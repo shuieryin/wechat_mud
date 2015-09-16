@@ -33,7 +33,6 @@
 
 -import(command_dispatcher, [return_text/2]).
 
--include_lib("wechat_mud/src/nls/register_fsm_nls.hrl").
 -define(STATE_NAMES, [{gender, gender_label}, {born_month, born_month_label}]).
 
 %%%===================================================================
@@ -95,7 +94,7 @@ stop(State) ->
     Reason :: term().
 init([{DispatcherPid, Uid}]) ->
     error_logger:info_msg("register fsm init~n", []),
-    return_text(DispatcherPid, maps:get(select_lang, ?NLS_CONTENT)),
+    return_text(DispatcherPid, nls_server:get(?MODULE, select_lang, zh)),
     {ok, select_lang, #{uid => Uid}}.
 
 %%--------------------------------------------------------------------
@@ -117,13 +116,13 @@ init([{DispatcherPid, Uid}]) ->
     NewState :: map(),
     Reason :: term().
 select_lang({LangBin, DispatcherPid}, State) ->
-    Lang = binary_to_atom(LangBin, ?ENCODING),
-    case ?IS_VALID_LANG(Lang) of
+    Lang = binary_to_atom(LangBin, utf8),
+    case nls_server:is_valid_lang(?MODULE, Lang) of
         true ->
-            return_text(DispatcherPid, ?NLS(please_input_gender, Lang)),
+            return_text(DispatcherPid, nls_server:get(?MODULE, please_input_gender, Lang)),
             {next_state, input_gender, State#{lang => Lang}};
         _ ->
-            return_text(DispatcherPid, maps:get(select_lang, ?NLS_CONTENT)),
+            return_text(DispatcherPid, nls_server:get(?MODULE, select_lang, zh)),
             {next_state, select_lang, State}
     end.
 
@@ -156,13 +155,13 @@ input_gender({Other, DispatcherPid}, State) ->
                       <<>> ->
                           [];
                       SomeInput ->
-                          [?NLS(invalid_gender, Lang), SomeInput, <<"\n\n">>]
+                          [nls_server:get(?MODULE, invalid_gender, Lang), SomeInput, <<"\n\n">>]
                   end,
-    return_text(DispatcherPid, [InvalidText, ?NLS(please_input_gender, Lang)]),
+    return_text(DispatcherPid, [InvalidText, nls_server:get(?MODULE, please_input_gender, Lang)]),
     {next_state, input_gender, State}.
 input_gender(Gender, DispatcherPid, State) ->
     Lang = maps:get(lang, State),
-    return_text(DispatcherPid, ?NLS(please_input_born_month, Lang)),
+    return_text(DispatcherPid, nls_server:get(?MODULE, please_input_born_month, Lang)),
     {next_state, input_born_month, maps:put(gender, Gender, State)}.
 
 %%--------------------------------------------------------------------
@@ -197,9 +196,9 @@ input_born_month({MonthBin, DispatcherPid}, State) ->
                               <<>> ->
                                   [];
                               SomeInput ->
-                                  [?NLS(invalid_month, Lang), SomeInput, <<"\n\n">>]
+                                  [nls_server:get(?MODULE, invalid_month, Lang), SomeInput, <<"\n\n">>]
                           end,
-            return_text(DispatcherPid, [InvalidText, ?NLS(please_input_born_month, Lang)]),
+            return_text(DispatcherPid, [InvalidText, nls_server:get(?MODULE, please_input_born_month, Lang)]),
             {next_state, input_born_month, State}
     end.
 
@@ -226,15 +225,15 @@ valid_month(MonthBin) ->
     State :: map(),
     Lang :: atom().
 gen_summary_text([], AccText, _, Lang) ->
-    [AccText, <<"\n">>, ?NLS(is_confirmed, Lang)];
+    [AccText, <<"\n">>, nls_server:get(?MODULE, is_confirmed, Lang)];
 gen_summary_text([{Key, Desc} | Tail], AccText, State, Lang) ->
     Value = value_to_binary(maps:get(Key, State), Lang),
-    gen_summary_text(Tail, [AccText, ?NLS(Desc, Lang), Value, <<"\n">>], State, Lang).
+    gen_summary_text(Tail, [AccText, nls_server:get(?MODULE, Desc, Lang), Value, <<"\n">>], State, Lang).
 
 value_to_binary(Value, _) when is_integer(Value) ->
     integer_to_binary(Value);
 value_to_binary(Value, Lang) when is_atom(Value) ->
-    ?NLS(Value, Lang);
+    nls_server:get(?MODULE, Value, Lang);
 value_to_binary(Value, _) ->
     Value.
 
@@ -258,13 +257,13 @@ value_to_binary(Value, _) ->
     Reason :: term().
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"y">> orelse Answer == <<"Y">> ->
     Lang = maps:get(lang, State),
-    return_text(DispatcherPid, ?NLS(welcome_join, Lang)),
+    return_text(DispatcherPid, nls_server:get(?MODULE, welcome_join, Lang)),
     State1 = maps:put(register_time, common_api:timestamp(), State),
     State2 = maps:remove(confirmation_text, State1),
     {stop, done, State2};
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"n">> orelse Answer == <<"N">> ->
     Lang = maps:get(lang, State),
-    return_text(DispatcherPid, ?NLS(please_input_gender, Lang)),
+    return_text(DispatcherPid, nls_server:get(?MODULE, please_input_gender, Lang)),
     {next_state, input_gender, #{uid => maps:get(uid, State), lang => Lang}};
 input_confirmation({Other, DispatcherPid}, State) ->
     Lang = maps:get(lang, State),

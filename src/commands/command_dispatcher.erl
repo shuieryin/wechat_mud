@@ -201,14 +201,14 @@ get_action_from_message_type(MsgType, ReqParamsMap) ->
                         true ->
                             pending_text(Module, exec, Args);
                         _ ->
-                            [nls_server:get(common, invalid_argument, Lang), CommandArgs, <<"\n\n">>, apply(Module, info, [Lang])]
+                            [nls_server:get(?MODULE, invalid_argument, Lang), CommandArgs, <<"\n\n">>, apply(Module, info, [Lang])]
                     end
                 catch
                     error:_ ->
-                        [nls_server:get(common, invalid_argument, Lang), ModuleName];
+                        [nls_server:get(?MODULE, invalid_command, Lang), ModuleName];
                     Type:Reason ->
                         error_logger:error_msg("Command error~n Type:~p~nReason:~p~n", [Type, Reason]),
-                        nls_server:get(common, invalid_command, Lang)
+                        nls_server:get(?MODULE, invalid_command, Lang)
                 end
             end};
         _ ->

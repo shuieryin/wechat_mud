@@ -1,0 +1,12 @@
+id,zh,en
+select_lang,请选择语言:~nPlease select language:~n中文 - zh~nEnglish - en,
+gender_label,性别: ,Gender: 
+born_month_label,出生月份: ,Born month: 
+please_input_gender,请输入角色的性别:~n(男-m / 女-f),Please input gender:~n(Male-m / Female-f)
+invalid_gender,无效性别: ,Invalid gender: 
+please_input_born_month,请输入角色的出生月份:~n(1 - 12),Please input born month:~n(1 - 12)
+invalid_month,无效月份: ,Invalid born month: 
+is_confirmed,确定吗? (y / n),Confirm? (y / n)
+welcome_join,欢迎加入!,Welcome join!
+male,男,Male
+female,女,Female
