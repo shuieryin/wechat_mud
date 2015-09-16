@@ -116,15 +116,23 @@ init([{DispatcherPid, Uid}]) ->
     NewState :: map(),
     Reason :: term().
 select_lang({LangBin, DispatcherPid}, State) ->
-    Lang = binary_to_atom(LangBin, utf8),
-    case nls_server:is_valid_lang(?MODULE, Lang) of
-        true ->
-            return_text(DispatcherPid, nls_server:get(?MODULE, please_input_gender, Lang)),
-            {next_state, input_gender, State#{lang => Lang}};
-        _ ->
-            return_text(DispatcherPid, nls_server:get(?MODULE, select_lang, zh)),
-            {next_state, select_lang, State}
+    try
+        Lang = binary_to_atom(LangBin, utf8),
+        case nls_server:is_valid_lang(?MODULE, Lang) of
+            true ->
+                return_text(DispatcherPid, nls_server:get(?MODULE, please_input_gender, Lang)),
+                {next_state, input_gender, State#{lang => Lang}};
+            _ ->
+                select_lang_desc(DispatcherPid, State)
+        end
+    catch
+        _:_ ->
+            select_lang_desc(DispatcherPid, State)
     end.
+
+select_lang_desc(DispatcherPid, State) ->
+    return_text(DispatcherPid, nls_server:get(?MODULE, select_lang, zh)),
+    {next_state, select_lang, State}.
 
 
 %%--------------------------------------------------------------------
@@ -271,7 +279,7 @@ input_confirmation({Other, DispatcherPid}, State) ->
                       <<>> ->
                           [];
                       SomeInput ->
-                          [nls_server:get(common, invalid_command, Lang), SomeInput, <<"\n\n">>]
+                          [nls_server:get(?MODULE, invalid_command, Lang), SomeInput, <<"\n\n">>]
                   end,
     return_text(DispatcherPid, [InvalidText, maps:get(confirmation_text, State)]),
     {next_state, input_confirmation, State}.
