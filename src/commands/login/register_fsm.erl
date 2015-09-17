@@ -94,7 +94,7 @@ stop(State) ->
     Reason :: term().
 init([{DispatcherPid, Uid}]) ->
     error_logger:info_msg("register fsm init~n", []),
-    return_text(DispatcherPid, nls_server:get(?MODULE, select_lang, zh)),
+    nls_server:response_text(?MODULE, [{nls, select_lang}], zh, DispatcherPid),
     {ok, select_lang, #{uid => Uid}}.
 
 %%--------------------------------------------------------------------
@@ -116,24 +116,21 @@ init([{DispatcherPid, Uid}]) ->
     NewState :: map(),
     Reason :: term().
 select_lang({LangBin, DispatcherPid}, State) ->
-    try
-        Lang = binary_to_atom(LangBin, utf8),
-        case nls_server:is_valid_lang(?MODULE, Lang) of
-            true ->
-                return_text(DispatcherPid, nls_server:get(?MODULE, please_input_gender, Lang)),
-                {next_state, input_gender, State#{lang => Lang}};
-            _ ->
-                select_lang_desc(DispatcherPid, State)
-        end
-    catch
-        _:_ ->
-            select_lang_desc(DispatcherPid, State)
-    end.
-
-select_lang_desc(DispatcherPid, State) ->
-    return_text(DispatcherPid, nls_server:get(?MODULE, select_lang, zh)),
-    {next_state, select_lang, State}.
-
+    {NextState, NewState, TextList, Lang} =
+        try
+            CurLang = binary_to_atom(LangBin, utf8),
+            case nls_server:is_valid_lang(?MODULE, CurLang) of
+                true ->
+                    {input_gender, State#{lang => CurLang}, [{nls, please_input_gender}], CurLang};
+                _ ->
+                    {select_lang, State, [{nls, select_lang}], zh}
+            end
+        catch
+            _:_ ->
+                {select_lang, State, [{nls, select_lang}], zh}
+        end,
+    nls_server:response_text(?MODULE, TextList, Lang, DispatcherPid),
+    {next_state, NextState, NewState}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -163,13 +160,13 @@ input_gender({Other, DispatcherPid}, State) ->
                       <<>> ->
                           [];
                       SomeInput ->
-                          [nls_server:get(?MODULE, invalid_gender, Lang), SomeInput, <<"\n\n">>]
+                          [{nls, invalid_gender}, SomeInput, <<"\n\n">>]
                   end,
-    return_text(DispatcherPid, [InvalidText, nls_server:get(?MODULE, please_input_gender, Lang)]),
+    nls_server:response_text(?MODULE, lists:flatten([InvalidText, {nls, please_input_gender}]), Lang, DispatcherPid),
     {next_state, input_gender, State}.
 input_gender(Gender, DispatcherPid, State) ->
     Lang = maps:get(lang, State),
-    return_text(DispatcherPid, nls_server:get(?MODULE, please_input_born_month, Lang)),
+    nls_server:response_text(?MODULE, [{nls, please_input_born_month}], Lang, DispatcherPid),
     {next_state, input_born_month, maps:put(gender, Gender, State)}.
 
 %%--------------------------------------------------------------------
@@ -191,24 +188,24 @@ input_gender(Gender, DispatcherPid, State) ->
     NewState :: map(),
     Reason :: term().
 input_born_month({MonthBin, DispatcherPid}, State) ->
-    case valid_month(MonthBin) of
-        {ok, Month} ->
-            Lang = maps:get(lang, State),
-            NewState = maps:put(born_month, Month, State),
-            GenText = gen_summary_text(?STATE_NAMES, [], NewState, Lang),
-            return_text(DispatcherPid, GenText),
-            {next_state, input_confirmation, NewState#{confirmation_text => GenText}};
-        {false, MonthBin} ->
-            Lang = maps:get(lang, State),
-            InvalidText = case MonthBin of
-                              <<>> ->
-                                  [];
-                              SomeInput ->
-                                  [nls_server:get(?MODULE, invalid_month, Lang), SomeInput, <<"\n\n">>]
-                          end,
-            return_text(DispatcherPid, [InvalidText, nls_server:get(?MODULE, please_input_born_month, Lang)]),
-            {next_state, input_born_month, State}
-    end.
+    Lang = maps:get(lang, State),
+    {NewStateName, NewState, TextList} =
+        case valid_month(MonthBin) of
+            {ok, Month} ->
+                UpdatedState = maps:put(born_month, Month, State),
+                GenText = gen_summary_text(?STATE_NAMES, [], UpdatedState),
+                {input_confirmation, UpdatedState#{confirmation_text => GenText}, GenText};
+            {false, MonthBin} ->
+                InvalidText = case MonthBin of
+                                  <<>> ->
+                                      [];
+                                  SomeInput ->
+                                      [{nls, invalid_month}, SomeInput, <<"\n\n">>]
+                              end,
+                {input_born_month, State, [InvalidText, {nls, please_input_born_month}]}
+        end,
+    nls_server:response_text(?MODULE, lists:flatten(TextList), Lang, DispatcherPid),
+    {next_state, NewStateName, NewState}.
 
 -spec valid_month(MonthStr) -> {ok, 1..12} | false when
     MonthStr :: string().
@@ -225,24 +222,23 @@ valid_month(MonthBin) ->
             {false, MonthBin}
     end.
 
--spec gen_summary_text(StateNames, AccText, State, Lang) -> [binary()] when
+-spec gen_summary_text(StateNames, AccText, State) -> [binary()] when
     StateNames :: [{Key, Desc}],
     Key :: atom(),
     Desc :: atom(),
     AccText :: [any()],
-    State :: map(),
-    Lang :: atom().
-gen_summary_text([], AccText, _, Lang) ->
-    [AccText, <<"\n">>, nls_server:get(?MODULE, is_confirmed, Lang)];
-gen_summary_text([{Key, Desc} | Tail], AccText, State, Lang) ->
-    Value = value_to_binary(maps:get(Key, State), Lang),
-    gen_summary_text(Tail, [AccText, nls_server:get(?MODULE, Desc, Lang), Value, <<"\n">>], State, Lang).
+    State :: map().
+gen_summary_text([], AccText, _) ->
+    [AccText, <<"\n">>, {nls, is_confirmed}];
+gen_summary_text([{Key, Desc} | Tail], AccText, State) ->
+    Value = value_to_binary(maps:get(Key, State)),
+    gen_summary_text(Tail, [AccText, {nls, Desc}, Value, <<"\n">>], State).
 
-value_to_binary(Value, _) when is_integer(Value) ->
+value_to_binary(Value) when is_integer(Value) ->
     integer_to_binary(Value);
-value_to_binary(Value, Lang) when is_atom(Value) ->
-    nls_server:get(?MODULE, Value, Lang);
-value_to_binary(Value, _) ->
+value_to_binary(Value) when is_atom(Value) ->
+    {nls, Value};
+value_to_binary(Value) ->
     Value.
 
 %%--------------------------------------------------------------------
@@ -265,13 +261,13 @@ value_to_binary(Value, _) ->
     Reason :: term().
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"y">> orelse Answer == <<"Y">> ->
     Lang = maps:get(lang, State),
-    return_text(DispatcherPid, nls_server:get(?MODULE, welcome_join, Lang)),
+    nls_server:response_text(?MODULE, [{nls, welcome_join}], Lang, DispatcherPid),
     State1 = maps:put(register_time, common_api:timestamp(), State),
     State2 = maps:remove(confirmation_text, State1),
     {stop, done, State2};
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"n">> orelse Answer == <<"N">> ->
     Lang = maps:get(lang, State),
-    return_text(DispatcherPid, nls_server:get(?MODULE, please_input_gender, Lang)),
+    nls_server:response_text(?MODULE, [{nls, please_input_gender}], Lang, DispatcherPid),
     {next_state, input_gender, #{uid => maps:get(uid, State), lang => Lang}};
 input_confirmation({Other, DispatcherPid}, State) ->
     Lang = maps:get(lang, State),
@@ -279,9 +275,9 @@ input_confirmation({Other, DispatcherPid}, State) ->
                       <<>> ->
                           [];
                       SomeInput ->
-                          [nls_server:get(?MODULE, invalid_command, Lang), SomeInput, <<"\n\n">>]
+                          [{nls, invalid_command}, SomeInput, <<"\n\n">>]
                   end,
-    return_text(DispatcherPid, [InvalidText, maps:get(confirmation_text, State)]),
+    nls_server:response_text(?MODULE, lists:flatten([InvalidText, maps:get(confirmation_text, State)]), Lang, DispatcherPid),
     {next_state, input_confirmation, State}.
 
 %%--------------------------------------------------------------------

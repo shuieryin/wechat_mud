@@ -16,6 +16,7 @@
 
 -define(MAX_TEXT_SIZE, 2048).
 -define(EMPTY_RESPONSE, <<>>).
+-define(WECHAT_TOKEN, <<"collinguo">>).
 
 -export_type([uid_profile/0]).
 
@@ -115,7 +116,7 @@ validate_signature(OriginalParamMap) ->
 -spec generate_signature(OriginParamList) -> string() when
     OriginParamList :: list().
 generate_signature(OriginParamList) ->
-    ConcatedParamContent = [<<"collinguo">> | concat_param_content(OriginParamList, [])],
+    ConcatedParamContent = [?WECHAT_TOKEN | concat_param_content(OriginParamList, [])],
     SortedParamContent = lists:sort(ConcatedParamContent),
     string:to_lower(sha1:hexstring(SortedParamContent)).
 
@@ -167,7 +168,7 @@ get_action_from_message_type(MsgType, ReqParamsMap) ->
                 subscribe ->
                     {<<>>, fun(UidProfile) ->
                         Lang = maps:get(lang, UidProfile),
-                        nls_server:get(?MODULE, welcome_back, Lang)
+                        nls_server:get_text(?MODULE, [{nls, welcome_back}], Lang)
                     end};
                 unsubscribe ->
                     {no_reply, fun() ->
@@ -181,13 +182,13 @@ get_action_from_message_type(MsgType, ReqParamsMap) ->
         text ->
             % _MsgId = maps:get('MsgId', ReqParamsMap),
             RawInput = maps:get('Content', ReqParamsMap),
-            [ModuleName | CommandArgs] = binary:split(RawInput, <<" ">>),
+            [ModuleNameStr | CommandArgs] = binary:split(RawInput, <<" ">>),
             {RawInput, fun(UidProfileMap) ->
                 Lang = maps:get(lang, UidProfileMap),
                 try
-                    false = is_integer(ModuleName),
-                    Module = binary_to_atom(ModuleName, utf8),
-                    true = common_api:is_module_exists(Module),
+                    false = is_integer(ModuleNameStr),
+                    ModuleName = binary_to_atom(ModuleNameStr, utf8),
+                    true = common_api:is_module_exists(ModuleName),
 
                     Arity = length(CommandArgs),
                     Args = case Arity of
@@ -197,24 +198,24 @@ get_action_from_message_type(MsgType, ReqParamsMap) ->
                                    [UidProfileMap, CommandArgs]
                            end,
 
-                    case erlang:function_exported(Module, exec, Arity + 2) of
+                    case erlang:function_exported(ModuleName, exec, Arity + 2) of
                         true ->
-                            pending_text(Module, exec, Args);
+                            pending_text(ModuleName, exec, Args);
                         _ ->
-                            [nls_server:get(?MODULE, invalid_argument, Lang), CommandArgs, <<"\n\n">>, apply(Module, info, [Lang])]
+                            nls_server:get_text(ModuleName, [{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, info}], Lang)
                     end
                 catch
                     error:_ ->
-                        [nls_server:get(?MODULE, invalid_command, Lang), ModuleName];
+                        nls_server:get_text(?MODULE, [{nls, invalid_command}, ModuleNameStr], Lang);
                     Type:Reason ->
                         error_logger:error_msg("Command error~n Type:~p~nReason:~p~n", [Type, Reason]),
-                        nls_server:get(?MODULE, invalid_command, Lang)
+                        nls_server:get_text(?MODULE, [{nls, invalid_command}], Lang)
                 end
             end};
         _ ->
             {<<>>, fun(UidProfileMap) ->
                 Lang = maps:get(lang, UidProfileMap),
-                nls_server:get(?MODULE, message_type_not_support, Lang)
+                nls_server:get_text(?MODULE, [{nls, message_type_not_support}], Lang)
             end}
     end.
 

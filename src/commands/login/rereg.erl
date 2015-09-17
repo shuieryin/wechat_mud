@@ -1,7 +1,6 @@
 -module(rereg).
 %% API
--export([exec/2,
-    info/1]).
+-export([exec/2]).
 
 %%%-------------------------------------------------------------------
 %%% @author Shuieryin
@@ -29,17 +28,6 @@
 exec(DispatcherPid, UidProfile) ->
     #{uid := Uid} = UidProfile,
     login_server:register_uid(DispatcherPid, Uid).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% return command info
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec info(Lang) -> binary() when
-    Lang :: atom().
-info(Lang) ->
-    nls_server:get(?MODULE, info, Lang).
 
 %%%===================================================================
 %%% Internal functions

@@ -14,8 +14,10 @@
 %% API
 -export([start_link/1,
     read_line/2,
-    get/3,
-    is_valid_lang/2]).
+%%     get/3,
+    is_valid_lang/2,
+    response_text/4,
+    get_text/3]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -56,12 +58,43 @@ start_link(NlsFileName) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get(ServerName, NlsKey, Lang) -> binary() when
+%% -spec get(ServerName, NlsKey, Lang) -> binary() when
+%%     ServerName :: atom(),
+%%     NlsKey :: atom(),
+%%     Lang :: atom().
+%% get(ServerName, NlsKey, Lang) ->
+%%     gen_server:call(ServerName, {get, NlsKey, Lang}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Given "TextLists" contains items {nls, NlsKey} with direct return
+%% text values, the function is to replace {nls, NlsKey} with the actual
+%% nls content, and then immediately return the result to user.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec response_text(ServerName, TextList, Lang, DispatcherPid) -> no_return() when
     ServerName :: atom(),
-    NlsKey :: atom(),
+    TextList :: [term()],
+    Lang :: atom(),
+    DispatcherPid :: pid().
+response_text(ServerName, TextList, Lang, DispatcherPid) ->
+    gen_server:cast(ServerName, {reply_text, TextList, Lang, DispatcherPid}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Given "TextLists" contains items {nls, NlsKey} with direct return
+%% text values, the function is to replace {nls, NlsKey} with the actual
+%% nls content.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec get_text(ServerName, TextList, Lang) -> [term()] when
+    ServerName :: atom(),
+    TextList :: [term()],
     Lang :: atom().
-get(ServerName, NlsKey, Lang) ->
-    gen_server:call(ServerName, {get, NlsKey, Lang}).
+get_text(ServerName, TextList, Lang) ->
+    gen_server:call(ServerName, {get_text, TextList, Lang}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -148,9 +181,10 @@ init([NlsFileName]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: {get, NlsKey, Lang} | {is_valid_lang, Lang},
+    Request :: {get, NlsKey, Lang} | {is_valid_lang, Lang} | {get_text, TextList, Lang},
     NlsKey :: atom(),
     Lang :: atom(),
+    TextList :: [term()],
     From :: {pid(), Tag :: term()},
     Reply :: term(),
     State :: map(),
@@ -160,7 +194,11 @@ handle_call({get, NlsKey, Lang}, _From, State) ->
     NlsValue = maps:get(NlsKey, maps:get(Lang, State)),
     {reply, NlsValue, State};
 handle_call({is_valid_lang, Lang}, _From, State) ->
-    {reply, maps:is_key(Lang, State), State}.
+    {reply, maps:is_key(Lang, State), State};
+handle_call({get_text, TextList, Lang}, _From, State) ->
+    LangMap = maps:get(Lang, State),
+    ReturnTexts = fill_in_nls(TextList, LangMap, []),
+    {reply, ReturnTexts, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -174,12 +212,25 @@ handle_call({is_valid_lang, Lang}, _From, State) ->
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: term(),
+    Request :: {reply_text, TextList, Lang, DispatcherPid},
+    TextList :: [term()],
+    Lang :: atom(),
+    DispatcherPid :: pid(),
     State :: map(),
     NewState :: map(),
     Reason :: term().
-handle_cast(_Request, State) ->
+handle_cast({reply_text, TextList, Lang, DispatcherPid}, State) ->
+    LangMap = maps:get(Lang, State),
+    ReturnTexts = fill_in_nls(TextList, LangMap, []),
+    command_dispatcher:return_text(DispatcherPid, ReturnTexts),
     {noreply, State}.
+
+fill_in_nls([], _, ListOut) ->
+    lists:reverse(ListOut);
+fill_in_nls([{nls, NlsKey} | Tail], LangMap, ListOut) ->
+    fill_in_nls(Tail, LangMap, [maps:get(NlsKey, LangMap)] ++ ListOut);
+fill_in_nls([NonNlsKey | Tail], LangMap, ListOut) ->
+    fill_in_nls(Tail, LangMap, [NonNlsKey] ++ ListOut).
 
 %%--------------------------------------------------------------------
 %% @private
