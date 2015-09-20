@@ -1,0 +1,3 @@
+id,zh,en
+info,指令:logout~n描述:登出人物~n例子:logout,COMMAND:logout~nDESCRIPTION:Logout character~nExample:logout
+already_logout,您已登出,You have logged out

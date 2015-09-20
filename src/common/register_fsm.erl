@@ -11,7 +11,7 @@
 -behaviour(gen_fsm).
 
 %% API
--export([start/2,
+-export([start/1,
     input/3,
     select_lang/2,
     input_gender/2,
@@ -34,6 +34,7 @@
 -import(command_dispatcher, [return_text/2]).
 
 -define(STATE_NAMES, [{gender, gender_label}, {born_month, born_month_label}]).
+-define(BORN_SCENE, dream_board_nw).
 
 %%%===================================================================
 %%% API
@@ -47,26 +48,32 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start(DispatcherPid, Uid) -> {ok, pid()} | ignore | {error, Reason} when
+-spec start(Request) -> {ok, pid()} | ignore | {error, Reason} when
+    Request :: {init, DispatcherPid, Uid} | {bringup, StateName, StateData},
     Uid :: atom(),
     DispatcherPid :: pid(),
+    StateName :: atom(),
+    StateData :: map(),
     Reason :: term().
-start(DispatcherPid, Uid) ->
-    gen_fsm:start({local, Uid}, ?MODULE, [{DispatcherPid, Uid}], []).
+start({init, DispatcherPid, Uid}) ->
+    nls_server:response_text(?MODULE, [{nls, select_lang}], zh, DispatcherPid),
+    gen_fsm:start({local, module_name(Uid)}, ?MODULE, [{init, Uid}], []);
+start({bringup, StateName, StateData}) ->
+    Uid = maps:get(uid, StateData),
+    gen_fsm:start({local, module_name(Uid)}, ?MODULE, [{bringup, StateName, StateData}], []).
 
 -spec input(DispatcherPid, Uid, Input) -> ok when
     Uid :: atom(),
     Input :: string(),
     DispatcherPid :: pid().
 input(DispatcherPid, Uid, Input) ->
-    error_logger:info_msg("Uid:~p~nInput:~p~n", [Uid, Input]),
-    gen_fsm:send_event(Uid, {Input, DispatcherPid}).
+    gen_fsm:send_event(module_name(Uid), {Input, DispatcherPid}).
 
 -spec stop(State) -> no_return() when
     State :: map().
 stop(State) ->
     Uid = maps:get(uid, State),
-    gen_fsm:send_all_state_event(Uid, stop).
+    gen_fsm:send_all_state_event(module_name(Uid), stop).
 
 
 %%%===================================================================
@@ -82,20 +89,23 @@ stop(State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec init([{DispatcherPid, Uid}]) ->
+-spec init([Request]) ->
     {ok, StateName, StateData} |
     {ok, StateName, StateData, timeout() | hibernate} |
     {stop, Reason} |
     ignore when
-    DispatcherPid :: pid(),
+
+    Request :: {init, Uid} | {bringup, StateName, StateData},
     Uid :: atom(),
-    StateName :: select_lang,
+    StateName :: atom(),
     StateData :: map(),
     Reason :: term().
-init([{DispatcherPid, Uid}]) ->
+init([{init, Uid}]) ->
     error_logger:info_msg("register fsm init~n", []),
-    nls_server:response_text(?MODULE, [{nls, select_lang}], zh, DispatcherPid),
-    {ok, select_lang, #{uid => Uid}}.
+    {ok, select_lang, #{uid => Uid}};
+init([{bringup, StateName, StateData}]) ->
+    error_logger:info_msg("register fsm bringup~n", []),
+    {ok, StateName, StateData}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -260,10 +270,11 @@ value_to_binary(Value) ->
     NewState :: map(),
     Reason :: term().
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"y">> orelse Answer == <<"Y">> ->
-    Lang = maps:get(lang, State),
-    nls_server:response_text(?MODULE, [{nls, welcome_join}], Lang, DispatcherPid),
-    State1 = maps:put(register_time, common_api:timestamp(), State),
+    State1 = State#{register_time => common_api:timestamp(), scene => ?BORN_SCENE},
     State2 = maps:remove(confirmation_text, State1),
+
+    login_server:registration_done(State2, DispatcherPid),
+
     {stop, done, State2};
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"n">> orelse Answer == <<"N">> ->
     Lang = maps:get(lang, State),
@@ -420,11 +431,16 @@ handle_info(_Info, StateName, State) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec terminate(Reason, StateName, StateData) -> term() when
-    Reason :: normal | shutdown | {shutdown, term()} | term(),
+    Reason :: normal | done | shutdown | {shutdown, term()} | term(),
     StateName :: atom(),
     StateData :: term().
-terminate(_Reason, _StateName, StateData) ->
-    login_server:registration_done(StateData),
+terminate(Reason, StateName, StateData) ->
+    case Reason of
+        Result when Result /= normal andalso Result /= done ->
+            login_server:bringup_registration(StateName, StateData);
+        _ ->
+            ok
+    end,
     ok.
 
 %%--------------------------------------------------------------------
@@ -465,3 +481,5 @@ format_status(Opt, StatusData) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+module_name(Uid) ->
+    list_to_atom(atom_to_list(Uid) ++ "_fsm").

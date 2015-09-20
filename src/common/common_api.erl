@@ -3,7 +3,9 @@
 -export([is_module_exists/1,
     type_of/1,
     timestamp/0,
-    reload_modules/1, test/0]).
+    reload_modules/1,
+    index_of/2,
+    list_has_element/2]).
 
 %%%-------------------------------------------------------------------
 %%% @author Shuieryin
@@ -86,6 +88,42 @@ timestamp() ->
 reload_modules(Modules) ->
     [begin code:purge(M), code:load_file(M) end || M <- Modules].
 
+%%--------------------------------------------------------------------
+%% @doc
+%% find elememnt pos from list
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec index_of(List, Item) -> integer() when
+    List :: [term()],
+    Item :: term().
+index_of(List, Item) ->
+    index_of(List, Item, 0).
+index_of([], _, _) ->
+    -1;
+index_of([Elem | _], Elem, Pos) ->
+    Pos;
+index_of([_ | Tail], Item, Pos) ->
+    index_of(Tail, Item, Pos + 1).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% find elememnt pos from list
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec list_has_element(List, Item) -> boolean() when
+    List :: [term()],
+    Item :: term().
+list_has_element(List, Item) ->
+    case index_of(List, Item) of
+        -1 ->
+            false;
+        _ ->
+            true
+    end.
+
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
@@ -97,5 +135,3 @@ reload_modules(Modules) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
-test() ->
-    type_of(?MODULE).

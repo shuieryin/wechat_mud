@@ -16,7 +16,11 @@
     reconnect_redis/0,
     get/1,
     set/3,
-    save/0]).
+    save/0,
+    async_set/3,
+    async_save/0,
+    del/2,
+    async_del/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -56,7 +60,7 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 reconnect_redis() ->
-    gen_server:call(?MODULE, {connect_redis}).
+    gen_server:call(?MODULE, connect_redis).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -72,12 +76,12 @@ get(Key) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% set value
+%% rpc set value
 %%
 %% @end
 %%--------------------------------------------------------------------
 -spec set(Key, Value, IsSave) -> Result when
-    Key :: atom(),
+    Key :: term(),
     Value :: term(),
     IsSave :: boolean(),
     Result :: boolean().
@@ -86,13 +90,63 @@ set(Key, Value, IsSave) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Save
+%% async set value
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec async_set(Key, Value, IsSave) -> Result when
+    Key :: term(),
+    Value :: term(),
+    IsSave :: boolean(),
+    Result :: boolean().
+async_set(Key, Value, IsSave) ->
+    gen_server:cast(?MODULE, {set, Key, Value, IsSave}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% rpc save
 %%
 %% @end
 %%--------------------------------------------------------------------
 -spec save() -> no_return().
 save() ->
-    gen_server:call(?MODULE, {save}).
+    gen_server:call(?MODULE, save).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% async save
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec async_save() -> no_return().
+async_save() ->
+    gen_server:cast(?MODULE, save).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% rpc delete
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec del(Keys, IsSave) -> Result when
+    Keys :: [term()],
+    IsSave :: boolean(),
+    Result :: boolean().
+del(Keys, IsSave) ->
+    gen_server:call(?MODULE, {del, Keys, IsSave}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% async delete
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec async_del(Keys, IsSave) -> Result when
+    Keys :: [term()],
+    IsSave :: boolean(),
+    Result :: boolean().
+async_del(Keys, IsSave) ->
+    gen_server:cast(?MODULE, {del, Keys, IsSave}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -137,8 +191,9 @@ init([]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: {get, Key} | {set, Key, Value} | {connect_redis | save},
+    Request :: {get, Key} | {set, Key, Value, IsSave} | {del, Keys, IsSave} | connect_redis | save,
     Key :: term(),
+    Keys :: [term()],
     Value :: term(),
     From :: {pid(), Tag :: term()},
     Reply :: term(),
@@ -150,6 +205,8 @@ handle_call({get, Key}, _From, State) ->
     Value = case eredis:q(RedisClientPid, ["GET", Key]) of
                 {ok, undefined} ->
                     undefined;
+                {ok, <<>>} ->
+                    undefined;
                 {ok, ReturnValue} ->
                     binary_to_term(ReturnValue);
                 {error, Reason} ->
@@ -158,24 +215,16 @@ handle_call({get, Key}, _From, State) ->
             end,
     {reply, Value, State};
 handle_call({set, Key, Value, IsSave}, _From, State) ->
-    RedisClientPid = maps:get(redis_client_pid, State),
-    IsSet = case eredis:q(RedisClientPid, ["SET", Key, Value]) of
-                {ok, <<"OK">>} ->
-                    true;
-                {Type, Reason} ->
-                    error_logger:error_msg("Redis set value failed~n Type:~p, Reason:~p~n", [Type, Reason]),
-                    false
-            end,
-    if
-        IsSave == true ->
-            save(State)
-    end,
+    IsSet = set(Key, Value, IsSave, State),
     {reply, IsSet, State};
-handle_call({connect_redis}, _From, State) ->
+handle_call(connect_redis, _From, State) ->
     {rpely, ok, connect_reids(State)};
-handle_call({save}, _From, State) ->
+handle_call(save, _From, State) ->
     save(State),
-    {rpely, ok, State}.
+    {rpely, ok, State};
+handle_call({del, Keys, IsSave}, _From, State) ->
+    IsDel = del(Keys, IsSave, State),
+    {reply, IsDel, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -189,11 +238,22 @@ handle_call({save}, _From, State) ->
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: term(),
+    Request :: {set, Key, Value, IsSave} | {del, Keys, IsSave} | save,
+    Key :: term(),
+    Keys :: [term()],
+    Value :: term(),
+    IsSave :: boolean(),
     State :: map(),
     NewState :: map(),
     Reason :: term().
-handle_cast(_Request, State) ->
+handle_cast({set, Key, Value, IsSave}, State) ->
+    set(Key, Value, IsSave, State),
+    {noreply, State};
+handle_cast(save, State) ->
+    save(State),
+    {noreply, State};
+handle_cast({del, Keys, IsSave}, State) ->
+    del(Keys, IsSave, State),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -320,3 +380,48 @@ save(State) ->
             error_logger:error_msg("Redis save failed:~p~n", [Error]),
             fail
     end.
+
+-spec set(Key, Value, IsSave, State) -> {IsSet, NewState} when
+    Key :: term(),
+    Value :: term(),
+    IsSave :: boolean(),
+    State :: map(),
+    IsSet :: boolean(),
+    NewState :: map().
+set(Key, Value, IsSave, State) ->
+    RedisClientPid = maps:get(redis_client_pid, State),
+    IsSet = case eredis:q(RedisClientPid, ["SET", Key, term_to_binary(Value)]) of
+                {ok, <<"OK">>} ->
+                    true;
+                {Type, Reason} ->
+                    error_logger:error_msg("Redis set value failed~n Type:~p, Reason:~p~n", [Type, Reason]),
+                    false
+            end,
+    case IsSave of
+        true ->
+            save(State);
+        false ->
+            ok
+    end,
+    IsSet.
+
+-spec del(Keys, IsSave, State) -> boolean() when
+    Keys :: [term()],
+    IsSave :: boolean(),
+    State :: map().
+del(Keys, IsSave, State) ->
+    RedisClientPid = maps:get(redis_client_pid, State),
+    IsDel = case eredis:q(RedisClientPid, ["DEL"] ++ Keys) of
+                {ok, <<"OK">>} ->
+                    true;
+                {Type, Reason} ->
+                    error_logger:error_msg("Redis del value failed~n Type:~p, Reason:~p~n", [Type, Reason]),
+                    false
+            end,
+    case IsSave of
+        true ->
+            save(State);
+        false ->
+            ok
+    end,
+    IsDel.

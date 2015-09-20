@@ -1,3 +1,13 @@
 id,zh,en
 invalid_command,无效指令: ,Invalid command: 
 invalid_argument,错误参数: ,Invalid argument(s): 
+east,东 (east),East
+south,南 (south),South
+west,西 (west),West
+north,北 (north),North
+northeast,东北 (northeast),Northeast
+southeast,东南 (southeast),Southeast
+southwest,西南 (southwest),Southwest
+northwest,西北 (northwest),Northwest
+obvious_exits,这里明显的出口是 ,Obvious outlets 
+invalid_exit,这里没有这个出口,No such outlet

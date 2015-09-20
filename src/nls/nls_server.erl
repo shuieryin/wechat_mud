@@ -14,10 +14,10 @@
 %% API
 -export([start_link/1,
     read_line/2,
-%%     get/3,
     is_valid_lang/2,
     response_text/4,
-    get_text/3]).
+    get_text/3,
+    show_langs/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -79,7 +79,7 @@ start_link(NlsFileName) ->
     Lang :: atom(),
     DispatcherPid :: pid().
 response_text(ServerName, TextList, Lang, DispatcherPid) ->
-    gen_server:cast(ServerName, {reply_text, TextList, Lang, DispatcherPid}).
+    gen_server:cast(ServerName, {response_text, TextList, Lang, DispatcherPid}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -107,6 +107,18 @@ get_text(ServerName, TextList, Lang) ->
     Lang :: atom().
 is_valid_lang(ServerName, Lang) ->
     gen_server:call(ServerName, {is_valid_lang, Lang}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% show possible langauges
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec show_langs(DispatcherPid, Lang) -> ok when
+    DispatcherPid :: pid(),
+    Lang :: atom().
+show_langs(DispatcherPid, Lang) ->
+    gen_server:cast(lang, {show_langs, DispatcherPid, Lang}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -212,25 +224,41 @@ handle_call({get_text, TextList, Lang}, _From, State) ->
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: {reply_text, TextList, Lang, DispatcherPid},
+    Request :: {response_text, TextList, Lang, DispatcherPid} | {show_langs, DispatcherPid, Lang},
     TextList :: [term()],
     Lang :: atom(),
     DispatcherPid :: pid(),
     State :: map(),
     NewState :: map(),
     Reason :: term().
-handle_cast({reply_text, TextList, Lang, DispatcherPid}, State) ->
-    LangMap = maps:get(Lang, State),
-    ReturnTexts = fill_in_nls(TextList, LangMap, []),
-    command_dispatcher:return_text(DispatcherPid, ReturnTexts),
+handle_cast({response_text, TextList, Lang, DispatcherPid}, State) ->
+    do_response_text(Lang, State, TextList, DispatcherPid),
+    {noreply, State};
+handle_cast({show_langs, DispatcherPid, Lang}, State) ->
+    LangsNls = lists:reverse([[atom_to_binary(LangName, utf8), <<"\n">>] || LangName <- maps:keys(State)]),
+    do_response_text(Lang, State, lists:flatten([{nls, possible_lang}, <<"\n">>, LangsNls]), DispatcherPid),
     {noreply, State}.
 
+-spec fill_in_nls(ListIn, LangMap, ListOut) -> [binary()] when
+    ListIn :: [term()],
+    LangMap :: map(),
+    ListOut :: [binary()].
 fill_in_nls([], _, ListOut) ->
     lists:reverse(ListOut);
 fill_in_nls([{nls, NlsKey} | Tail], LangMap, ListOut) ->
     fill_in_nls(Tail, LangMap, [maps:get(NlsKey, LangMap)] ++ ListOut);
 fill_in_nls([NonNlsKey | Tail], LangMap, ListOut) ->
     fill_in_nls(Tail, LangMap, [NonNlsKey] ++ ListOut).
+
+-spec do_response_text(Lang, State, TextList, DispatcherPid) -> ok when
+    Lang :: atom(),
+    State :: map(),
+    TextList :: [term()],
+    DispatcherPid :: pid().
+do_response_text(Lang, State, TextList, DispatcherPid) ->
+    LangMap = maps:get(Lang, State),
+    ReturnTexts = fill_in_nls(TextList, LangMap, []),
+    command_dispatcher:return_text(DispatcherPid, ReturnTexts).
 
 %%--------------------------------------------------------------------
 %% @private

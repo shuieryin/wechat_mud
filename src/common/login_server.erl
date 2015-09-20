@@ -16,12 +16,15 @@
     is_uid_registered/1,
     is_in_registration/1,
     register_uid/2,
-    registration_done/1,
-    get_uid_profile/1,
-    remove_user/1]).
+    registration_done/2,
+    remove_user/1,
+    bringup_registration/2,
+    login/2,
+    is_uid_logged_in/1]).
 
--define(R_REGISTERED_UID_MAP, registered_uid_map).
+-define(R_REGISTERED_UID_LIST, registered_uid_list).
 -define(REGISTRATION_FSM_MAP, registration_fsm_map).
+-define(LOGGED_IN_UID_LIST, logged_in_uid_list).
 
 %% gen_server callbacks
 -export([init/1,
@@ -67,18 +70,6 @@ is_uid_registered(Uid) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Get user profile
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec get_uid_profile(Uid) -> UidProfile | null when
-    UidProfile :: map(),
-    Uid :: atom().
-get_uid_profile(Uid) ->
-    gen_server:call(?MODULE, {get_uid_profile, Uid}).
-
-%%--------------------------------------------------------------------
-%% @doc
 %% Check if uid is in registration process
 %%
 %% @end
@@ -88,22 +79,40 @@ get_uid_profile(Uid) ->
 is_in_registration(Uid) ->
     gen_server:call(?MODULE, {is_in_registration, Uid}).
 
--spec register_uid(DispatcherUid, Uid) -> no_return() when
+-spec register_uid(DispatcherPid, Uid) -> no_return() when
     Uid :: atom(),
-    DispatcherUid :: pid().
-register_uid(DispatcherUid, Uid) ->
-    gen_server:cast(?MODULE, {register_uid, DispatcherUid, Uid}).
+    DispatcherPid :: pid().
+register_uid(DispatcherPid, Uid) ->
+    gen_server:cast(?MODULE, {register_uid, DispatcherPid, Uid}).
 
--spec registration_done(State) -> ok when
-    State :: map().
-registration_done(State) ->
-    gen_server:cast(?MODULE, {registration_done, State}),
+-spec registration_done(State, DispatcherPid) -> ok when
+    State :: map(),
+    DispatcherPid :: pid().
+registration_done(State, DispatcherPid) ->
+    gen_server:cast(?MODULE, {registration_done, State, DispatcherPid}),
     ok.
 
 -spec remove_user(Uid) -> no_return() when
     Uid :: atom().
 remove_user(Uid) ->
     gen_server:call(?MODULE, {remove_user, Uid}).
+
+-spec bringup_registration(StateName, StateData) -> ok when
+    StateName :: atom(),
+    StateData :: map().
+bringup_registration(StateName, StateData) ->
+    gen_server:cast(?MODULE, {bringup_registration, StateName, StateData}).
+
+-spec login(DispatcherPid, Uid) -> ok when
+    DispatcherPid :: pid(),
+    Uid :: atom().
+login(DispatcherPid, Uid) ->
+    gen_server:cast(?MODULE, {login, DispatcherPid, Uid}).
+
+-spec is_uid_logged_in(Uid) -> ok when
+    Uid :: atom().
+is_uid_logged_in(Uid) ->
+    gen_server:call(?MODULE, {is_uid_logged_in, Uid}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -131,16 +140,17 @@ remove_user(Uid) ->
     Reason :: term().
 init([]) ->
     io:format("~p starting~n", [?MODULE]),
-    RegisteredUidMap = case redis_client_server:get(?R_REGISTERED_UID_MAP) of
-                           undefined ->
-                               NewMap = #{},
-                               redis_client_server:set(?R_REGISTERED_UID_MAP, NewMap, true),
-                               NewMap;
-                           ExistingMap ->
-                               error_logger:info_msg("ExistingMap found:~p~n", [ExistingMap]),
-                               ExistingMap
-                       end,
-    {ok, #{?R_REGISTERED_UID_MAP => RegisteredUidMap, ?REGISTRATION_FSM_MAP => #{}}}.
+    RegisteredUidList =
+        case redis_client_server:get(?R_REGISTERED_UID_LIST) of
+            undefined ->
+                NewList = [],
+                redis_client_server:set(?R_REGISTERED_UID_LIST, NewList, true),
+                NewList;
+            UidList ->
+                error_logger:info_msg("Registered uid list:~p~n", [UidList]),
+                UidList
+        end,
+    {ok, #{?REGISTRATION_FSM_MAP => #{}, ?R_REGISTERED_UID_LIST => RegisteredUidList, ?LOGGED_IN_UID_LIST => []}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -157,7 +167,7 @@ init([]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: {is_uid_registered | is_in_registration | registration_done | get_uid_profile | remove_user, Uid},
+    Request :: {is_uid_registered | is_in_registration | remove_user, Uid},
     Uid :: atom(),
     From :: {pid(), Tag :: term()},
     Reply :: term(),
@@ -165,19 +175,23 @@ init([]) ->
     NewState :: map(),
     Reason :: term().
 handle_call({is_uid_registered, Uid}, _From, State) ->
-    RegisteredUidMap = maps:get(?R_REGISTERED_UID_MAP, State),
-    {reply, maps:is_key(Uid, RegisteredUidMap), State};
+    RegisteredUidList = maps:get(?R_REGISTERED_UID_LIST, State),
+    {reply, common_api:list_has_element(RegisteredUidList, Uid), State};
 handle_call({is_in_registration, Uid}, _From, State) ->
     RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
     Result = maps:is_key(Uid, RegistrationFsmMap),
     {reply, Result, State};
-handle_call({get_uid_profile, Uid}, _From, State) ->
-    {reply, maps:get(Uid, maps:get(?R_REGISTERED_UID_MAP, State), null), State};
 handle_call({remove_user, Uid}, _From, State) ->
-    RegisteredUidMap = maps:get(?R_REGISTERED_UID_MAP, State),
-    UpdatedRegisteredUidMap = maps:remove(Uid, RegisteredUidMap),
-    redis_client_server:set(?R_REGISTERED_UID_MAP, UpdatedRegisteredUidMap, true),
-    {reply, ok, State#{?R_REGISTERED_UID_MAP := UpdatedRegisteredUidMap}}.
+    RegisteredUidList = maps:get(?R_REGISTERED_UID_LIST, State),
+    UpdatedRegisteredUidList = maps:remove(Uid, RegisteredUidList),
+
+    redis_client_server:async_del([Uid], false),
+    redis_client_server:async_set(?R_REGISTERED_UID_LIST, lists:delete(Uid, RegisteredUidList), true),
+
+    {reply, ok, State#{?R_REGISTERED_UID_LIST := UpdatedRegisteredUidList}};
+handle_call({is_uid_logged_in, Uid}, _From, State) ->
+    LoggedUidList = maps:get(?LOGGED_IN_UID_LIST, State),
+    {reply, common_api:list_has_element(LoggedUidList, Uid), State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -191,33 +205,75 @@ handle_call({remove_user, Uid}, _From, State) ->
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: {registration_done, UserState} | {register_uid, DispatcherPid, Uid},
+    Request :: {registration_done, PlayerProfile, DispatcherPid} | {register_uid, DispatcherPid, Uid} | {bringup_registration, StateName, StateData} | {login, DispatcherPid, Uid},
     DispatcherPid :: pid(),
     Uid :: atom(),
-    UserState :: map(),
+    PlayerProfile :: map(),
     State :: map(),
     NewState :: map(),
-    Reason :: term().
-handle_cast({registration_done, UserState}, State) ->
+    Reason :: term(),
+    StateName :: atom(),
+    StateData :: map().
+handle_cast({registration_done, PlayerProfile, DispatcherPid}, State) ->
+    Uid = maps:get(uid, PlayerProfile),
+    UpdatedRegisteredUidList = [Uid] ++ maps:get(?R_REGISTERED_UID_LIST, State),
+
+    redis_client_server:async_set(Uid, PlayerProfile, false),
+    redis_client_server:async_set(?R_REGISTERED_UID_LIST, UpdatedRegisteredUidList, true),
+
     RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
-    RedisRegistrationUidMap = maps:get(?R_REGISTERED_UID_MAP, State),
+    UpdatedState = State#{?R_REGISTERED_UID_LIST := UpdatedRegisteredUidList, ?REGISTRATION_FSM_MAP => maps:remove(Uid, RegistrationFsmMap)},
 
-    Uid = maps:get(uid, UserState),
-    UpdatedRedisRegistrationUidMap = maps:put(Uid, UserState, RedisRegistrationUidMap),
-    redis_client_server:set(?R_REGISTERED_UID_MAP, UpdatedRedisRegistrationUidMap, true),
-
-    {noreply, State#{?R_REGISTERED_UID_MAP => UpdatedRedisRegistrationUidMap, ?REGISTRATION_FSM_MAP => maps:remove(Uid, RegistrationFsmMap)}};
+    login(DispatcherPid, Uid),
+    {noreply, UpdatedState};
 handle_cast({register_uid, DispatcherPid, Uid}, State) ->
     RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
     case maps:is_key(Uid, RegistrationFsmMap) of
         false ->
-            {ok, FsmPid} = register_fsm:start(DispatcherPid, Uid),
+            {ok, FsmPid} = register_fsm:start({init, DispatcherPid, Uid}),
             UpdatedState = State#{?REGISTRATION_FSM_MAP => maps:put(Uid, FsmPid, RegistrationFsmMap)};
         _ ->
             gen_fsm:send_all_state_event(Uid, {restart, DispatcherPid}),
             UpdatedState = State
     end,
-    {noreply, UpdatedState}.
+    {noreply, UpdatedState};
+handle_cast({bringup_registration, StateName, StateData}, State) ->
+    RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
+    {ok, FsmPid} = register_fsm:start({bringup, StateName, StateData}),
+    Uid = maps:get(uid, StateData),
+    UpdatedState = State#{?REGISTRATION_FSM_MAP => maps:put(Uid, FsmPid, RegistrationFsmMap)},
+    {noreply, UpdatedState};
+handle_cast({login, DispatcherPid, Uid}, State) ->
+    LoggedInUidList = maps:get(?LOGGED_IN_UID_LIST, State),
+
+    UpdatedLoggedInUidList =
+        case common_api:index_of(LoggedInUidList, Uid) of
+            -1 ->
+                PlayerProfile = redis_client_server:get(Uid),
+                #{scene := CurSceneName} = PlayerProfile,
+                player_fsm:start({init, PlayerProfile}),
+                scene_fsm:enter(CurSceneName, PlayerProfile, DispatcherPid),
+                [Uid] ++ LoggedInUidList;
+            _ ->
+                player_fsm:send_message(Uid, login, [{nls, alread_login}], DispatcherPid),
+                LoggedInUidList
+        end,
+
+    {noreply, State#{?LOGGED_IN_UID_LIST := UpdatedLoggedInUidList}};
+handle_cast({logout, DispatcherPid, Uid}, State) ->
+    LoggedInUidList = maps:get(?LOGGED_IN_UID_LIST, State),
+    UpdatedLoggedInUidList =
+        case common_api:index_of(Uid, LoggedInUidList) of
+            -1 ->
+                LoggedInUidList;
+            _ ->
+                player_fsm:leave_scene(Uid),
+                player_fsm:stop(Uid),
+                lists:delete(Uid, LoggedInUidList)
+        end,
+
+    nls_server:response_text(logout, [{nls, already_logout}], player_fsm:get_lang(Uid), DispatcherPid),
+    {noreply, State#{?LOGGED_IN_UID_LIST := UpdatedLoggedInUidList}}.
 
 %%--------------------------------------------------------------------
 %% @private

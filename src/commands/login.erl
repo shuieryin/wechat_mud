@@ -22,12 +22,11 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispacherPid, UidProfile) -> no_return() when
-    UidProfile :: command_dispatcher:uid_profile(),
-    DispacherPid :: pid().
-exec(DispacherPid, UidProfile) ->
-    #{uid := Uid} = UidProfile,
-    command_dispatcher:return_text(DispacherPid, [<<"success:">>, atom_to_binary(Uid, utf8)]).
+-spec exec(DispatcherPid, Uid) -> no_return() when
+    Uid :: atom(),
+    DispatcherPid :: pid().
+exec(DispatcherPid, Uid) ->
+    login_server:login(DispatcherPid, Uid).
 
 %%%===================================================================
 %%% Internal functions

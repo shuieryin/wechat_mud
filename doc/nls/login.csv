@@ -1,0 +1,4 @@
+id,zh,en
+info,指令:login~n描述:登陆人物~n例子:login,COMMAND:login~nDESCRIPTION:Login character~nExample:login
+already_login,您已登陆,You have already logged in
+please_login,你还没登陆~n请输入“login”,You have not logged in yet~nPlease input “login”

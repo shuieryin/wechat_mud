@@ -1,16 +1,20 @@
--module(rereg).
+-module(direction).
 %% API
--export([exec/2]).
+-export([exec/3]).
 
 %%%-------------------------------------------------------------------
-%%% @author Shuieryin
-%%% @copyright (C) 2015, Shuieryin
+%%% @author shuieryin
+%%% @copyright (C) 2015, <COMPANY>
 %%% @doc
 %%%
 %%% @end
-%%% Created : 01. Sep 2015 11:28 PM
+%%% Created : 20. 九月 2015 下午4:08
 %%%-------------------------------------------------------------------
--author("Shuieryin").
+-author("shuieryin").
+
+-type direction() :: east | south | west | north | northeast | southeast | southwest | northwest.
+
+-export_type([direction/0]).
 
 %%%===================================================================
 %%% API
@@ -18,16 +22,21 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% re-register user
+%% Execute
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispatcherPid, UidProfile) -> no_return() when
-    UidProfile :: command_dispatcher:uid_profile(),
-    DispatcherPid :: pid().
-exec(DispatcherPid, UidProfile) ->
-    #{uid := Uid} = UidProfile,
-    login_server:register_uid(DispatcherPid, Uid).
+-spec exec(DispatcherPid, Uid, Direction) -> no_return() when
+    Uid :: atom(),
+    DispatcherPid :: pid(),
+    Direction :: direction().
+exec(DispatcherPid, Uid, Direction) ->
+    case Direction of
+        look ->
+            player_fsm:look_scene(Uid, DispatcherPid);
+        _ ->
+            player_fsm:go_direction(Uid, DispatcherPid, Direction)
+    end.
 
 %%%===================================================================
 %%% Internal functions
