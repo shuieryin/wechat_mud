@@ -135,16 +135,23 @@ process_request(Req) ->
             ReplyText = case InputForUnregister of
                             no_reply ->
                                 FuncForRegsiter();
+                            <<"login">> ->
+                                FuncForRegsiter(Uid);
                             _ ->
-                                case login_server:is_in_registration(Uid) of
+                                case login_server:is_uid_logged_in(Uid) of
                                     true ->
-                                        pending_text(register_fsm, input, [Uid, InputForUnregister]);
+                                        FuncForRegsiter(Uid);
                                     _ ->
-                                        case login_server:is_uid_registered(Uid) of
-                                            false ->
-                                                pending_text(login_server, register_uid, [Uid]);
+                                        case login_server:is_in_registration(Uid) of
+                                            true ->
+                                                pending_text(register_fsm, input, [Uid, InputForUnregister]);
                                             _ ->
-                                                FuncForRegsiter(Uid)
+                                                case login_server:is_uid_registered(Uid) of
+                                                    false ->
+                                                        pending_text(login_server, register_uid, [Uid]);
+                                                    _ ->
+                                                        nls_server:get_text(login, [{nls, please_login}], zh)
+                                                end
                                         end
                                 end
                         end,
@@ -166,9 +173,8 @@ get_action_from_message_type(MsgType, ReqParamsMap) ->
             Event = binary_to_atom(maps:get('Event', ReqParamsMap), utf8),
             case Event of
                 subscribe ->
-                    {<<>>, fun(PlayerProfile) ->
-                        Lang = maps:get(lang, PlayerProfile),
-                        nls_server:get_text(?MODULE, [{nls, welcome_back}], Lang)
+                    {<<>>, fun(_Uid) ->
+                        nls_server:get_text(?MODULE, [{nls, welcome_back}], zh)
                     end};
                 unsubscribe ->
                     {no_reply, fun() ->
@@ -184,46 +190,50 @@ get_action_from_message_type(MsgType, ReqParamsMap) ->
             RawInput = maps:get('Content', ReqParamsMap),
             [ModuleNameStr | RawCommandArgs] = binary:split(RawInput, <<" ">>),
             {RawInput, fun(Uid) ->
-                try
-                    RawModuleName = binary_to_atom(ModuleNameStr, utf8),
-                    {ModuleName, CommandArgs} =
-                        case common_api:is_module_exists(RawModuleName) of
-                            true ->
-                                {RawModuleName, RawCommandArgs};
-                            _ ->
-                                case direction(RawModuleName) of
-                                    undefined ->
-                                        throw(not_direction);
-                                    Direction ->
-                                        direction:module_info(),
-                                        {direction, [Direction]}
-                                end
-                        end,
-
-                    Arity = length(CommandArgs),
-                    Args = [Uid] ++ CommandArgs,
-
-                    case erlang:function_exported(ModuleName, exec, Arity + 2) of
-                        true ->
-                            pending_text(ModuleName, exec, Args);
-                        _ ->
-                            nls_server:get_text(ModuleName, [{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, info}], player_fsm:get_lang(Uid))
-                    end
-                catch
-                    Type:Reason ->
-                        error_logger:error_msg("Command error~n Type:~p~nReason:~p~n", [Type, Reason]),
-                        case login_server:is_uid_logged_in(Uid) of
-                            true ->
-                                nls_server:get_text(?MODULE, [{nls, invalid_command}, ModuleNameStr], player_fsm:get_lang(Uid));
-                            _ ->
-                                nls_server:get_text(login, [{nls, please_login}], zh)
-                        end
-                end
+                handle_text(Uid, ModuleNameStr, RawCommandArgs)
             end};
         _ ->
             {<<>>, fun(Uid) ->
                 nls_server:get_text(?MODULE, [{nls, message_type_not_support}], player_fsm:get_lang(Uid))
             end}
+    end.
+
+-spec handle_text(Uid, ModuleNameStr, RawCommandArgs) -> {InputForUnregister, FuncForRegsiter} when
+    Uid :: atom(),
+    ModuleNameStr :: string(),
+    RawCommandArgs :: [term()],
+    InputForUnregister :: term(),
+    FuncForRegsiter :: function().
+handle_text(Uid, ModuleNameStr, RawCommandArgs) ->
+    try
+        RawModuleName = binary_to_atom(ModuleNameStr, utf8),
+        {ModuleName, CommandArgs} =
+            case common_api:is_module_exists(RawModuleName) of
+                true ->
+                    {RawModuleName, RawCommandArgs};
+                _ ->
+                    case direction(RawModuleName) of
+                        undefined ->
+                            throw(not_direction);
+                        Direction ->
+                            direction:module_info(),
+                            {direction, [Direction]}
+                    end
+            end,
+
+        Arity = length(CommandArgs),
+        Args = [Uid] ++ CommandArgs,
+
+        case erlang:function_exported(ModuleName, exec, Arity + 2) of
+            true ->
+                pending_text(ModuleName, exec, Args);
+            _ ->
+                nls_server:get_text(ModuleName, [{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, info}], player_fsm:get_lang(Uid))
+        end
+    catch
+        Type:Reason ->
+            error_logger:error_msg("Command error:d~nType:~p~nReason:~p~n", [Type, Reason]),
+            nls_server:get_text(?MODULE, [{nls, invalid_command}, ModuleNameStr], player_fsm:get_lang(Uid))
     end.
 
 -spec pending_text(Module, Function, Args) -> [binary()] when
@@ -311,30 +321,44 @@ concat_param_content([{_, ParamContent} | Tail], ConcatedParamContent) ->
     concat_param_content(Tail, [ParamContent | ConcatedParamContent]).
 
 -spec direction(atom()) -> direction:direction().
-direction(e) -> east;
-direction(east) -> east;
 direction('6') -> east;
-direction(s) -> south;
-direction(south) -> south;
 direction('8') -> south;
-direction(w) -> west;
-direction(west) -> west;
 direction('4') -> west;
-direction(n) -> north;
-direction(north) -> north;
 direction('2') -> north;
-direction(ne) -> northeast;
-direction(northeast) -> northeast;
 direction('3') -> northeast;
-direction(se) -> southeast;
-direction(southeast) -> southeast;
 direction('9') -> southeast;
-direction(sw) -> southwest;
-direction(southwest) -> southwest;
 direction('7') -> southwest;
-direction(nw) -> northwest;
-direction(northwest) -> northwest;
 direction('1') -> northwest;
-direction(look) -> look;
 direction('5') -> look;
+
+direction(e) -> east;
+direction(s) -> south;
+direction(w) -> west;
+direction(n) -> north;
+direction(ne) -> northeast;
+direction(se) -> southeast;
+direction(sw) -> southwest;
+direction(nw) -> northwest;
+direction(l) -> look;
+
+direction(east) -> east;
+direction(south) -> south;
+direction(west) -> west;
+direction(north) -> north;
+direction(northeast) -> northeast;
+direction(southeast) -> southeast;
+direction(southwest) -> southwest;
+direction(northwest) -> northwest;
+direction(look) -> look;
+
+direction('East') -> east;
+direction('South') -> south;
+direction('West') -> west;
+direction('North') -> north;
+direction('Northeast') -> northeast;
+direction('Southeast') -> southeast;
+direction('Southwest') -> southwest;
+direction('Northwest') -> northwest;
+direction('Look') -> look;
+
 direction(_) -> undefined.

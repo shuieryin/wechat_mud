@@ -5,7 +5,8 @@
     timestamp/0,
     reload_modules/1,
     index_of/2,
-    list_has_element/2]).
+    list_has_element/2,
+    until_process_terminated/1]).
 
 %%%-------------------------------------------------------------------
 %%% @author Shuieryin
@@ -123,6 +124,21 @@ list_has_element(List, Item) ->
             true
     end.
 
+-spec until_process_terminated(PidOrName) -> boolean() when
+    PidOrName :: pid() | atom().
+until_process_terminated(PidOrName) ->
+    IsTerminatedFun = case is_pid(PidOrName) of
+                          true ->
+                              fun() -> process_info(PidOrName) end;
+                          _ ->
+                              fun() -> whereis(PidOrName) end
+                      end,
+    until_process_terminated(IsTerminatedFun(), IsTerminatedFun).
+until_process_terminated(undefined, _) ->
+    true;
+until_process_terminated(_, IsTerminatedFun) ->
+    timer:sleep(20),
+    until_process_terminated(IsTerminatedFun(), IsTerminatedFun).
 
 %%%===================================================================
 %%% Internal functions

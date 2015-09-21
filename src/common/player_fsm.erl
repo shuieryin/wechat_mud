@@ -48,11 +48,18 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec start(Request) -> {ok, pid()} | ignore | {error, Reason :: term()} when
-    Request :: {init, PlayerProfile},
+    Request :: {init, PlayerProfile} | {bringup, StateName, StateData},
+    StateName :: atom(),
+    StateData :: map(),
     PlayerProfile :: map().
 start({init, PlayerProfile}) ->
     Uid = maps:get(uid, PlayerProfile),
-    gen_fsm:start({local, Uid}, ?MODULE, [{init, PlayerProfile}], []).
+    gen_fsm:start({local, Uid}, ?MODULE, {init, PlayerProfile}, []);
+start({bringup, StateName, StateData}) ->
+    #{self := PlayerProfile} = StateData,
+    #{uid := Uid} = PlayerProfile,
+    true = common_api:until_process_terminated(Uid),
+    gen_fsm:start({local, Uid}, ?MODULE, {bringup, StateName, StateData}, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -171,8 +178,12 @@ stop(Uid) ->
     StateName :: atom(),
     StateData :: map(),
     Reason :: term().
-init([{init, PlayerProfile}]) ->
-    {ok, non_battle, #{self => PlayerProfile}}.
+init({init, PlayerProfile}) ->
+    error_logger:info_msg("Init player:~p~n", [PlayerProfile]),
+    {ok, non_battle, #{self => PlayerProfile}};
+init({bringup, StateName, StateData}) ->
+    error_logger:info_msg("player fsm bringup:~p~n", [StateData]),
+    {ok, StateName, StateData}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -313,7 +324,13 @@ handle_event({show_langs, DispatcherPid}, StateName, State) ->
     #{self := PlayerProfile} = State,
     #{lang := Lang} = PlayerProfile,
     nls_server:show_langs(DispatcherPid, Lang),
-    {next_state, StateName, State}.
+    {next_state, StateName, State};
+handle_event(stop, _StateName, State) ->
+    #{self := PlayerProfile} = State,
+    #{uid := Uid} = PlayerProfile,
+
+    redis_client_server:set(Uid, PlayerProfile, true),
+    {stop, normal, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -383,11 +400,10 @@ handle_info(_Info, StateName, State) ->
 terminate(Reason, StateName, StateData) ->
     case Reason of
         Result when Result /= normal andalso Result /= done ->
-            login_server:bringup_registration(StateName, StateData);
+            scene_fsm:bringup_player(StateName, StateData);
         _ ->
             ok
-    end,
-    ok.
+    end.
 
 %%--------------------------------------------------------------------
 %% @private

@@ -17,7 +17,8 @@
     enter/3,
     leave/2,
     leave/3,
-    look/3]).
+    look/3,
+    bringup_player/2]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -101,6 +102,20 @@ leave(SceneName, Uid) ->
     SimplePlayerProfile :: map().
 look(CurSceneName, DispatcherPid, SimplePlayerProfile) ->
     gen_fsm:send_all_state_event(CurSceneName, {look, DispatcherPid, SimplePlayerProfile}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Bring up player
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec bringup_player(PlayerStateName, PlayerStateData) -> ok when
+    PlayerStateName :: atom(),
+    PlayerStateData :: map().
+bringup_player(PlayerStateName, PlayerStateData) ->
+    #{self := PlayerProfile} = PlayerStateData,
+    #{scene := CurSceneName} = PlayerProfile,
+    gen_fsm:send_all_state_event(CurSceneName, {bringup_player, PlayerStateName, PlayerStateData}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -204,7 +219,9 @@ state_name(_Event, _From, State) ->
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
 
-    Event :: {enter, SimplePlayerProfile, DispatcherPid} | {leave, Uid} | {look, DispatcherPid},
+    Event :: {enter, SimplePlayerProfile, DispatcherPid} | {leave, Uid} | {look, DispatcherPid} | {bringup_player, PlayerStateName, PlayerStateData},
+    PlayerStateName :: atom(),
+    PlayerStateData :: map(),
     SimplePlayerProfile :: map(),
     DispatcherPid :: pid(),
     Uid :: atom(),
@@ -224,6 +241,11 @@ handle_event({leave, Uid}, StateName, State) ->
     {next_state, StateName, State#{?PLAYERS_MAP := maps:remove(Uid, PlayersMap)}};
 handle_event({look, DispatcherPid, SimplePlayerProfile}, StateName, State) ->
     show_scene(DispatcherPid, State, SimplePlayerProfile),
+    {next_state, StateName, State};
+handle_event({bringup_player, PlayerStateName, PlayerStateData}, StateName, State) ->
+    spawn(fun() ->
+        player_fsm:start({bringup, PlayerStateName, PlayerStateData})
+    end),
     {next_state, StateName, State}.
 
 %%--------------------------------------------------------------------

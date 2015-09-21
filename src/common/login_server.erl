@@ -20,10 +20,11 @@
     remove_user/1,
     bringup_registration/2,
     login/2,
-    is_uid_logged_in/1]).
+    is_uid_logged_in/1,
+    logout/2]).
 
 -define(R_REGISTERED_UID_LIST, registered_uid_list).
--define(REGISTRATION_FSM_MAP, registration_fsm_map).
+-define(REGISTERING_UID_LIST, registration_uid_list).
 -define(LOGGED_IN_UID_LIST, logged_in_uid_list).
 
 %% gen_server callbacks
@@ -114,6 +115,12 @@ login(DispatcherPid, Uid) ->
 is_uid_logged_in(Uid) ->
     gen_server:call(?MODULE, {is_uid_logged_in, Uid}).
 
+-spec logout(DispatcherPid, Uid) -> ok when
+    DispatcherPid :: pid(),
+    Uid :: atom().
+logout(DispatcherPid, Uid) ->
+    gen_server:cast(?MODULE, {logout, DispatcherPid, Uid}).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -150,7 +157,7 @@ init([]) ->
                 error_logger:info_msg("Registered uid list:~p~n", [UidList]),
                 UidList
         end,
-    {ok, #{?REGISTRATION_FSM_MAP => #{}, ?R_REGISTERED_UID_LIST => RegisteredUidList, ?LOGGED_IN_UID_LIST => []}}.
+    {ok, #{?REGISTERING_UID_LIST => [], ?R_REGISTERED_UID_LIST => RegisteredUidList, ?LOGGED_IN_UID_LIST => []}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -178,8 +185,8 @@ handle_call({is_uid_registered, Uid}, _From, State) ->
     RegisteredUidList = maps:get(?R_REGISTERED_UID_LIST, State),
     {reply, common_api:list_has_element(RegisteredUidList, Uid), State};
 handle_call({is_in_registration, Uid}, _From, State) ->
-    RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
-    Result = maps:is_key(Uid, RegistrationFsmMap),
+    RegisteringUidList = maps:get(?REGISTERING_UID_LIST, State),
+    Result = common_api:list_has_element(RegisteringUidList, Uid),
     {reply, Result, State};
 handle_call({remove_user, Uid}, _From, State) ->
     RegisteredUidList = maps:get(?R_REGISTERED_UID_LIST, State),
@@ -221,28 +228,20 @@ handle_cast({registration_done, PlayerProfile, DispatcherPid}, State) ->
     redis_client_server:async_set(Uid, PlayerProfile, false),
     redis_client_server:async_set(?R_REGISTERED_UID_LIST, UpdatedRegisteredUidList, true),
 
-    RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
-    UpdatedState = State#{?R_REGISTERED_UID_LIST := UpdatedRegisteredUidList, ?REGISTRATION_FSM_MAP => maps:remove(Uid, RegistrationFsmMap)},
+    RegisteringUidList = maps:get(?REGISTERING_UID_LIST, State),
+    UpdatedState = State#{?R_REGISTERED_UID_LIST := UpdatedRegisteredUidList, ?REGISTERING_UID_LIST => lists:delete(Uid, RegisteringUidList)},
 
     login(DispatcherPid, Uid),
     {noreply, UpdatedState};
 handle_cast({register_uid, DispatcherPid, Uid}, State) ->
-    RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
-    case maps:is_key(Uid, RegistrationFsmMap) of
-        false ->
-            {ok, FsmPid} = register_fsm:start({init, DispatcherPid, Uid}),
-            UpdatedState = State#{?REGISTRATION_FSM_MAP => maps:put(Uid, FsmPid, RegistrationFsmMap)};
-        _ ->
-            gen_fsm:send_all_state_event(Uid, {restart, DispatcherPid}),
-            UpdatedState = State
-    end,
-    {noreply, UpdatedState};
+    register_fsm:start({init, DispatcherPid, Uid}),
+    RegisteringUidList = maps:get(?REGISTERING_UID_LIST, State),
+    {noreply, State#{?REGISTERING_UID_LIST := [Uid] ++ RegisteringUidList}};
 handle_cast({bringup_registration, StateName, StateData}, State) ->
-    RegistrationFsmMap = maps:get(?REGISTRATION_FSM_MAP, State),
-    {ok, FsmPid} = register_fsm:start({bringup, StateName, StateData}),
-    Uid = maps:get(uid, StateData),
-    UpdatedState = State#{?REGISTRATION_FSM_MAP => maps:put(Uid, FsmPid, RegistrationFsmMap)},
-    {noreply, UpdatedState};
+    spawn(fun() ->
+        register_fsm:start({bringup, StateName, StateData})
+    end),
+    {noreply, State};
 handle_cast({login, DispatcherPid, Uid}, State) ->
     LoggedInUidList = maps:get(?LOGGED_IN_UID_LIST, State),
 
@@ -255,15 +254,16 @@ handle_cast({login, DispatcherPid, Uid}, State) ->
                 scene_fsm:enter(CurSceneName, PlayerProfile, DispatcherPid),
                 [Uid] ++ LoggedInUidList;
             _ ->
-                player_fsm:send_message(Uid, login, [{nls, alread_login}], DispatcherPid),
+                player_fsm:send_message(Uid, login, [{nls, already_login}], DispatcherPid),
                 LoggedInUidList
         end,
 
     {noreply, State#{?LOGGED_IN_UID_LIST := UpdatedLoggedInUidList}};
 handle_cast({logout, DispatcherPid, Uid}, State) ->
     LoggedInUidList = maps:get(?LOGGED_IN_UID_LIST, State),
+    Lang = player_fsm:get_lang(Uid),
     UpdatedLoggedInUidList =
-        case common_api:index_of(Uid, LoggedInUidList) of
+        case common_api:index_of(LoggedInUidList, Uid) of
             -1 ->
                 LoggedInUidList;
             _ ->
@@ -272,7 +272,7 @@ handle_cast({logout, DispatcherPid, Uid}, State) ->
                 lists:delete(Uid, LoggedInUidList)
         end,
 
-    nls_server:response_text(logout, [{nls, already_logout}], player_fsm:get_lang(Uid), DispatcherPid),
+    nls_server:response_text(logout, [{nls, already_logout}], Lang, DispatcherPid),
     {noreply, State#{?LOGGED_IN_UID_LIST := UpdatedLoggedInUidList}}.
 
 %%--------------------------------------------------------------------

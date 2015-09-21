@@ -57,10 +57,11 @@
     Reason :: term().
 start({init, DispatcherPid, Uid}) ->
     nls_server:response_text(?MODULE, [{nls, select_lang}], zh, DispatcherPid),
-    gen_fsm:start({local, module_name(Uid)}, ?MODULE, [{init, Uid}], []);
+    gen_fsm:start({local, module_name(Uid)}, ?MODULE, {init, Uid}, []);
 start({bringup, StateName, StateData}) ->
     Uid = maps:get(uid, StateData),
-    gen_fsm:start({local, module_name(Uid)}, ?MODULE, [{bringup, StateName, StateData}], []).
+    true = common_api:until_process_terminated(module_name(Uid)),
+    gen_fsm:start({local, module_name(Uid)}, ?MODULE, {bringup, StateName, StateData}, []).
 
 -spec input(DispatcherPid, Uid, Input) -> ok when
     Uid :: atom(),
@@ -74,7 +75,6 @@ input(DispatcherPid, Uid, Input) ->
 stop(State) ->
     Uid = maps:get(uid, State),
     gen_fsm:send_all_state_event(module_name(Uid), stop).
-
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -100,10 +100,10 @@ stop(State) ->
     StateName :: atom(),
     StateData :: map(),
     Reason :: term().
-init([{init, Uid}]) ->
+init({init, Uid}) ->
     error_logger:info_msg("register fsm init~n", []),
     {ok, select_lang, #{uid => Uid}};
-init([{bringup, StateName, StateData}]) ->
+init({bringup, StateName, StateData}) ->
     error_logger:info_msg("register fsm bringup~n", []),
     {ok, StateName, StateData}.
 
@@ -354,19 +354,16 @@ state_name(_Event, _From, State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec handle_event({restart, DispatcherPid}, StateName, StateData) ->
+-spec handle_event(Event, StateName, StateData) ->
     {next_state, NextStateName, NewStateData} |
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
-    DispatcherPid :: pid(),
+    Event :: term(),
     StateName :: atom(),
     StateData :: map(),
     NextStateName :: atom(),
     NewStateData :: map(),
     Reason :: term().
-handle_event({restart, DispatcherPid}, _StateName, State) ->
-    error_logger:info_msg("register fsm restarted", []),
-    init([maps:get(uid, State), DispatcherPid]);
 handle_event(_Event, StateName, State) ->
     {next_state, StateName, State}.
 
@@ -482,4 +479,4 @@ format_status(Opt, StatusData) ->
 %%% Internal functions
 %%%===================================================================
 module_name(Uid) ->
-    list_to_atom(atom_to_list(Uid) ++ "_fsm").
+    list_to_atom(atom_to_list(Uid) ++ "_register_fsm").

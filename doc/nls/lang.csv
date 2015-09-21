@@ -1,5 +1,5 @@
 id,zh,en
-info,指令:lang [语言缩写 | all]~n描述:更换语言~n例子:~n设置语言:lang en~n语言缩写:lang all,COMMAND:lang [language abbreviation | all]~nDESCRIPTION:change language~nSAMPLE:~nChange language:lang en~nList language abbreviation:lang all
+info,指令:lang [语言缩写 | all]~n描述:更换语言~n例子:~n设置语言:lang en~n语言缩写:lang all,COMMAND:lang [language abbreviation | all]~nDESCRIPTION:change language~nSAMPLE:~nChange language:lang zh~nList language abbreviation:lang all
 invalid_lang,无效语言: ,Invalid language: 
 lang_switched,语言已更换,Language switched
 possible_lang,可用语言: ,Possible language: 

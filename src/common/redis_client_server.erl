@@ -20,7 +20,8 @@
     async_set/3,
     async_save/0,
     del/2,
-    async_del/2]).
+    async_del/2,
+    clear_all/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -147,6 +148,17 @@ del(Keys, IsSave) ->
     Result :: boolean().
 async_del(Keys, IsSave) ->
     gen_server:cast(?MODULE, {del, Keys, IsSave}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% clear all data
+%%
+%% @end
+%%--------------------------------------------------------------------
+clear_all() ->
+    {ok, RedisClientPid} = eredis:start_link(),
+    eredis:q(RedisClientPid, ["FLUSHDB"]),
+    eredis:q(RedisClientPid, ["SAVE"]).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -400,7 +412,7 @@ set(Key, Value, IsSave, State) ->
     case IsSave of
         true ->
             save(State);
-        false ->
+        _ ->
             ok
     end,
     IsSet.
@@ -421,7 +433,7 @@ del(Keys, IsSave, State) ->
     case IsSave of
         true ->
             save(State);
-        false ->
+        _ ->
             ok
     end,
     IsDel.
