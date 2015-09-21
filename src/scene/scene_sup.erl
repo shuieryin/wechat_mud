@@ -30,8 +30,8 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link() ->
-    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
+-spec start_link() ->
+    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
@@ -49,13 +49,8 @@ start_link() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(init(Args :: term()) ->
-    {ok, {SupFlags :: {RestartStrategy :: supervisor:strategy(),
-        MaxR :: non_neg_integer(), MaxT :: non_neg_integer()},
-        [ChildSpec :: supervisor:child_spec()]
-    }} |
-    ignore |
-    {error, Reason :: term()}).
+-spec init(Args :: term()) ->
+    {ok, {SupFlags :: supervisor:sup_flags(), [ChildSpec :: supervisor:child_spec()]}} | ignore.
 init([]) ->
     RestartStrategy = one_for_one,
     MaxRestarts = 1000,
@@ -70,7 +65,7 @@ init([]) ->
 %%% Internal functions
 %%%===================================================================
 -spec gen_child_list() -> ChildList when
-    ChildList :: {WorkerName, {scene_fsm, start_link, []}, Restart, Shutdown, Type, [scene_fsm]},
+    ChildList :: [{WorkerName, {scene_fsm, start_link, []}, Restart, Shutdown, Type, [scene_fsm]}],
     Restart :: supervisor:restart(),
     Shutdown :: supervisor:shutdown(),
     Type :: supervisor:worker(),
@@ -111,10 +106,13 @@ gen_child_list([FileName | Tail], AccSceneList, Restart, Shutdown, Type) ->
 -spec gen_scenes(NewLineData, State) -> FinalSceneList when
     NewLineData :: {newline, NewLine} | {eof},
     NewLine :: [term()],
-    State :: {Counter, KeysMap, ValuesMap} | {0, ValuesMap},
+    State :: {Counter, Restart, Shutdown, Type, KeysMap, SceneList} | {0, Restart, Shutdown, Type} | {_, _, _, _, _, FinalSceneList},
     Counter :: non_neg_integer(),
+    Restart :: atom(),
+    Shutdown :: pos_integer(),
+    Type :: atom(),
     KeysMap :: map(),
-    ValuesMap :: map(),
+    SceneList :: [term()],
     FinalSceneList :: [term()].
 gen_scenes({newline, NewLine}, {Counter, Restart, Shutdown, Type, KeysMap, SceneList}) ->
     CurScene = gen_scene(NewLine, KeysMap, #{}, 0, Restart, Shutdown, Type),
@@ -148,7 +146,7 @@ gen_keysmap([RawKey | Tail], KeysMap, Pos) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec gen_scene(NewLine, KeysMap, ValuesMap, Pos, Restart, Shutdown, Type) -> FinalValuesMap when
+-spec gen_scene(NewLine, KeysMap, ValuesMap, Pos, Restart, Shutdown, Type) -> SceneChild when
     NewLine :: [term()],
     KeysMap :: map(),
     ValuesMap :: map(),
@@ -156,7 +154,8 @@ gen_keysmap([RawKey | Tail], KeysMap, Pos) ->
     Restart :: atom(),
     Shutdown :: pos_integer(),
     Type :: atom(),
-    FinalValuesMap :: map().
+    Id :: atom(),
+    SceneChild :: {Id, {scene_fsm, start_link, [{init, ValuesMap}]}, Restart, Shutdown, Type, [scene_fsm]}.
 gen_scene([], _, ValuesMap, _, Restart, Shutdown, Type) ->
     Id = maps:get(id, ValuesMap),
     {Id, {scene_fsm, start_link, [{init, ValuesMap}]}, Restart, Shutdown, Type, [scene_fsm]};

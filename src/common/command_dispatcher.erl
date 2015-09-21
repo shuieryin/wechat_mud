@@ -20,7 +20,15 @@
 
 -export_type([uid_profile/0]).
 
--type uid_profile() :: #{uid => atom(), gender => atom(), born_month => 1..12, args => [term()]}.
+-type uid_profile() ::
+#{
+uid => atom(),
+gender => male | female,
+born_month => 1..12,
+scene => atom(),
+lang => atom(),
+register_time => integer()
+}.
 
 %%%===================================================================
 %%% API
@@ -198,12 +206,10 @@ get_action_from_message_type(MsgType, ReqParamsMap) ->
             end}
     end.
 
--spec handle_text(Uid, ModuleNameStr, RawCommandArgs) -> {InputForUnregister, FuncForRegsiter} when
+-spec handle_text(Uid, ModuleNameStr, RawCommandArgs) -> [term()] when
     Uid :: atom(),
-    ModuleNameStr :: string(),
-    RawCommandArgs :: [term()],
-    InputForUnregister :: term(),
-    FuncForRegsiter :: function().
+    ModuleNameStr :: binary(),
+    RawCommandArgs :: [binary()].
 handle_text(Uid, ModuleNameStr, RawCommandArgs) ->
     try
         RawModuleName = binary_to_atom(ModuleNameStr, utf8),

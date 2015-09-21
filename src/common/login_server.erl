@@ -110,7 +110,7 @@ bringup_registration(StateName, StateData) ->
 login(DispatcherPid, Uid) ->
     gen_server:cast(?MODULE, {login, DispatcherPid, Uid}).
 
--spec is_uid_logged_in(Uid) -> ok when
+-spec is_uid_logged_in(Uid) -> boolean() when
     Uid :: atom().
 is_uid_logged_in(Uid) ->
     gen_server:call(?MODULE, {is_uid_logged_in, Uid}).
@@ -190,10 +190,10 @@ handle_call({is_in_registration, Uid}, _From, State) ->
     {reply, Result, State};
 handle_call({remove_user, Uid}, _From, State) ->
     RegisteredUidList = maps:get(?R_REGISTERED_UID_LIST, State),
-    UpdatedRegisteredUidList = maps:remove(Uid, RegisteredUidList),
+    UpdatedRegisteredUidList = lists:delete(Uid, RegisteredUidList),
 
     redis_client_server:async_del([Uid], false),
-    redis_client_server:async_set(?R_REGISTERED_UID_LIST, lists:delete(Uid, RegisteredUidList), true),
+    redis_client_server:async_set(?R_REGISTERED_UID_LIST, UpdatedRegisteredUidList, true),
 
     {reply, ok, State#{?R_REGISTERED_UID_LIST := UpdatedRegisteredUidList}};
 handle_call({is_uid_logged_in, Uid}, _From, State) ->
@@ -215,7 +215,7 @@ handle_call({is_uid_logged_in, Uid}, _From, State) ->
     Request :: {registration_done, PlayerProfile, DispatcherPid} | {register_uid, DispatcherPid, Uid} | {bringup_registration, StateName, StateData} | {login, DispatcherPid, Uid},
     DispatcherPid :: pid(),
     Uid :: atom(),
-    PlayerProfile :: map(),
+    PlayerProfile :: command_dispatcher:uid_profile(),
     State :: map(),
     NewState :: map(),
     Reason :: term(),

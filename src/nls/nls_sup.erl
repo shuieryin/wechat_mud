@@ -30,8 +30,8 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link() ->
-    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
+-spec start_link() ->
+    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
@@ -49,13 +49,8 @@ start_link() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(init(Args :: term()) ->
-    {ok, {SupFlags :: {RestartStrategy :: supervisor:strategy(),
-        MaxR :: non_neg_integer(), MaxT :: non_neg_integer()},
-        [ChildSpec :: supervisor:child_spec()]
-    }} |
-    ignore |
-    {error, Reason :: term()}).
+-spec init(Args :: term()) ->
+    {ok, {SupFlags :: supervisor:sup_flags(), [ChildSpec :: supervisor:child_spec()]}} | ignore.
 init([]) ->
     RestartStrategy = one_for_one,
     MaxRestarts = 1000,
@@ -71,7 +66,7 @@ init([]) ->
 %%% Internal functions
 %%%===================================================================
 -spec gen_child_list() -> ChildList when
-    ChildList :: {WorkerName, {nls_server, start_link, []}, Restart, Shutdown, Type, [nls_server]},
+    ChildList :: [{WorkerName, {nls_server, start_link, []}, Restart, Shutdown, Type, [nls_server]}],
     Restart :: supervisor:restart(),
     Shutdown :: supervisor:shutdown(),
     Type :: supervisor:worker(),

@@ -95,11 +95,10 @@ set(Key, Value, IsSave) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec async_set(Key, Value, IsSave) -> Result when
+-spec async_set(Key, Value, IsSave) -> ok when
     Key :: term(),
-    Value :: term(),
-    IsSave :: boolean(),
-    Result :: boolean().
+    Value :: any(),
+    IsSave :: boolean().
 async_set(Key, Value, IsSave) ->
     gen_server:cast(?MODULE, {set, Key, Value, IsSave}).
 
@@ -142,10 +141,9 @@ del(Keys, IsSave) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec async_del(Keys, IsSave) -> Result when
+-spec async_del(Keys, IsSave) -> ok when
     Keys :: [term()],
-    IsSave :: boolean(),
-    Result :: boolean().
+    IsSave :: boolean().
 async_del(Keys, IsSave) ->
     gen_server:cast(?MODULE, {del, Keys, IsSave}).
 
@@ -393,13 +391,12 @@ save(State) ->
             fail
     end.
 
--spec set(Key, Value, IsSave, State) -> {IsSet, NewState} when
+-spec set(Key, Value, IsSave, State) -> IsSet when
     Key :: term(),
     Value :: term(),
     IsSave :: boolean(),
     State :: map(),
-    IsSet :: boolean(),
-    NewState :: map().
+    IsSet :: boolean().
 set(Key, Value, IsSave, State) ->
     RedisClientPid = maps:get(redis_client_pid, State),
     IsSet = case eredis:q(RedisClientPid, ["SET", Key, term_to_binary(Value)]) of

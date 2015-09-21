@@ -71,10 +71,13 @@ enter(SceneName, SimplePlayerProfile, DispatcherPid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec leave(SceneName, Uid, TargetDirection) -> ok when
+-spec leave(SceneName, Uid, TargetDirection) -> Result when
     SceneName :: atom(),
     Uid :: atom(),
-    TargetDirection :: direction:direction().
+    TargetDirection :: direction:direction(),
+    Result :: TargetSceneName | {undefined, NlsServerName},
+    TargetSceneName :: atom(),
+    NlsServerName :: atom().
 leave(SceneName, Uid, TargetDirection) ->
     gen_fsm:sync_send_all_state_event(SceneName, {leave, Uid, TargetDirection}).
 
@@ -369,7 +372,7 @@ format_status(Opt, StatusData) ->
 %%%===================================================================
 -spec gen_exits_desc(ExitsMap) -> [ExitNls] when
     ExitsMap :: map(),
-    ExitNls :: {nls, atom()}.
+    ExitNls :: [{nls, atom()} | binary()].
 gen_exits_desc(ExitsMap) ->
     [[{nls, ExitKey}, <<"\n">>] || ExitKey <- maps:keys(ExitsMap)].
 

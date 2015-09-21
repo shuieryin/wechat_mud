@@ -9,5 +9,4 @@
 -author("shuieryin").
 
 -define(SCENE_PATH, "doc/scene").
-%% -define(COMMON_NLS, "common.csv").
 -define(FILE_EXTENSION, ".csv").

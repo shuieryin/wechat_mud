@@ -89,7 +89,7 @@ stop(State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec init([Request]) ->
+-spec init(Request) ->
     {ok, StateName, StateData} |
     {ok, StateName, StateData, timeout() | hibernate} |
     {stop, Reason} |
@@ -114,10 +114,12 @@ init({bringup, StateName, StateData}) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec select_lang({Lang, DispatcherPid}, State) ->
+-spec select_lang(Request, State) ->
     {next_state, NextStateName, NextState} |
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
+
+    Request :: {Lang, DispatcherPid},
     Lang :: binary(),
     DispatcherPid :: pid(),
     State :: map(),

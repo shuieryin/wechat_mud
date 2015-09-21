@@ -51,7 +51,7 @@
     Request :: {init, PlayerProfile} | {bringup, StateName, StateData},
     StateName :: atom(),
     StateData :: map(),
-    PlayerProfile :: map().
+    PlayerProfile :: command_dispatcher:uid_profile().
 start({init, PlayerProfile}) ->
     Uid = maps:get(uid, PlayerProfile),
     gen_fsm:start({local, Uid}, ?MODULE, {init, PlayerProfile}, []);

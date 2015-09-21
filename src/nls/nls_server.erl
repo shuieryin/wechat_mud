@@ -73,7 +73,7 @@ start_link(NlsFileName) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec response_text(ServerName, TextList, Lang, DispatcherPid) -> no_return() when
+-spec response_text(ServerName, TextList, Lang, DispatcherPid) -> ok when
     ServerName :: atom(),
     TextList :: [term()],
     Lang :: atom(),
@@ -347,8 +347,8 @@ format_status(Opt, StatusData) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec gen_keysmap(NewLine, KeysMap, Pos, ValuesMap) -> FinalKeysMap when
-    NewLine :: [term()],
+-spec gen_keysmap(NewLine, KeysMap, Pos, ValuesMap) -> {KeysMap, FinalKeysMap} when
+    NewLine :: [string()],
     KeysMap :: map(),
     ValuesMap :: map(),
     Pos :: non_neg_integer(),

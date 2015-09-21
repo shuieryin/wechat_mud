@@ -12,7 +12,7 @@
 %%%-------------------------------------------------------------------
 -author("shuieryin").
 
--type direction() :: east | south | west | north | northeast | southeast | southwest | northwest.
+-type direction() :: east | south | west | north | northeast | southeast | southwest | northwest | undefined.
 
 -export_type([direction/0]).
 
