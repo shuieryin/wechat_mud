@@ -267,8 +267,7 @@ handle_cast({logout, DispatcherPid, Uid}, State) ->
             -1 ->
                 LoggedInUidList;
             _ ->
-                player_fsm:leave_scene(Uid),
-                player_fsm:stop(Uid),
+                player_fsm:logout(Uid),
                 lists:delete(Uid, LoggedInUidList)
         end,
 

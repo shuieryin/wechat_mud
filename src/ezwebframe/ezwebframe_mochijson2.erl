@@ -4,8 +4,6 @@
 %% Fetched from
 %%   https://github.com/mochi/mochiweb/blob/master/src/mochijson2.erl
 
--module(ezwebframe_mochijson2).
-
 %% @author Bob Ippolito <bob@mochimedia.com>
 %% @copyright 2007 Mochi Media, Inc.
 
@@ -45,7 +43,7 @@
 %%          </li>
 %%      </ul>
 
-%% -module(mochijson2).
+-module(ezwebframe_mochijson2).
 -author('bob@mochimedia.com').
 -export([encoder/1, encode/1]).
 -export([decoder/1, decode/1, decode/2]).

@@ -1,10 +1,10 @@
 %%%-------------------------------------------------------------------
 %%% @author shuieryin
-%%% @copyright (C) 2015, <COMPANY>
+%%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
 %%% @end
-%%% Created : 19. 九月 2015 下午4:34
+%%% Created : 19. Sep 2015 4:34 PM
 %%%-------------------------------------------------------------------
 -module(scene_fsm).
 -author("shuieryin").

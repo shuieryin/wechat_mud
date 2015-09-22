@@ -1,10 +1,9 @@
 %%%-------------------------------------------------------------------
-%%% @author shuieryin
-%%% @copyright (C) 2015, <COMPANY>
+%%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
 %%% @end
-%%% Created : 18. 九月 2015 下午8:57
+%%% Created : 18. Aug 2015 8:57 PM
 %%%-------------------------------------------------------------------
 -module(player_fsm).
 -author("shuieryin").
@@ -13,7 +12,7 @@
 
 %% API
 -export([start/1,
-    stop/1,
+    logout/1,
     go_direction/3,
     look_scene/2,
     get_lang/1,
@@ -154,8 +153,8 @@ show_langs(DispatcherPid, Uid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
-stop(Uid) ->
-    gen_fsm:send_all_state_event(Uid, stop).
+logout(Uid) ->
+    gen_fsm:send_all_state_event(Uid, logout).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -325,10 +324,12 @@ handle_event({show_langs, DispatcherPid}, StateName, State) ->
     #{lang := Lang} = PlayerProfile,
     nls_server:show_langs(DispatcherPid, Lang),
     {next_state, StateName, State};
-handle_event(stop, _StateName, State) ->
+handle_event(logout, _StateName, State) ->
     #{self := PlayerProfile} = State,
-    #{uid := Uid} = PlayerProfile,
+    #{scene := CurSceneName, uid := Uid} = PlayerProfile,
+    scene_fsm:leave(CurSceneName, Uid),
 
+    error_logger:info_msg("logout PlayerProfile:~p~n", [PlayerProfile]),
     redis_client_server:set(Uid, PlayerProfile, true),
     {stop, normal, State}.
 

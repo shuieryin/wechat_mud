@@ -1,0 +1,7 @@
+%% encoding: UTF-8
+{application,wechat_mud}.
+{modules,[command_dispatcher,common_api,common_server,direction,ezwebframe,
+          ezwebframe_mochijson2,lang,login,login_server,logout,mochijson2,
+          mochinum,nls_server,nls_sup,player_fsm,redis_client_server,
+          register_fsm,rereg,scene_fsm,scene_sup,sha1,web_req_dispatcher,
+          wechat_mud_app,wechat_mud_sup]}.

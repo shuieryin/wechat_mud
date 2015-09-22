@@ -1,10 +1,10 @@
 %%%-------------------------------------------------------------------
 %%% @author shuieryin
-%%% @copyright (C) 2015, <COMPANY>
+%%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
 %%% @end
-%%% Created : 12. 九月 2015 下午12:22
+%%% Created : 12. Sep 2015 12:22 PM
 %%%-------------------------------------------------------------------
 -module(nls_server).
 -author("shuieryin").
@@ -51,19 +51,6 @@
 start_link(NlsFileName) ->
     ServerName = list_to_atom(filename:rootname(filename:basename(NlsFileName))),
     gen_server:start_link({local, ServerName}, ?MODULE, [NlsFileName], []).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% get nls content
-%%
-%% @end
-%%--------------------------------------------------------------------
-%% -spec get(ServerName, NlsKey, Lang) -> binary() when
-%%     ServerName :: atom(),
-%%     NlsKey :: atom(),
-%%     Lang :: atom().
-%% get(ServerName, NlsKey, Lang) ->
-%%     gen_server:call(ServerName, {get, NlsKey, Lang}).
 
 %%--------------------------------------------------------------------
 %% @doc

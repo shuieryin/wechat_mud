@@ -1,18 +1,19 @@
--module(command_dispatcher).
-%% API
--export([start/1,
-    return_text/2,
-    pending_text/3]).
-
 %%%-------------------------------------------------------------------
 %%% @author Shuieryin
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
+%%%
+%%%
 %%% @end
 %%% Created : 19. Aug 2015 10:06 PM
 %%%-------------------------------------------------------------------
+-module(command_dispatcher).
 -author("Shuieryin").
+
+%% API
+-export([start/1,
+    return_text/2]).
 
 -define(MAX_TEXT_SIZE, 2048).
 -define(EMPTY_RESPONSE, <<>>).
@@ -20,15 +21,7 @@
 
 -export_type([uid_profile/0]).
 
--type uid_profile() ::
-#{
-uid => atom(),
-gender => male | female,
-born_month => 1..12,
-scene => atom(),
-lang => atom(),
-register_time => integer()
-}.
+-type uid_profile() :: #{uid => atom(), gender => male | female, born_month => 1..12, scene => atom(), lang => atom(), register_time => pos_integer()}.
 
 %%%===================================================================
 %%% API
@@ -71,38 +64,18 @@ start(Req) ->
             end
     end.
 
--spec gen_qs_params_map(Pos, Bin, ParamsMap) -> map() when
-    Pos :: integer(),
-    Bin :: binary(),
-    ParamsMap :: map().
-gen_qs_params_map(-1, _, ParamsMap) ->
-    ParamsMap;
-gen_qs_params_map(Pos, Bin, ParamsMap) ->
-    {ValueBin, CurPosByValue} = qs_value(binary:at(Bin, Pos), [], Pos - 1, Bin),
-    {KeyBin, CurPosByKey} = qs_key(binary:at(Bin, CurPosByValue), [], CurPosByValue - 1, Bin),
-    gen_qs_params_map(CurPosByKey, Bin, maps:put(binary_to_atom(KeyBin, unicode), ValueBin, ParamsMap)).
-
--spec qs_key(CurByte, KeyBinList, Pos, SrcBin) -> {binary(), integer()} when
-    CurByte :: byte(),
-    KeyBinList :: [byte()],
-    Pos :: integer(),
-    SrcBin :: binary().
-qs_key($&, KeyBinList, Pos, _) ->
-    {list_to_binary(KeyBinList), Pos};
-qs_key(CurByte, KeyBinList, -1, _) ->
-    {list_to_binary([CurByte | KeyBinList]), -1};
-qs_key(CurByte, KeyBinList, Pos, SrcBin) ->
-    qs_key(binary:at(SrcBin, Pos), [CurByte | KeyBinList], Pos - 1, SrcBin).
-
--spec qs_value(CurByte, ValueBinList, Pos, SrcBin) -> {binary(), integer()} when
-    CurByte :: byte(),
-    ValueBinList :: [byte()],
-    Pos :: integer(),
-    SrcBin :: binary().
-qs_value($=, ValueBinList, Pos, _) ->
-    {list_to_binary(ValueBinList), Pos};
-qs_value(CurByte, ValueBinList, Pos, SrcBin) ->
-    qs_value(binary:at(SrcBin, Pos), [CurByte | ValueBinList], Pos - 1, SrcBin).
+%%--------------------------------------------------------------------
+%% @doc
+%% Send returned text to process from pending_text/3
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec return_text(DispatcherPid, ReturnText) -> ok when
+    ReturnText :: binary() | [binary()],
+    DispatcherPid :: pid().
+return_text(DispatcherPid, ReturnText) ->
+    DispatcherPid ! {execed, DispatcherPid, ReturnText},
+    ok.
 
 %%%===================================================================
 %%% Internal functions
@@ -254,13 +227,6 @@ pending_text(Module, Function, Args) ->
             ReturnText
     end.
 
--spec return_text(DispatcherPid, ReturnText) -> ok when
-    ReturnText :: binary() | [binary()],
-    DispatcherPid :: pid().
-return_text(DispatcherPid, ReturnText) ->
-    DispatcherPid ! {execed, DispatcherPid, ReturnText},
-    ok.
-
 -spec compose_response_xml(Uid, PlatformId, Content) -> binary() when
     Uid :: term(),
     PlatformId :: term(),
@@ -325,6 +291,39 @@ concat_param_content([], ConcatedParamContent) ->
     lists:reverse(ConcatedParamContent);
 concat_param_content([{_, ParamContent} | Tail], ConcatedParamContent) ->
     concat_param_content(Tail, [ParamContent | ConcatedParamContent]).
+
+-spec gen_qs_params_map(Pos, Bin, ParamsMap) -> map() when
+    Pos :: integer(),
+    Bin :: binary(),
+    ParamsMap :: map().
+gen_qs_params_map(-1, _, ParamsMap) ->
+    ParamsMap;
+gen_qs_params_map(Pos, Bin, ParamsMap) ->
+    {ValueBin, CurPosByValue} = qs_value(binary:at(Bin, Pos), [], Pos - 1, Bin),
+    {KeyBin, CurPosByKey} = qs_key(binary:at(Bin, CurPosByValue), [], CurPosByValue - 1, Bin),
+    gen_qs_params_map(CurPosByKey, Bin, maps:put(binary_to_atom(KeyBin, unicode), ValueBin, ParamsMap)).
+
+-spec qs_key(CurByte, KeyBinList, Pos, SrcBin) -> {binary(), integer()} when
+    CurByte :: byte(),
+    KeyBinList :: [byte()],
+    Pos :: integer(),
+    SrcBin :: binary().
+qs_key($&, KeyBinList, Pos, _) ->
+    {list_to_binary(KeyBinList), Pos};
+qs_key(CurByte, KeyBinList, -1, _) ->
+    {list_to_binary([CurByte | KeyBinList]), -1};
+qs_key(CurByte, KeyBinList, Pos, SrcBin) ->
+    qs_key(binary:at(SrcBin, Pos), [CurByte | KeyBinList], Pos - 1, SrcBin).
+
+-spec qs_value(CurByte, ValueBinList, Pos, SrcBin) -> {binary(), integer()} when
+    CurByte :: byte(),
+    ValueBinList :: [byte()],
+    Pos :: integer(),
+    SrcBin :: binary().
+qs_value($=, ValueBinList, Pos, _) ->
+    {list_to_binary(ValueBinList), Pos};
+qs_value(CurByte, ValueBinList, Pos, SrcBin) ->
+    qs_value(binary:at(SrcBin, Pos), [CurByte | ValueBinList], Pos - 1, SrcBin).
 
 -spec direction(atom()) -> direction:direction().
 direction('6') -> east;

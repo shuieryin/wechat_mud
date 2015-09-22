@@ -1,19 +1,18 @@
--module(direction).
-%% API
--export([exec/3]).
-
 %%%-------------------------------------------------------------------
 %%% @author shuieryin
-%%% @copyright (C) 2015, <COMPANY>
+%%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
 %%% @end
-%%% Created : 20. 九月 2015 下午4:08
+%%% Created : 20. Sep 2015 4:08 PM
 %%%-------------------------------------------------------------------
+-module(direction).
 -author("shuieryin").
 
--type direction() :: east | south | west | north | northeast | southeast | southwest | northwest | undefined.
+%% API
+-export([exec/3]).
 
+-type direction() :: east | south | west | north | northeast | southeast | southwest | northwest | undefined.
 -export_type([direction/0]).
 
 %%%===================================================================
@@ -41,11 +40,3 @@ exec(DispatcherPid, Uid, Direction) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Comment starts here
-%%
-%% @end
-%%--------------------------------------------------------------------

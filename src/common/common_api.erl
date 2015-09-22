@@ -1,13 +1,3 @@
--module(common_api).
-%% API
--export([is_module_exists/1,
-    type_of/1,
-    timestamp/0,
-    reload_modules/1,
-    index_of/2,
-    list_has_element/2,
-    until_process_terminated/1]).
-
 %%%-------------------------------------------------------------------
 %%% @author Shuieryin
 %%% @copyright (C) 2015, Shuieryin
@@ -16,7 +6,18 @@
 %%% @end
 %%% Created : 26. Aug 2015 11:04 AM
 %%%-------------------------------------------------------------------
+-module(common_api).
 -author("Shuieryin").
+
+%% API
+-export([is_module_exists/1,
+    type_of/1,
+    timestamp/0,
+    reload_modules/1,
+    index_of/2,
+    list_has_element/2,
+    until_process_terminated/1,
+    gen_doc/0]).
 
 %%%===================================================================
 %%% API
@@ -124,6 +125,12 @@ list_has_element(List, Item) ->
             true
     end.
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Wait until the target process is terminated
+%%
+%% @end
+%%--------------------------------------------------------------------
 -spec until_process_terminated(PidOrName) -> boolean() when
     PidOrName :: pid() | atom().
 until_process_terminated(PidOrName) ->
@@ -140,14 +147,16 @@ until_process_terminated(_, IsTerminatedFun) ->
     timer:sleep(20),
     until_process_terminated(IsTerminatedFun(), IsTerminatedFun).
 
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
-
 %%--------------------------------------------------------------------
-%% @private
 %% @doc
-%% Comment starts here
+%% Generate edoc
 %%
 %% @end
 %%--------------------------------------------------------------------
+-spec gen_doc() -> ok.
+gen_doc() ->
+    edoc:application(wechat_mud, [{dir, "doc/edoc"}]).
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
