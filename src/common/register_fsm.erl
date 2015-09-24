@@ -18,7 +18,8 @@
     input_born_month/2,
     input_confirmation/2,
     stop/1,
-    valid_month/1]).
+    valid_month/1,
+    module_name/1]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -31,7 +32,7 @@
     code_change/4,
     format_status/2]).
 
--import(command_dispatcher, [return_text/2]).
+-import(command_dispatcher, [return_content/2]).
 
 -define(STATE_NAMES, [{gender, gender_label}, {born_month, born_month_label}]).
 -define(BORN_SCENE, dream_board_nw).
@@ -56,7 +57,7 @@
     StateData :: map(),
     Reason :: term().
 start({init, DispatcherPid, Uid}) ->
-    nls_server:response_text(?MODULE, [{nls, select_lang}], zh, DispatcherPid),
+    nls_server:response_content(?MODULE, [{nls, select_lang}], zh, DispatcherPid),
     gen_fsm:start({local, module_name(Uid)}, ?MODULE, {init, Uid}, []);
 start({bringup, StateName, StateData}) ->
     Uid = maps:get(uid, StateData),
@@ -75,6 +76,12 @@ input(DispatcherPid, Uid, Input) ->
 stop(State) ->
     Uid = maps:get(uid, State),
     gen_fsm:send_all_state_event(module_name(Uid), stop).
+
+-spec module_name(Uid) -> RegisterFsmName when
+    Uid :: atom(),
+    RegisterFsmName :: atom().
+module_name(Uid) ->
+    list_to_atom(atom_to_list(Uid) ++ "_register_fsm").
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -128,7 +135,7 @@ init({bringup, StateName, StateData}) ->
     NewState :: map(),
     Reason :: term().
 select_lang({LangBin, DispatcherPid}, State) ->
-    {NextState, NewState, TextList, Lang} =
+    {NextState, NewState, ContentList, Lang} =
         try
             CurLang = binary_to_atom(LangBin, utf8),
             case nls_server:is_valid_lang(?MODULE, CurLang) of
@@ -141,7 +148,7 @@ select_lang({LangBin, DispatcherPid}, State) ->
             _:_ ->
                 {select_lang, State, [{nls, select_lang}], zh}
         end,
-    nls_server:response_text(?MODULE, TextList, Lang, DispatcherPid),
+    nls_server:response_content(?MODULE, ContentList, Lang, DispatcherPid),
     {next_state, NextState, NewState}.
 
 %%--------------------------------------------------------------------
@@ -168,17 +175,18 @@ input_gender({Gender, DispatcherPid}, State) when Gender == <<"f">> orelse Gende
     input_gender(female, DispatcherPid, State);
 input_gender({Other, DispatcherPid}, State) ->
     Lang = maps:get(lang, State),
-    InvalidText = case Other of
-                      <<>> ->
-                          [];
-                      SomeInput ->
-                          [{nls, invalid_gender}, SomeInput, <<"\n\n">>]
-                  end,
-    nls_server:response_text(?MODULE, lists:flatten([InvalidText, {nls, please_input_gender}]), Lang, DispatcherPid),
+    ErrorMessageNlsContent =
+        case Other of
+            <<>> ->
+                [{nls, please_input_gender}];
+            SomeInput ->
+                [{nls, invalid_gender}, SomeInput, <<"\n\n">>, {nls, please_input_gender}]
+        end,
+    nls_server:response_content(?MODULE, ErrorMessageNlsContent, Lang, DispatcherPid),
     {next_state, input_gender, State}.
 input_gender(Gender, DispatcherPid, State) ->
     Lang = maps:get(lang, State),
-    nls_server:response_text(?MODULE, [{nls, please_input_born_month}], Lang, DispatcherPid),
+    nls_server:response_content(?MODULE, [{nls, please_input_born_month}], Lang, DispatcherPid),
     {next_state, input_born_month, maps:put(gender, Gender, State)}.
 
 %%--------------------------------------------------------------------
@@ -201,22 +209,23 @@ input_gender(Gender, DispatcherPid, State) ->
     Reason :: term().
 input_born_month({MonthBin, DispatcherPid}, State) ->
     Lang = maps:get(lang, State),
-    {NewStateName, NewState, TextList} =
+    {NewStateName, NewState, ContentList} =
         case valid_month(MonthBin) of
             {ok, Month} ->
                 UpdatedState = maps:put(born_month, Month, State),
-                GenText = gen_summary_text(?STATE_NAMES, [], UpdatedState),
-                {input_confirmation, UpdatedState#{confirmation_text => GenText}, GenText};
+                SummaryContent = gen_summary_content(?STATE_NAMES, [], UpdatedState),
+                {input_confirmation, UpdatedState#{summary_content => SummaryContent}, SummaryContent};
             {false, MonthBin} ->
-                InvalidText = case MonthBin of
-                                  <<>> ->
-                                      [];
-                                  SomeInput ->
-                                      [{nls, invalid_month}, SomeInput, <<"\n\n">>]
-                              end,
-                {input_born_month, State, [InvalidText, {nls, please_input_born_month}]}
+                ErrorMessageNlsContent =
+                    case MonthBin of
+                        <<>> ->
+                            [];
+                        SomeInput ->
+                            [{nls, invalid_month}, SomeInput, <<"\n\n">>]
+                    end,
+                {input_born_month, State, [ErrorMessageNlsContent, {nls, please_input_born_month}]}
         end,
-    nls_server:response_text(?MODULE, lists:flatten(TextList), Lang, DispatcherPid),
+    nls_server:response_content(?MODULE, lists:flatten(ContentList), Lang, DispatcherPid),
     {next_state, NewStateName, NewState}.
 
 -spec valid_month(MonthStr) -> {ok, 1..12} | false when
@@ -234,17 +243,17 @@ valid_month(MonthBin) ->
             {false, MonthBin}
     end.
 
--spec gen_summary_text(StateNames, AccText, State) -> [binary()] when
+-spec gen_summary_content(StateNames, AccContent, State) -> [binary()] when
     StateNames :: [{Key, Desc}],
     Key :: atom(),
     Desc :: atom(),
-    AccText :: [any()],
+    AccContent :: [any()],
     State :: map().
-gen_summary_text([], AccText, _) ->
-    [AccText, <<"\n">>, {nls, is_confirmed}];
-gen_summary_text([{Key, Desc} | Tail], AccText, State) ->
+gen_summary_content([], AccContent, _) ->
+    [AccContent, <<"\n">>, {nls, is_confirmed}];
+gen_summary_content([{Key, Desc} | Tail], AccContent, State) ->
     Value = value_to_binary(maps:get(Key, State)),
-    gen_summary_text(Tail, [AccText, {nls, Desc}, Value, <<"\n">>], State).
+    gen_summary_content(Tail, [AccContent, {nls, Desc}, Value, <<"\n">>], State).
 
 value_to_binary(Value) when is_integer(Value) ->
     integer_to_binary(Value);
@@ -273,24 +282,26 @@ value_to_binary(Value) ->
     Reason :: term().
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"y">> orelse Answer == <<"Y">> ->
     State1 = State#{register_time => common_api:timestamp(), scene => ?BORN_SCENE},
-    State2 = maps:remove(confirmation_text, State1),
+    State2 = maps:remove(summary_content, State1),
 
     login_server:registration_done(State2, DispatcherPid),
 
     {stop, done, State2};
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"n">> orelse Answer == <<"N">> ->
     Lang = maps:get(lang, State),
-    nls_server:response_text(?MODULE, [{nls, please_input_gender}], Lang, DispatcherPid),
+    nls_server:response_content(?MODULE, [{nls, please_input_gender}], Lang, DispatcherPid),
     {next_state, input_gender, #{uid => maps:get(uid, State), lang => Lang}};
 input_confirmation({Other, DispatcherPid}, State) ->
     Lang = maps:get(lang, State),
-    InvalidText = case Other of
-                      <<>> ->
-                          [];
-                      SomeInput ->
-                          [{nls, invalid_command}, SomeInput, <<"\n\n">>]
-                  end,
-    nls_server:response_text(?MODULE, lists:flatten([InvalidText, maps:get(confirmation_text, State)]), Lang, DispatcherPid),
+    SummaryContent = maps:get(summary_content, State),
+    ErrorMessageNlsContent
+        = case Other of
+              <<>> ->
+                  [SummaryContent];
+              SomeInput ->
+                  [{nls, invalid_command}, SomeInput, <<"\n\n">>, SummaryContent]
+          end,
+    nls_server:response_content(?MODULE, ErrorMessageNlsContent, Lang, DispatcherPid),
     {next_state, input_confirmation, State}.
 
 %%--------------------------------------------------------------------
@@ -480,5 +491,3 @@ format_status(Opt, StatusData) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-module_name(Uid) ->
-    list_to_atom(atom_to_list(Uid) ++ "_register_fsm").

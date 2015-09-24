@@ -116,7 +116,7 @@ gen_child_list([FileName | Tail], AccSceneList, Restart, Shutdown, Type) ->
     FinalSceneList :: [term()].
 gen_scenes({newline, NewLine}, {Counter, Restart, Shutdown, Type, KeysMap, SceneList}) ->
     CurScene = gen_scene(NewLine, KeysMap, #{}, 0, Restart, Shutdown, Type),
-    {Counter + 1, Restart, Shutdown, Type, KeysMap, [CurScene] ++ SceneList};
+    {Counter + 1, Restart, Shutdown, Type, KeysMap, [CurScene | SceneList]};
 gen_scenes({newline, NewLine}, {0, Restart, Shutdown, Type}) ->
     KeysMap = gen_keysmap(NewLine, #{}, 0),
     {1, Restart, Shutdown, Type, KeysMap, []};

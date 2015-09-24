@@ -420,7 +420,7 @@ set(Key, Value, IsSave, State) ->
     State :: map().
 del(Keys, IsSave, State) ->
     RedisClientPid = maps:get(redis_client_pid, State),
-    IsDel = case eredis:q(RedisClientPid, ["DEL"] ++ Keys) of
+    IsDel = case eredis:q(RedisClientPid, ["DEL" | Keys]) of
                 {ok, <<"OK">>} ->
                     true;
                 {Type, Reason} ->

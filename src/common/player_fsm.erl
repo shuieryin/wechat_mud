@@ -66,10 +66,10 @@ start({bringup, StateName, StateData}) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec go_direction(Uid, DispatcherPid, Direction) -> no_return() when
+-spec go_direction(Uid, DispatcherPid, Direction) -> ok when
     Uid :: atom(),
     DispatcherPid :: pid(),
-    Direction :: direction:direction().
+    Direction :: direction:directions().
 go_direction(Uid, DispatcherPid, Direction) ->
     gen_fsm:send_all_state_event(Uid, {go_direction, DispatcherPid, Direction}).
 
@@ -79,7 +79,7 @@ go_direction(Uid, DispatcherPid, Direction) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec look_scene(Uid, DispatcherPid) -> no_return() when
+-spec look_scene(Uid, DispatcherPid) -> ok when
     Uid :: atom(),
     DispatcherPid :: pid().
 look_scene(Uid, DispatcherPid) ->
@@ -103,13 +103,13 @@ get_lang(Uid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec send_message(Uid, NlsServer, TextList, DispatcherPid) -> ok when
+-spec send_message(Uid, NlsServer, ContentList, DispatcherPid) -> ok when
     Uid :: atom(),
     NlsServer :: atom(),
-    TextList :: [term()],
+    ContentList :: [term()],
     DispatcherPid :: pid().
-send_message(Uid, NlsServer, TextList, DispatcherPid) ->
-    gen_fsm:send_all_state_event(Uid, {send_message, NlsServer, TextList, DispatcherPid}).
+send_message(Uid, NlsServer, ContentList, DispatcherPid) ->
+    gen_fsm:send_all_state_event(Uid, {send_message, NlsServer, ContentList, DispatcherPid}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -252,11 +252,11 @@ state_name(_Event, _From, State) ->
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
 
-    Event :: {go_direction, DispatcherPid, Direction} | {look_scene, DispatcherPid} | {send_message, NlsServer, TextList, DispatcherPid} | {show_langs, DispatcherPid},
+    Event :: {go_direction, DispatcherPid, Direction} | {look_scene, DispatcherPid} | {send_message, NlsServer, ContentList, DispatcherPid} | {show_langs, DispatcherPid},
     NlsServer :: atom(),
-    TextList :: [term()],
+    ContentList :: [term()],
     DispatcherPid :: pid(),
-    Direction :: direction:direction(),
+    Direction :: direction:directions(),
     StateName :: atom(),
     StateData :: map(),
     NextStateName :: atom(),
@@ -269,7 +269,7 @@ handle_event({go_direction, DispatcherPid, Direction}, StateName, State) ->
     #{uid := Uid, lang := Lang} = PlayerProfile,
     TargetSceneName = case scene_fsm:leave(CurSceneName, Uid, Direction) of
                           {undefined, NlsServerName} ->
-                              nls_server:response_text(NlsServerName, [{nls, invalid_exit}], Lang, DispatcherPid),
+                              nls_server:response_content(NlsServerName, [{nls, invalid_exit}], Lang, DispatcherPid),
                               CurSceneName;
                           NewSceneName ->
                               scene_fsm:enter(NewSceneName, PlayerProfile, DispatcherPid),
@@ -282,10 +282,10 @@ handle_event({look_scene, DispatcherPid}, StateName, State) ->
     #{scene := CurSceneName} = PlayerProfile,
     scene_fsm:look(CurSceneName, DispatcherPid, PlayerProfile),
     {next_state, StateName, State};
-handle_event({send_message, NlsServer, TextList, DispatcherPid}, StateName, State) ->
+handle_event({send_message, NlsServer, ContentList, DispatcherPid}, StateName, State) ->
     #{self := PlayerProfile} = State,
     #{lang := Lang} = PlayerProfile,
-    nls_server:response_text(NlsServer, TextList, Lang, DispatcherPid),
+    nls_server:response_content(NlsServer, ContentList, Lang, DispatcherPid),
     {next_state, StateName, State};
 handle_event(leave_scene, StateName, State) ->
     #{self := PlayerProfile} = State,
@@ -297,7 +297,7 @@ handle_event({switch_lang, DispatcherPid, RawTargetLang}, StateName, State) ->
     #{uid := Uid, lang := CurLang} = PlayerProfile,
 
     InvalidLangFun = fun() ->
-        nls_server:response_text(lang, [{nls, invalid_lang}, RawTargetLang, <<"\n\n">>, {nls, info}], CurLang, DispatcherPid),
+        nls_server:response_content(lang, [{nls, invalid_lang}, RawTargetLang, <<"\n\n">>, {nls, info}], CurLang, DispatcherPid),
         State
     end,
 
@@ -306,7 +306,7 @@ handle_event({switch_lang, DispatcherPid, RawTargetLang}, StateName, State) ->
             TargetLang = binary_to_atom(RawTargetLang, utf8),
             case nls_server:is_valid_lang(lang, TargetLang) of
                 true ->
-                    nls_server:response_text(lang, [{nls, lang_switched}], TargetLang, DispatcherPid),
+                    nls_server:response_content(lang, [{nls, lang_switched}], TargetLang, DispatcherPid),
                     UpdatedPlayerProfile = PlayerProfile#{lang := TargetLang},
                     redis_client_server:async_set(Uid, UpdatedPlayerProfile, true),
                     State#{self := UpdatedPlayerProfile};

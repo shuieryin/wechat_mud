@@ -15,8 +15,8 @@
 -export([start_link/1,
     read_line/2,
     is_valid_lang/2,
-    response_text/4,
-    get_text/3,
+    response_content/4,
+    get_nls_content/3,
     show_langs/2]).
 
 %% gen_server callbacks
@@ -54,34 +54,34 @@ start_link(NlsFileName) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Given "TextLists" contains items {nls, NlsKey} with direct return
-%% text values, the function is to replace {nls, NlsKey} with the actual
+%% Given "ContentList" contains items {nls, NlsKey} with direct return
+%% content values, the function is to replace {nls, NlsKey} with the actual
 %% nls content, and then immediately return the result to user.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec response_text(ServerName, TextList, Lang, DispatcherPid) -> ok when
+-spec response_content(ServerName, ContentList, Lang, DispatcherPid) -> ok when
     ServerName :: atom(),
-    TextList :: [term()],
+    ContentList :: [term()],
     Lang :: atom(),
     DispatcherPid :: pid().
-response_text(ServerName, TextList, Lang, DispatcherPid) ->
-    gen_server:cast(ServerName, {response_text, TextList, Lang, DispatcherPid}).
+response_content(ServerName, ContentList, Lang, DispatcherPid) ->
+    gen_server:cast(ServerName, {response_content, ContentList, Lang, DispatcherPid}).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Given "TextLists" contains items {nls, NlsKey} with direct return
-%% text values, the function is to replace {nls, NlsKey} with the actual
+%% Given "ContentList" contains items {nls, NlsKey} with direct return
+%% content values, the function is to replace {nls, NlsKey} with the actual
 %% nls content.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_text(ServerName, TextList, Lang) -> [term()] when
+-spec get_nls_content(ServerName, ContentList, Lang) -> [term()] when
     ServerName :: atom(),
-    TextList :: [term()],
+    ContentList :: [term()],
     Lang :: atom().
-get_text(ServerName, TextList, Lang) ->
-    gen_server:call(ServerName, {get_text, TextList, Lang}).
+get_nls_content(ServerName, ContentList, Lang) ->
+    gen_server:call(ServerName, {get_nls_content, ContentList, Lang}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -180,10 +180,10 @@ init([NlsFileName]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: {get, NlsKey, Lang} | {is_valid_lang, Lang} | {get_text, TextList, Lang},
+    Request :: {get, NlsKey, Lang} | {is_valid_lang, Lang} | {get_nls_content, ConentList, Lang},
     NlsKey :: atom(),
     Lang :: atom(),
-    TextList :: [term()],
+    ConentList :: [term()],
     From :: {pid(), Tag :: term()},
     Reply :: term(),
     State :: map(),
@@ -194,10 +194,10 @@ handle_call({get, NlsKey, Lang}, _From, State) ->
     {reply, NlsValue, State};
 handle_call({is_valid_lang, Lang}, _From, State) ->
     {reply, maps:is_key(Lang, State), State};
-handle_call({get_text, TextList, Lang}, _From, State) ->
+handle_call({get_nls_content, ContentList, Lang}, _From, State) ->
     LangMap = maps:get(Lang, State),
-    ReturnTexts = fill_in_nls(TextList, LangMap, []),
-    {reply, ReturnTexts, State}.
+    ReturnContent = fill_in_nls(ContentList, LangMap, []),
+    {reply, ReturnContent, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -211,19 +211,19 @@ handle_call({get_text, TextList, Lang}, _From, State) ->
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: {response_text, TextList, Lang, DispatcherPid} | {show_langs, DispatcherPid, Lang},
-    TextList :: [term()],
+    Request :: {response_content, ContentList, Lang, DispatcherPid} | {show_langs, DispatcherPid, Lang},
+    ContentList :: [term()],
     Lang :: atom(),
     DispatcherPid :: pid(),
     State :: map(),
     NewState :: map(),
     Reason :: term().
-handle_cast({response_text, TextList, Lang, DispatcherPid}, State) ->
-    do_response_text(Lang, State, TextList, DispatcherPid),
+handle_cast({response_content, ContentList, Lang, DispatcherPid}, State) ->
+    do_response_content(Lang, State, ContentList, DispatcherPid),
     {noreply, State};
 handle_cast({show_langs, DispatcherPid, Lang}, State) ->
     LangsNls = lists:reverse([[atom_to_binary(LangName, utf8), <<"\n">>] || LangName <- maps:keys(State)]),
-    do_response_text(Lang, State, lists:flatten([{nls, possible_lang}, <<"\n">>, LangsNls]), DispatcherPid),
+    do_response_content(Lang, State, lists:flatten([{nls, possible_lang}, <<"\n">>, LangsNls]), DispatcherPid),
     {noreply, State}.
 
 -spec fill_in_nls(ListIn, LangMap, ListOut) -> [binary()] when
@@ -233,19 +233,19 @@ handle_cast({show_langs, DispatcherPid, Lang}, State) ->
 fill_in_nls([], _, ListOut) ->
     lists:reverse(ListOut);
 fill_in_nls([{nls, NlsKey} | Tail], LangMap, ListOut) ->
-    fill_in_nls(Tail, LangMap, [maps:get(NlsKey, LangMap)] ++ ListOut);
+    fill_in_nls(Tail, LangMap, [maps:get(NlsKey, LangMap) | ListOut]);
 fill_in_nls([NonNlsKey | Tail], LangMap, ListOut) ->
-    fill_in_nls(Tail, LangMap, [NonNlsKey] ++ ListOut).
+    fill_in_nls(Tail, LangMap, [NonNlsKey | ListOut]).
 
--spec do_response_text(Lang, State, TextList, DispatcherPid) -> ok when
+-spec do_response_content(Lang, State, ContentList, DispatcherPid) -> ok when
     Lang :: atom(),
     State :: map(),
-    TextList :: [term()],
+    ContentList :: [term()],
     DispatcherPid :: pid().
-do_response_text(Lang, State, TextList, DispatcherPid) ->
+do_response_content(Lang, State, ContentList, DispatcherPid) ->
     LangMap = maps:get(Lang, State),
-    ReturnTexts = fill_in_nls(TextList, LangMap, []),
-    command_dispatcher:return_text(DispatcherPid, ReturnTexts).
+    ReturnContent = fill_in_nls(ContentList, LangMap, []),
+    command_dispatcher:return_content(DispatcherPid, ReturnContent).
 
 %%--------------------------------------------------------------------
 %% @private

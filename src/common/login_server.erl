@@ -23,9 +23,9 @@
     is_uid_logged_in/1,
     logout/2]).
 
--define(R_REGISTERED_UID_LIST, registered_uid_list).
--define(REGISTERING_UID_LIST, registration_uid_list).
--define(LOGGED_IN_UID_LIST, logged_in_uid_list).
+-define(R_REGISTERED_UIDS_SET, registered_uids_set).
+-define(REGISTERING_UIDS_SET, registration_uids_set).
+-define(LOGGED_IN_UIDS_SET, logged_in_uids_set).
 
 %% gen_server callbacks
 -export([init/1,
@@ -147,17 +147,17 @@ logout(DispatcherPid, Uid) ->
     Reason :: term().
 init([]) ->
     io:format("~p starting~n", [?MODULE]),
-    RegisteredUidList =
-        case redis_client_server:get(?R_REGISTERED_UID_LIST) of
+    RegisteredUidsSet =
+        case redis_client_server:get(?R_REGISTERED_UIDS_SET) of
             undefined ->
-                NewList = [],
-                redis_client_server:set(?R_REGISTERED_UID_LIST, NewList, true),
-                NewList;
+                NewRegisteredUidsSet = gb_sets:new(),
+                redis_client_server:set(?R_REGISTERED_UIDS_SET, NewRegisteredUidsSet, true),
+                NewRegisteredUidsSet;
             UidList ->
                 error_logger:info_msg("Registered uid list:~p~n", [UidList]),
                 UidList
         end,
-    {ok, #{?REGISTERING_UID_LIST => [], ?R_REGISTERED_UID_LIST => RegisteredUidList, ?LOGGED_IN_UID_LIST => []}}.
+    {ok, #{?REGISTERING_UIDS_SET => gb_sets:new(), ?R_REGISTERED_UIDS_SET => RegisteredUidsSet, ?LOGGED_IN_UIDS_SET => gb_sets:new()}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -182,23 +182,23 @@ init([]) ->
     NewState :: map(),
     Reason :: term().
 handle_call({is_uid_registered, Uid}, _From, State) ->
-    RegisteredUidList = maps:get(?R_REGISTERED_UID_LIST, State),
-    {reply, common_api:list_has_element(RegisteredUidList, Uid), State};
+    RegisteredUidsSet = maps:get(?R_REGISTERED_UIDS_SET, State),
+    {reply, gb_sets:is_element(Uid, RegisteredUidsSet), State};
 handle_call({is_in_registration, Uid}, _From, State) ->
-    RegisteringUidList = maps:get(?REGISTERING_UID_LIST, State),
-    Result = common_api:list_has_element(RegisteringUidList, Uid),
+    RegisteringUidsSet = maps:get(?REGISTERING_UIDS_SET, State),
+    Result = gb_sets:is_element(Uid, RegisteringUidsSet),
     {reply, Result, State};
 handle_call({remove_user, Uid}, _From, State) ->
-    RegisteredUidList = maps:get(?R_REGISTERED_UID_LIST, State),
-    UpdatedRegisteredUidList = lists:delete(Uid, RegisteredUidList),
+    RegisteredUidsSet = maps:get(?R_REGISTERED_UIDS_SET, State),
+    UpdatedRegisteredUidsSet = gb_sets:delete(Uid, RegisteredUidsSet),
 
     redis_client_server:async_del([Uid], false),
-    redis_client_server:async_set(?R_REGISTERED_UID_LIST, UpdatedRegisteredUidList, true),
+    redis_client_server:async_set(?R_REGISTERED_UIDS_SET, UpdatedRegisteredUidsSet, true),
 
-    {reply, ok, State#{?R_REGISTERED_UID_LIST := UpdatedRegisteredUidList}};
+    {reply, ok, State#{?R_REGISTERED_UIDS_SET := UpdatedRegisteredUidsSet}};
 handle_call({is_uid_logged_in, Uid}, _From, State) ->
-    LoggedUidList = maps:get(?LOGGED_IN_UID_LIST, State),
-    {reply, common_api:list_has_element(LoggedUidList, Uid), State}.
+    LoggedUidsSet = maps:get(?LOGGED_IN_UIDS_SET, State),
+    {reply, gb_sets:is_element(Uid, LoggedUidsSet), State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -223,56 +223,56 @@ handle_call({is_uid_logged_in, Uid}, _From, State) ->
     StateData :: map().
 handle_cast({registration_done, PlayerProfile, DispatcherPid}, State) ->
     Uid = maps:get(uid, PlayerProfile),
-    UpdatedRegisteredUidList = [Uid] ++ maps:get(?R_REGISTERED_UID_LIST, State),
+    UpdatedRegisteredUidsSet = gb_sets:add(Uid, maps:get(?R_REGISTERED_UIDS_SET, State)),
 
     redis_client_server:async_set(Uid, PlayerProfile, false),
-    redis_client_server:async_set(?R_REGISTERED_UID_LIST, UpdatedRegisteredUidList, true),
+    redis_client_server:async_set(?R_REGISTERED_UIDS_SET, UpdatedRegisteredUidsSet, true),
 
-    RegisteringUidList = maps:get(?REGISTERING_UID_LIST, State),
-    UpdatedState = State#{?R_REGISTERED_UID_LIST := UpdatedRegisteredUidList, ?REGISTERING_UID_LIST => lists:delete(Uid, RegisteringUidList)},
+    RegisteringUidsSet = maps:get(?REGISTERING_UIDS_SET, State),
+    UpdatedState = State#{?R_REGISTERED_UIDS_SET := UpdatedRegisteredUidsSet, ?REGISTERING_UIDS_SET => gb_sets:del_element(Uid, RegisteringUidsSet)},
 
     login(DispatcherPid, Uid),
     {noreply, UpdatedState};
 handle_cast({register_uid, DispatcherPid, Uid}, State) ->
     register_fsm:start({init, DispatcherPid, Uid}),
-    RegisteringUidList = maps:get(?REGISTERING_UID_LIST, State),
-    {noreply, State#{?REGISTERING_UID_LIST := [Uid] ++ RegisteringUidList}};
+    RegisteringUidsSet = maps:get(?REGISTERING_UIDS_SET, State),
+    {noreply, State#{?REGISTERING_UIDS_SET := gb_sets:add(Uid, RegisteringUidsSet)}};
 handle_cast({bringup_registration, StateName, StateData}, State) ->
     spawn(fun() ->
         register_fsm:start({bringup, StateName, StateData})
     end),
     {noreply, State};
 handle_cast({login, DispatcherPid, Uid}, State) ->
-    LoggedInUidList = maps:get(?LOGGED_IN_UID_LIST, State),
+    LoggedInUidsSet = maps:get(?LOGGED_IN_UIDS_SET, State),
 
-    UpdatedLoggedInUidList =
-        case common_api:index_of(LoggedInUidList, Uid) of
-            -1 ->
+    UpdatedLoggedInUidsSet =
+        case gb_sets:is_element(Uid, LoggedInUidsSet) of
+            false ->
                 PlayerProfile = redis_client_server:get(Uid),
                 #{scene := CurSceneName} = PlayerProfile,
                 player_fsm:start({init, PlayerProfile}),
                 scene_fsm:enter(CurSceneName, PlayerProfile, DispatcherPid),
-                [Uid] ++ LoggedInUidList;
+                gb_sets:add(Uid, LoggedInUidsSet);
             _ ->
                 player_fsm:send_message(Uid, login, [{nls, already_login}], DispatcherPid),
-                LoggedInUidList
+                LoggedInUidsSet
         end,
 
-    {noreply, State#{?LOGGED_IN_UID_LIST := UpdatedLoggedInUidList}};
+    {noreply, State#{?LOGGED_IN_UIDS_SET := UpdatedLoggedInUidsSet}};
 handle_cast({logout, DispatcherPid, Uid}, State) ->
-    LoggedInUidList = maps:get(?LOGGED_IN_UID_LIST, State),
+    LoggedInUidsSet = maps:get(?LOGGED_IN_UIDS_SET, State),
     Lang = player_fsm:get_lang(Uid),
-    UpdatedLoggedInUidList =
-        case common_api:index_of(LoggedInUidList, Uid) of
-            -1 ->
-                LoggedInUidList;
+    UpdatedLoggedInUidsSet =
+        case gb_sets:is_element(Uid, LoggedInUidsSet) of
+            false ->
+                LoggedInUidsSet;
             _ ->
                 player_fsm:logout(Uid),
-                lists:delete(Uid, LoggedInUidList)
+                gb_sets:del_element(Uid, LoggedInUidsSet)
         end,
 
-    nls_server:response_text(logout, [{nls, already_logout}], Lang, DispatcherPid),
-    {noreply, State#{?LOGGED_IN_UID_LIST := UpdatedLoggedInUidList}}.
+    nls_server:response_content(logout, [{nls, already_logout}], Lang, DispatcherPid),
+    {noreply, State#{?LOGGED_IN_UIDS_SET := UpdatedLoggedInUidsSet}}.
 
 %%--------------------------------------------------------------------
 %% @private

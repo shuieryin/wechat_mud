@@ -74,7 +74,7 @@ enter(SceneName, SimplePlayerProfile, DispatcherPid) ->
 -spec leave(SceneName, Uid, TargetDirection) -> Result when
     SceneName :: atom(),
     Uid :: atom(),
-    TargetDirection :: direction:direction(),
+    TargetDirection :: direction:directions(),
     Result :: TargetSceneName | {undefined, NlsServerName},
     TargetSceneName :: atom(),
     NlsServerName :: atom().
@@ -270,7 +270,7 @@ handle_event({bringup_player, PlayerStateName, PlayerStateData}, StateName, Stat
 
     Event :: {leave, Uid, TargetDirection},
     Uid :: atom(),
-    TargetDirection :: direction:direction(),
+    TargetDirection :: direction:directions(),
     From :: {pid(), Tag :: term()},
     StateName :: atom(),
     StateData :: term(),
@@ -397,7 +397,7 @@ show_scene(DispatcherPid, State, SimplePlayerProfile) ->
 
     PlayersMap = maps:remove(Uid, maps:get(?PLAYERS_MAP, State)),
     #{exits := ExitsMap, title := SceneTitle, desc := SceneDesc, nls_server := NlsServerName} = SceneInfo,
-    nls_server:response_text(NlsServerName,
+    nls_server:response_content(NlsServerName,
         lists:flatten([
             {nls, SceneTitle},
             <<"\n\n">>,

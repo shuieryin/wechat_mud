@@ -96,17 +96,17 @@ reload_modules(Modules) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec index_of(List, Item) -> integer() when
+-spec index_of(Item, List) -> integer() when
     List :: [term()],
     Item :: term().
-index_of(List, Item) ->
-    index_of(List, Item, 0).
-index_of([], _, _) ->
+index_of(Item, List) ->
+    index_of(Item, List, 0).
+index_of(_, [], _) ->
     -1;
-index_of([Elem | _], Elem, Pos) ->
+index_of(Elem, [Elem | _], Pos) ->
     Pos;
-index_of([_ | Tail], Item, Pos) ->
-    index_of(Tail, Item, Pos + 1).
+index_of(Item, [_ | Tail], Pos) ->
+    index_of(Item, Tail, Pos + 1).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -114,11 +114,11 @@ index_of([_ | Tail], Item, Pos) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec list_has_element(List, Item) -> boolean() when
+-spec list_has_element(Item, List) -> boolean() when
     List :: [term()],
     Item :: term().
-list_has_element(List, Item) ->
-    case index_of(List, Item) of
+list_has_element(Item, List) ->
+    case index_of(Item, List) of
         -1 ->
             false;
         _ ->
