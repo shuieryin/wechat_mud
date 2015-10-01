@@ -1,6 +1,12 @@
+%%%-------------------------------------------------------------------
 %%% @author Shuieryin
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
+%%%
+%%% Registration gen_fsm. This gen_fsm is linear stated as
+%%% select_lang --> input_gender --> input_born_month --> input_confirmation --> done.
+%%% This gen_fsm is created when player starts registration procedure
+%%% and destroyed when the registration is done.
 %%%
 %%% @end
 %%% Created : 29. Aug 2015 5:49 PM
@@ -17,9 +23,7 @@
     input_gender/2,
     input_born_month/2,
     input_confirmation/2,
-    stop/1,
-    valid_month/1,
-    module_name/1]).
+    process_name/1]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -43,9 +47,19 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Creates a gen_fsm process which calls Module:init/1 to
+%% Creates a player gen_fsm process which calls Module:init/1 to
 %% initialize. To ensure a synchronized start-up procedure, this
 %% function does not return until Module:init/1 has returned.
+%%
+%% When the first variable in the tuple is "init", it creates a
+%% register gen_fsm with uid and the default state, and prints all
+%% supported langauge abbreviations to user.
+%%
+%% When the first variable in the tuple is "bringup", it creats
+%% a register gen_fsm with state name and state data from the
+%% abnormally terminiated register gen_fsm.
+%%
+%% This functino starts gen_fsm by setting "uid+_register_fsm" as fsm name.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -58,29 +72,37 @@
     Reason :: term().
 start({init, DispatcherPid, Uid}) ->
     nls_server:response_content(?MODULE, [{nls, select_lang}], zh, DispatcherPid),
-    gen_fsm:start({local, module_name(Uid)}, ?MODULE, {init, Uid}, []);
+    gen_fsm:start({local, process_name(Uid)}, ?MODULE, {init, Uid}, []);
 start({bringup, StateName, StateData}) ->
     Uid = maps:get(uid, StateData),
-    true = common_api:until_process_terminated(module_name(Uid)),
-    gen_fsm:start({local, module_name(Uid)}, ?MODULE, {bringup, StateName, StateData}, []).
+    ok = common_api:until_process_terminated(process_name(Uid), 20),
+    gen_fsm:start({local, process_name(Uid)}, ?MODULE, {bringup, StateName, StateData}, []).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Executes states with player inputs. This function is called in
+%% spawn_link(M, F, A) by command_dispatcher:pending_content/3.
+%% @see command_dispatcher:pending_content/3.
+%%
+%% @end
+%%--------------------------------------------------------------------
 -spec input(DispatcherPid, Uid, Input) -> ok when
     Uid :: atom(),
     Input :: string(),
     DispatcherPid :: pid().
 input(DispatcherPid, Uid, Input) ->
-    gen_fsm:send_event(module_name(Uid), {Input, DispatcherPid}).
+    gen_fsm:send_event(process_name(Uid), {Input, DispatcherPid}).
 
--spec stop(State) -> no_return() when
-    State :: map().
-stop(State) ->
-    Uid = maps:get(uid, State),
-    gen_fsm:send_all_state_event(module_name(Uid), stop).
-
--spec module_name(Uid) -> RegisterFsmName when
+%%--------------------------------------------------------------------
+%% @doc
+%% Appends "_register_fsm" to Uid as the register_fsm process name.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec process_name(Uid) -> RegisterFsmName when
     Uid :: atom(),
     RegisterFsmName :: atom().
-module_name(Uid) ->
+process_name(Uid) ->
     list_to_atom(atom_to_list(Uid) ++ "_register_fsm").
 
 %%%===================================================================
@@ -93,6 +115,8 @@ module_name(Uid) ->
 %% Whenever a gen_fsm is started using gen_fsm:start/[3,4] or
 %% gen_fsm:start_link/[3,4], this function is called by the new
 %% process to initialize.
+%%
+%% See start/1 for details of "init" and "bringup" definitions.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -115,9 +139,16 @@ init({bringup, StateName, StateData}) ->
     {ok, StateName, StateData}.
 
 %%--------------------------------------------------------------------
-%% @private
 %% @doc
-%% Select language
+%% Select language. This is the default init state in registration
+%% procedure. If player input supported langauge abbreviatio, sets the
+%% next state to "input_gender" and prints its state infos to player,
+%% otherwise prints current state infos to player.
+%%
+%% After player has selected one of the supported langauges, all of
+%% the subsequence messages will be displayed in the selected langauges
+%% until player switched lanauge.
+%% @see player_fsm:switch_lang/3.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -152,9 +183,11 @@ select_lang({LangBin, DispatcherPid}, State) ->
     {next_state, NextState, NewState}.
 
 %%--------------------------------------------------------------------
-%% @private
 %% @doc
-%% Input gender
+%% Inputs player gender. The previous state is "select_lang". If player
+%% inputs valid gender, sets the next state to "input_born_month" and
+%% prints its state infos to player, otherwise prints current state
+%% infos to player.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -190,17 +223,19 @@ input_gender(Gender, DispatcherPid, State) ->
     {next_state, input_born_month, maps:put(gender, Gender, State)}.
 
 %%--------------------------------------------------------------------
-%% @private
 %% @doc
-%% Input born month
+%% Inputs player born month. The previous state is "input_gender". If
+%% player inputs valid born month, sets the next state to
+%% "input_confirmation" and prints its state infos with all summary
+%% infos to player, otherwise prints current state infos to player.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec input_born_month({MonthBin, DispatcherPid}, State) ->
+-spec input_born_month({MonthStr, DispatcherPid}, State) ->
     {next_state, NextStateName, NextState} |
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
-    MonthBin :: binary(),
+    MonthStr :: string(),
     DispatcherPid :: pid(),
     State :: map(),
     NextStateName :: input_confirmation | input_born_month,
@@ -210,7 +245,7 @@ input_gender(Gender, DispatcherPid, State) ->
 input_born_month({MonthBin, DispatcherPid}, State) ->
     Lang = maps:get(lang, State),
     {NewStateName, NewState, ContentList} =
-        case valid_month(MonthBin) of
+        case validate_month(MonthBin) of
             {ok, Month} ->
                 UpdatedState = maps:put(born_month, Month, State),
                 SummaryContent = gen_summary_content(?STATE_NAMES, [], UpdatedState),
@@ -228,44 +263,13 @@ input_born_month({MonthBin, DispatcherPid}, State) ->
     nls_server:response_content(?MODULE, lists:flatten(ContentList), Lang, DispatcherPid),
     {next_state, NewStateName, NewState}.
 
--spec valid_month(MonthStr) -> {ok, 1..12} | false when
-    MonthStr :: string().
-valid_month(MonthBin) ->
-    try
-        case binary_to_integer(MonthBin) of
-            Month when Month >= 1, Month =< 12 ->
-                {ok, Month};
-            _ ->
-                {false, MonthBin}
-        end
-    catch
-        _:_ ->
-            {false, MonthBin}
-    end.
-
--spec gen_summary_content(StateNames, AccContent, State) -> [binary()] when
-    StateNames :: [{Key, Desc}],
-    Key :: atom(),
-    Desc :: atom(),
-    AccContent :: [any()],
-    State :: map().
-gen_summary_content([], AccContent, _) ->
-    [AccContent, <<"\n">>, {nls, is_confirmed}];
-gen_summary_content([{Key, Desc} | Tail], AccContent, State) ->
-    Value = value_to_binary(maps:get(Key, State)),
-    gen_summary_content(Tail, [AccContent, {nls, Desc}, Value, <<"\n">>], State).
-
-value_to_binary(Value) when is_integer(Value) ->
-    integer_to_binary(Value);
-value_to_binary(Value) when is_atom(Value) ->
-    {nls, Value};
-value_to_binary(Value) ->
-    Value.
-
 %%--------------------------------------------------------------------
-%% @private
 %% @doc
-%% Input confirmation
+%% Acknowledgement of all the preivous inputs. The previous state is
+%% "input_born_month". If player inputs "y" or "n", tells login server
+%% the registration is done by calling login_server:registration_done/2
+%% and terminates the register gen_fsm.
+%% @see login_server:registration_done/2.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -285,7 +289,6 @@ input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"y">> orelse
     State2 = maps:remove(summary_content, State1),
 
     login_server:registration_done(State2, DispatcherPid),
-
     {stop, done, State2};
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"n">> orelse Answer == <<"N">> ->
     Lang = maps:get(lang, State),
@@ -436,7 +439,8 @@ handle_info(_Info, StateName, State) ->
 %% This function is called by a gen_fsm when it is about to
 %% terminate. It should be the opposite of Module:init/1 and do any
 %% necessary cleaning up. When it returns, the gen_fsm terminates with
-%% Reason. The return value is ignored.
+%% Reason. The return value is ignored. If the gen_fsm is terminated
+%% abnormally, it is restarted with the current state name and state data.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -450,8 +454,7 @@ terminate(Reason, StateName, StateData) ->
             login_server:bringup_registration(StateName, StateData);
         _ ->
             ok
-    end,
-    ok.
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -491,3 +494,62 @@ format_status(Opt, StatusData) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Validates the input month and return integer month if
+%% validation passed.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec validate_month(MonthBin) -> {ok, Month} | {false, MonthBin} when
+    MonthBin :: string(),
+    Month :: 1..12.
+validate_month(MonthBin) ->
+    try
+        case binary_to_integer(MonthBin) of
+            Month when Month >= 1, Month =< 12 ->
+                {ok, Month};
+            _ ->
+                {false, MonthBin}
+        end
+    catch
+        _:_ ->
+            {false, MonthBin}
+    end.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Generates summary of all player inputs.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec gen_summary_content(StateNames, AccContent, State) -> [binary()] when
+    StateNames :: [{Key, Desc}],
+    Key :: atom(),
+    Desc :: atom(),
+    AccContent :: [any()],
+    State :: map().
+gen_summary_content([], AccContent, _) ->
+    [AccContent, <<"\n">>, {nls, is_confirmed}];
+gen_summary_content([{Key, Desc} | Tail], AccContent, State) ->
+    Value = gen_summary_convert_value(maps:get(Key, State)),
+    gen_summary_content(Tail, [AccContent, {nls, Desc}, Value, <<"\n">>], State).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Converts value for generate summary only. Converts raw value to
+%% binary when it is integer, converts value to {nls, value} when
+%% it is atom, and returns the raw value for the rest of types.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec gen_summary_convert_value(RawValue) -> ConvertedValue when
+    RawValue :: integer() | atom() | any(),
+    ConvertedValue :: RawValue.
+gen_summary_convert_value(Value) when is_integer(Value) ->
+    integer_to_binary(Value);
+gen_summary_convert_value(Value) when is_atom(Value) ->
+    {nls, Value};
+gen_summary_convert_value(Value) ->
+    Value.

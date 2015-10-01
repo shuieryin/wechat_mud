@@ -3,6 +3,9 @@
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
+%%% Login gen_server. This server supports overall user login, logout,
+%%% and register services as well as maintains logged in and registered uids.
+%%%
 %%% @end
 %%% Created : 25. Aug 2015 9:11 PM
 %%%-------------------------------------------------------------------
@@ -17,7 +20,7 @@
     is_in_registration/1,
     register_uid/2,
     registration_done/2,
-    remove_user/1,
+    delete_player/1,
     bringup_registration/2,
     login/2,
     is_uid_logged_in/1,
@@ -44,7 +47,7 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Starts the server
+%% Starts server by setting module name as server name.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -60,7 +63,7 @@ start_link() ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Check if uid is registered
+%% Checks if uid has been registered.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -71,7 +74,7 @@ is_uid_registered(Uid) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Check if uid is in registration process
+%% Checks if uid is in registration procedure.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -80,41 +83,85 @@ is_uid_registered(Uid) ->
 is_in_registration(Uid) ->
     gen_server:call(?MODULE, {is_in_registration, Uid}).
 
--spec register_uid(DispatcherPid, Uid) -> no_return() when
+%%--------------------------------------------------------------------
+%% @doc
+%% Checks if uid is in registration procedure.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec register_uid(DispatcherPid, Uid) -> ok when
     Uid :: atom(),
     DispatcherPid :: pid().
 register_uid(DispatcherPid, Uid) ->
     gen_server:cast(?MODULE, {register_uid, DispatcherPid, Uid}).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% This function is only called by regsiter_fsm when registration
+%% procedure is done. It adds uid to registered uid set, save to
+%% redis immediately, and log user in.
+%%
+%% @end
+%%--------------------------------------------------------------------
 -spec registration_done(State, DispatcherPid) -> ok when
     State :: map(),
     DispatcherPid :: pid().
 registration_done(State, DispatcherPid) ->
-    gen_server:cast(?MODULE, {registration_done, State, DispatcherPid}),
-    ok.
+    gen_server:cast(?MODULE, {registration_done, State, DispatcherPid}).
 
--spec remove_user(Uid) -> no_return() when
+%%--------------------------------------------------------------------
+%% @doc
+%% This function deletes player in all states including redis. It logs
+%% out player, delete player states from server state, and updates redis.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec delete_player(Uid) -> ok when
     Uid :: atom().
-remove_user(Uid) ->
-    gen_server:call(?MODULE, {remove_user, Uid}).
+delete_player(Uid) ->
+    gen_server:call(?MODULE, {delete_user, Uid}).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% This function brings up register_fsm when its process terminated abnormally.
+%%
+%% @end
+%%--------------------------------------------------------------------
 -spec bringup_registration(StateName, StateData) -> ok when
     StateName :: atom(),
     StateData :: map().
 bringup_registration(StateName, StateData) ->
     gen_server:cast(?MODULE, {bringup_registration, StateName, StateData}).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Logs user in by creating its own player_fsm process.
+%%
+%% @end
+%%--------------------------------------------------------------------
 -spec login(DispatcherPid, Uid) -> ok when
     DispatcherPid :: pid(),
     Uid :: atom().
 login(DispatcherPid, Uid) ->
     gen_server:cast(?MODULE, {login, DispatcherPid, Uid}).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Checks if uid has logged in.
+%%
+%% @end
+%%--------------------------------------------------------------------
 -spec is_uid_logged_in(Uid) -> boolean() when
     Uid :: atom().
 is_uid_logged_in(Uid) ->
     gen_server:call(?MODULE, {is_uid_logged_in, Uid}).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Logs user out by destroying its player_fsm process.
+%%
+%% @end
+%%--------------------------------------------------------------------
 -spec logout(DispatcherPid, Uid) -> ok when
     DispatcherPid :: pid(),
     Uid :: atom().
@@ -128,12 +175,10 @@ logout(DispatcherPid, Uid) ->
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% Initializes the server
+%% Initializes the server by retrieves registered uid list from redis
+%% and cache to a gb_set, and creates new gb_sets for registering uids
+%% and logged in uids for caching.
 %%
-%% @spec init(Args) -> {ok, State} |
-%%                     {ok, State, Timeout} |
-%%                     ignore |
-%%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
 -spec init(Args) ->
@@ -174,7 +219,7 @@ init([]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: {is_uid_registered | is_in_registration | remove_user, Uid},
+    Request :: {is_uid_registered | is_in_registration | delete_user, Uid},
     Uid :: atom(),
     From :: {pid(), Tag :: term()},
     Reply :: term(),
@@ -188,14 +233,16 @@ handle_call({is_in_registration, Uid}, _From, State) ->
     RegisteringUidsSet = maps:get(?REGISTERING_UIDS_SET, State),
     Result = gb_sets:is_element(Uid, RegisteringUidsSet),
     {reply, Result, State};
-handle_call({remove_user, Uid}, _From, State) ->
+handle_call({delete_user, Uid}, _From, State) ->
+    LoggedOutState = logout(internal, Uid, State),
+    ok = common_api:until_process_terminated(Uid, 20),
     RegisteredUidsSet = maps:get(?R_REGISTERED_UIDS_SET, State),
     UpdatedRegisteredUidsSet = gb_sets:delete(Uid, RegisteredUidsSet),
 
     redis_client_server:async_del([Uid], false),
     redis_client_server:async_set(?R_REGISTERED_UIDS_SET, UpdatedRegisteredUidsSet, true),
 
-    {reply, ok, State#{?R_REGISTERED_UIDS_SET := UpdatedRegisteredUidsSet}};
+    {reply, ok, LoggedOutState#{?R_REGISTERED_UIDS_SET := UpdatedRegisteredUidsSet}};
 handle_call({is_uid_logged_in, Uid}, _From, State) ->
     LoggedUidsSet = maps:get(?LOGGED_IN_UIDS_SET, State),
     {reply, gb_sets:is_element(Uid, LoggedUidsSet), State}.
@@ -254,25 +301,15 @@ handle_cast({login, DispatcherPid, Uid}, State) ->
                 scene_fsm:enter(CurSceneName, PlayerProfile, DispatcherPid),
                 gb_sets:add(Uid, LoggedInUidsSet);
             _ ->
-                player_fsm:send_message(Uid, login, [{nls, already_login}], DispatcherPid),
+                player_fsm:response_content(Uid, login, [{nls, already_login}], DispatcherPid),
                 LoggedInUidsSet
         end,
 
     {noreply, State#{?LOGGED_IN_UIDS_SET := UpdatedLoggedInUidsSet}};
 handle_cast({logout, DispatcherPid, Uid}, State) ->
-    LoggedInUidsSet = maps:get(?LOGGED_IN_UIDS_SET, State),
-    Lang = player_fsm:get_lang(Uid),
-    UpdatedLoggedInUidsSet =
-        case gb_sets:is_element(Uid, LoggedInUidsSet) of
-            false ->
-                LoggedInUidsSet;
-            _ ->
-                player_fsm:logout(Uid),
-                gb_sets:del_element(Uid, LoggedInUidsSet)
-        end,
-
-    nls_server:response_content(logout, [{nls, already_logout}], Lang, DispatcherPid),
-    {noreply, State#{?LOGGED_IN_UIDS_SET := UpdatedLoggedInUidsSet}}.
+    UpdatedState = logout(internal, Uid, State),
+    player_fsm:response_content(Uid, logout, [{nls, already_logout}], DispatcherPid),
+    {noreply, UpdatedState}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -354,3 +391,28 @@ format_status(Opt, StatusData) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% This function is called by "delete_user" and "logout" from
+%% handle_call/3 and handle_cast/2.
+%%
+%% Logs user out by destroying its player_fsm process.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec logout(internal, Uid, State) -> UpdatedState when
+    Uid :: atom(),
+    State :: map(),
+    UpdatedState :: map().
+logout(internal, Uid, State) ->
+    LoggedInUidsSet = maps:get(?LOGGED_IN_UIDS_SET, State),
+    UpdatedLoggedInUidsSet =
+        case gb_sets:is_element(Uid, LoggedInUidsSet) of
+            false ->
+                LoggedInUidsSet;
+            _ ->
+                player_fsm:logout(Uid),
+                gb_sets:del_element(Uid, LoggedInUidsSet)
+        end,
+    State#{?LOGGED_IN_UIDS_SET := UpdatedLoggedInUidsSet}.

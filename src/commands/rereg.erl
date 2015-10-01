@@ -33,7 +33,12 @@
     Uid :: atom(),
     DispatcherPid :: pid().
 exec(DispatcherPid, Uid) ->
-    login_server:register_uid(DispatcherPid, Uid).
+    case whereis(Uid) of
+        undefined ->
+            login_server:register_uid(DispatcherPid, Uid);
+        _ ->
+            player_fsm:response_content(Uid, ?MODULE, [{nls, please_logout_first}], DispatcherPid)
+    end.
 
 %%%===================================================================
 %%% Internal functions

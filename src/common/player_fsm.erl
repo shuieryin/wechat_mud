@@ -1,6 +1,11 @@
 %%%-------------------------------------------------------------------
+%%% @author Shuieryin
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
+%%%
+%%% Player gen_fsm. This gen_fsm is created when player logs in and
+%%% detroyed when player logs out. It holds the current player state
+%%% and state data for player journey.
 %%%
 %%% @end
 %%% Created : 18. Aug 2015 8:57 PM
@@ -16,10 +21,9 @@
     go_direction/3,
     look_scene/2,
     get_lang/1,
-    send_message/4,
+    response_content/4,
     leave_scene/1,
-    switch_lang/3,
-    show_langs/2]).
+    switch_lang/3]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -40,9 +44,18 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Creates a gen_fsm process which calls Module:init/1 to
+%% Creates a player gen_fsm process which calls Module:init/1 to
 %% initialize. To ensure a synchronized start-up procedure, this
 %% function does not return until Module:init/1 has returned.
+%%
+%% When the first variable in the tuple is "init", it creates a
+%% player gen_fsm with player profile and the default state.
+%%
+%% When the first variable in the tuple is "bringup", it creats
+%% a player gen_fsm with state name and state data from the
+%% abnormally terminiated player gen_fsm.
+%%
+%% This functino starts gen_fsm by setting uid as fsm name.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -57,12 +70,19 @@ start({init, PlayerProfile}) ->
 start({bringup, StateName, StateData}) ->
     #{self := PlayerProfile} = StateData,
     #{uid := Uid} = PlayerProfile,
-    true = common_api:until_process_terminated(Uid),
+    ok = common_api:until_process_terminated(Uid, 20),
     gen_fsm:start({local, Uid}, ?MODULE, {bringup, StateName, StateData}, []).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Go to direction
+%% Go to direction.
+%%
+%% This function does the followings:
+%% 1. Checks if current scene is linked to the target scene, if so go to
+%% step 2, otherwise remind user the direction is invalid.
+%%
+%% 2. Leave the current scene, enter the target scene, and display the
+%% target scene info to user.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -75,7 +95,7 @@ go_direction(Uid, DispatcherPid, Direction) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Look scene
+%% Displays the current scene info to user.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -87,7 +107,7 @@ look_scene(Uid, DispatcherPid) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Get language
+%% Retrieve the current language of the player.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -99,21 +119,30 @@ get_lang(Uid) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Get language
+%% Given "ContentList" contains items {nls, NlsKey} with direct return
+%% content values, the function is to replace {nls, NlsKey} with the actual
+%% nls content, and then immediately return the result to user.
+%%
+%% This function is called only when is the player language is not given,
+%% and the purpose of calling this function is to save return back round
+%% by calling get_lang/2.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec send_message(Uid, NlsServer, ContentList, DispatcherPid) -> ok when
+-spec response_content(Uid, NlsServer, ContentList, DispatcherPid) -> ok when
     Uid :: atom(),
     NlsServer :: atom(),
     ContentList :: [term()],
     DispatcherPid :: pid().
-send_message(Uid, NlsServer, ContentList, DispatcherPid) ->
-    gen_fsm:send_all_state_event(Uid, {send_message, NlsServer, ContentList, DispatcherPid}).
+response_content(Uid, NlsServer, ContentList, DispatcherPid) ->
+    gen_fsm:send_all_state_event(Uid, {response_content, NlsServer, ContentList, DispatcherPid}).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Leave scene
+%% Leaves the current scene.
+%%
+%% This function is called when player is going to other scene or
+%% logging out.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -124,7 +153,7 @@ leave_scene(Uid) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Switch language
+%% Switches player language.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -137,19 +166,8 @@ switch_lang(DispatcherPid, Uid, Lang) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Show languages
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec show_langs(DispatcherPid, Uid) -> ok when
-    DispatcherPid :: pid(),
-    Uid :: atom().
-show_langs(DispatcherPid, Uid) ->
-    gen_fsm:send_all_state_event(Uid, {show_langs, DispatcherPid}).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Terminate this fsm
+%% Logs out player by exit the current scene and terminate its player
+%% gen_fsm process.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -166,6 +184,8 @@ logout(Uid) ->
 %% Whenever a gen_fsm is started using gen_fsm:start/[3,4] or
 %% gen_fsm:start_link/[3,4], this function is called by the new
 %% process to initialize.
+%%
+%% See start/1 for details of "init" and "bringup" definitions.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -252,7 +272,7 @@ state_name(_Event, _From, State) ->
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
 
-    Event :: {go_direction, DispatcherPid, Direction} | {look_scene, DispatcherPid} | {send_message, NlsServer, ContentList, DispatcherPid} | {show_langs, DispatcherPid},
+    Event :: {go_direction, DispatcherPid, Direction} | {look_scene, DispatcherPid} | {response_content, NlsServer, ContentList, DispatcherPid},
     NlsServer :: atom(),
     ContentList :: [term()],
     DispatcherPid :: pid(),
@@ -282,7 +302,7 @@ handle_event({look_scene, DispatcherPid}, StateName, State) ->
     #{scene := CurSceneName} = PlayerProfile,
     scene_fsm:look(CurSceneName, DispatcherPid, PlayerProfile),
     {next_state, StateName, State};
-handle_event({send_message, NlsServer, ContentList, DispatcherPid}, StateName, State) ->
+handle_event({response_content, NlsServer, ContentList, DispatcherPid}, StateName, State) ->
     #{self := PlayerProfile} = State,
     #{lang := Lang} = PlayerProfile,
     nls_server:response_content(NlsServer, ContentList, Lang, DispatcherPid),
@@ -319,11 +339,6 @@ handle_event({switch_lang, DispatcherPid, RawTargetLang}, StateName, State) ->
         end,
 
     {next_state, StateName, UpdatedState};
-handle_event({show_langs, DispatcherPid}, StateName, State) ->
-    #{self := PlayerProfile} = State,
-    #{lang := Lang} = PlayerProfile,
-    nls_server:show_langs(DispatcherPid, Lang),
-    {next_state, StateName, State};
 handle_event(logout, _StateName, State) ->
     #{self := PlayerProfile} = State,
     #{scene := CurSceneName, uid := Uid} = PlayerProfile,
@@ -390,7 +405,8 @@ handle_info(_Info, StateName, State) ->
 %% This function is called by a gen_fsm when it is about to
 %% terminate. It should be the opposite of Module:init/1 and do any
 %% necessary cleaning up. When it returns, the gen_fsm terminates with
-%% Reason. The return value is ignored.
+%% Reason. The return value is ignored. If the gen_fsm is terminated
+%% abnormally, it is restarted with the current state name and state data.
 %%
 %% @end
 %%--------------------------------------------------------------------

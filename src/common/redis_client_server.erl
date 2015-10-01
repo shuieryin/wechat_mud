@@ -3,6 +3,10 @@
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
+%%% Redis client server. This server holds a connection with the redis
+%%% server process and encapsulates APIs for interacting with the redis
+%%% server.
+%%%
 %%% @end
 %%% Created : 26. Aug 2015 10:00 AM
 %%%-------------------------------------------------------------------
@@ -40,7 +44,7 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Starts the server
+%% Starts server by setting module name as server name.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -56,7 +60,7 @@ start_link() ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Reconnect redis
+%% Reconnects redis server
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -65,7 +69,7 @@ reconnect_redis() ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% get value
+%% Gets value from redis server
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -77,7 +81,8 @@ get(Key) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% rpc set value
+%% Sets value to redis server. This function is blocked until the
+%% value is set.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -91,7 +96,7 @@ set(Key, Value, IsSave) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% async set value
+%% Asynchronously sets value to redis server.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -104,27 +109,29 @@ async_set(Key, Value, IsSave) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% rpc save
+%% Saves current redis dataset to RDB file. This function is blocked until the
+%% value is set.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec save() -> no_return().
+-spec save() -> ok.
 save() ->
     gen_server:call(?MODULE, save).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% async save
+%% Asynchronously saves current redis dataset to RDB file.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec async_save() -> no_return().
+-spec async_save() -> ok.
 async_save() ->
     gen_server:cast(?MODULE, save).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% rpc delete
+%% Deletes value in redis server. This function is blocked until the
+%% value is set.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -137,7 +144,7 @@ del(Keys, IsSave) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% async delete
+%% Asynchronously deletes value in redis server.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -149,7 +156,7 @@ async_del(Keys, IsSave) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% clear all data
+%% Deletes all values in redis server and saves dataset to RDB file.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -346,39 +353,68 @@ format_status(Opt, StatusData) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Makes connection to redis server. This function is blocked until
+%% the connection is established.
+%%
+%% @end
+%%--------------------------------------------------------------------
 -spec connect_reids(State) -> map() when
     State :: map().
 connect_reids(State) ->
-    SelfPid = self(),
-    ConnectRedisPid = spawn(
-        fun() ->
-            connect_redis_loop(SelfPid)
-        end
-    ),
-    ConnectRedisPid ! {connect, SelfPid},
-    receive
-        {connected, ConnectRedisPid, ClientPid} ->
-            maps:put(redis_client_pid, ClientPid, State)
-    end.
+    RedisClientPid = connect_redis_loop(),
+    maps:put(redis_client_pid, RedisClientPid, State).
 
--spec connect_redis_loop(ParentPid) -> no_return() when
-    ParentPid :: pid().
-connect_redis_loop(ParentPid) ->
+%%--------------------------------------------------------------------
+%% @doc
+%% Makes connection to redis server loop in every second. This function
+%% is blocked until the connection is established and is called by
+%% connect_redis/1 only.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec connect_redis_loop() -> ClientPid when
+    ClientPid :: pid().
+connect_redis_loop() ->
+    SelfPid = self(),
+    spawn(fun() ->
+        make_connection(SelfPid)
+    end),
     receive
-        {connect, ParentPid} ->
-            case eredis:start_link() of
-                {ok, ClientPid} ->
-                    ParentPid ! {connected, self(), ClientPid};
-                {error, Reason} ->
-                    error_logger:error_msg("Connect redis server failed:~p~n", [Reason]),
-                    connect_redis_loop(ParentPid)
-            end
+        {connected, SelfPid, RedisClientPid} ->
+            RedisClientPid
     after
         1000 ->
-            self() ! {connect, ParentPid}
+            spawn(fun() ->
+                make_connection(SelfPid)
+            end),
+            connect_redis_loop()
     end.
 
--spec save(State) -> no_return() when
+%%--------------------------------------------------------------------
+%% @doc
+%% Makes connection to redis server. Print reason when error occurs.
+%%
+%% @end
+%%--------------------------------------------------------------------
+make_connection(ParentPid) ->
+    case eredis:start_link() of
+        {ok, ClientPid} ->
+            ParentPid ! {connected, ParentPid, ClientPid};
+        {error, Reason} ->
+            error_logger:error_msg("Connect redis server failed:~p~n", [Reason]),
+            error
+    end.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Saves dataset to RDB file. Print reason when error occurs.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec save(State) -> ok | fail when
     State :: map().
 save(State) ->
     RedisClientPid = maps:get(redis_client_pid, State),
@@ -391,6 +427,13 @@ save(State) ->
             fail
     end.
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Sets value to redis server and saves dataset to RDB file if "IsSave"
+%% is true. Print reason when error occurs.
+%%
+%% @end
+%%--------------------------------------------------------------------
 -spec set(Key, Value, IsSave, State) -> IsSet when
     Key :: term(),
     Value :: term(),
@@ -414,6 +457,13 @@ set(Key, Value, IsSave, State) ->
     end,
     IsSet.
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Deletes value in redis server and saves dataset to RDB file if "IsSave"
+%% is true. Print reason when error occurs.
+%%
+%% @end
+%%--------------------------------------------------------------------
 -spec del(Keys, IsSave, State) -> boolean() when
     Keys :: [term()],
     IsSave :: boolean(),

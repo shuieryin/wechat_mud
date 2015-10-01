@@ -3,6 +3,8 @@
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
+%%% Common gen_server. This server maintains systemic states or variables.
+%%%
 %%% @end
 %%% Created : 03. Sep 2015 3:50 PM
 %%%-------------------------------------------------------------------
@@ -36,7 +38,7 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Starts the server
+%% Starts server by setting module name as server name.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -52,7 +54,10 @@ start_link() ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% check is in wechat debug mode
+%% Checks if wechat debug mode is on.
+%%
+%% If wechat debug mode is on, the signature validation will be skipped
+%% by requests sent from wechat debug tool (http://mp.weixin.qq.com/debug).
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -62,7 +67,10 @@ is_wechat_debug() ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% turn on wechat debug mode
+%% Turns on wechat debug mode.
+%%
+%% If wechat debug mode is on, the signature validation will be skipped
+%% by requests sent from wechat debug tool (http://mp.weixin.qq.com/debug).
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -72,7 +80,10 @@ turn_on_wechat_debug() ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% turn off wechat debug mode
+%% Turns off wechat debug mode.
+%%
+%% If wechat debug mode is on, the signature validation will be skipped
+%% by requests sent from wechat debug tool (http://mp.weixin.qq.com/debug).
 %%
 %% @end
 %%--------------------------------------------------------------------

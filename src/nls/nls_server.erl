@@ -162,7 +162,7 @@ init([NlsFileName]) ->
     {ok, FinalValuesMap} = ecsv:process_csv_file_with(CommonFile, fun read_line/2, {0, ValuesMap}),
     ok = file:close(CommonFile),
 
-    error_logger:info_msg("FinalValuesMap:~p~n", [FinalValuesMap]),
+    error_logger:info_msg("FinalValuesMap:~tp~n", [FinalValuesMap]),
     {ok, FinalValuesMap}.
 
 %%--------------------------------------------------------------------
@@ -382,6 +382,7 @@ gen_valuesmap([Value | Tail], KeysMap, ValuesMap, Pos) ->
                                     Lang ->
                                         Id = maps:get(cur_id, KeysMap),
                                         LangMap = maps:get(Lang, ValuesMap),
-                                        {KeysMap, ValuesMap#{Lang := LangMap#{Id => re:replace(Value, "~n", "\n", [global, {return, binary}])}}}
+                                        FinalValue = re:replace(Value, "~n", "\n", [global, {return, binary}]),
+                                        {KeysMap, ValuesMap#{Lang := LangMap#{Id => FinalValue}}}
                                 end,
     gen_valuesmap(Tail, NewKeysMap, NewValueMap, Pos + 1).

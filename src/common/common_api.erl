@@ -3,6 +3,8 @@
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
+%%% Common API module. This module provides APIs that handles generic handlings.
+%%%
 %%% @end
 %%% Created : 26. Aug 2015 11:04 AM
 %%%-------------------------------------------------------------------
@@ -13,11 +15,12 @@
 -export([is_module_exists/1,
     type_of/1,
     timestamp/0,
-    reload_modules/1,
+    hot_code_replace/1,
     index_of/2,
-    list_has_element/2,
-    until_process_terminated/1,
+    until_process_terminated/2,
     gen_doc/0]).
+
+-type valid_type() :: atom | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple.
 
 %%%===================================================================
 %%% API
@@ -25,7 +28,7 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Test whether a module exists
+%% Check if module exists.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -48,13 +51,13 @@ is_module_exists(Module) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% type detection
+%% Detect value type.
 %%
 %% @end
 %%--------------------------------------------------------------------
 -spec type_of(X) -> Result when
     X :: term(),
-    Result :: atom | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple | unknown.
+    Result :: valid_type() | unknown.
 type_of(X) when is_integer(X) -> integer;
 type_of(X) when is_float(X) -> float;
 type_of(X) when is_list(X) -> list;
@@ -71,36 +74,41 @@ type_of(_X) -> unknown.
 
 %%--------------------------------------------------------------------
 %% @doc
-%% timestamp long
+%% Return timestamp in milliseconds.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec timestamp() -> integer().
+-spec timestamp() -> Timestamp when
+    Timestamp :: pos_integer().
 timestamp() ->
     {Hour, Minute, _} = os:timestamp(),
     Hour * 1000000 + Minute.
 
 %%--------------------------------------------------------------------
 %% @doc
-%% timestamp long
+%% Hot code replace modules by "ModuleNameList".
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec reload_modules([atom()]) -> [{module, atom()} | {error, term()}].
-reload_modules(Modules) ->
-    [begin code:purge(M), code:load_file(M) end || M <- Modules].
+-spec hot_code_replace(ModuleNameList) -> Result when
+    ModuleName :: atom(),
+    ModuleNameList :: [ModuleName],
+    Result :: [{module, ModuleName} | {error, term()}].
+hot_code_replace(ModuleNameList) ->
+    [begin code:purge(ModuleName), code:load_file(ModuleName) end || ModuleName <- ModuleNameList].
 
 %%--------------------------------------------------------------------
 %% @doc
-%% find elememnt pos from list
+%% Finds the element position from list.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec index_of(Item, List) -> integer() when
+-spec index_of(Item, List) -> Pos when
     List :: [term()],
-    Item :: term().
+    Item :: term(),
+    Pos :: -1 | pos_integer().
 index_of(Item, List) ->
-    index_of(Item, List, 0).
+    index_of(Item, List, 1).
 index_of(_, [], _) ->
     -1;
 index_of(Elem, [Elem | _], Pos) ->
@@ -110,46 +118,34 @@ index_of(Item, [_ | Tail], Pos) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% find elememnt pos from list
+%% Checks if pid or register name process still exists in "DetectPeriodInMilli"
+%% milliseconds and return ok until the target is terminated. Use this
+%% function in extreme caution! Only when you are 100% sure that the
+%% target process is going to be terminated otherwise this function never returns.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec list_has_element(Item, List) -> boolean() when
-    List :: [term()],
-    Item :: term().
-list_has_element(Item, List) ->
-    case index_of(Item, List) of
-        -1 ->
-            false;
-        _ ->
-            true
-    end.
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Wait until the target process is terminated
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec until_process_terminated(PidOrName) -> boolean() when
-    PidOrName :: pid() | atom().
-until_process_terminated(PidOrName) ->
+-spec until_process_terminated(PidOrName, DetectPeriodInMilli) -> ok when
+    PidOrName :: pid() | atom(),
+    DetectPeriodInMilli :: pos_integer().
+until_process_terminated(PidOrName, DetectPeriodInMilli) ->
     IsTerminatedFun = case is_pid(PidOrName) of
                           true ->
                               fun() -> process_info(PidOrName) end;
                           _ ->
                               fun() -> whereis(PidOrName) end
                       end,
-    until_process_terminated(IsTerminatedFun(), IsTerminatedFun).
-until_process_terminated(undefined, _) ->
-    true;
-until_process_terminated(_, IsTerminatedFun) ->
-    timer:sleep(20),
-    until_process_terminated(IsTerminatedFun(), IsTerminatedFun).
+    until_process_terminated(IsTerminatedFun(), IsTerminatedFun, DetectPeriodInMilli).
+until_process_terminated(undefined, _, _) ->
+    ok;
+until_process_terminated(_, IsTerminatedFun, DetectPeriodInMilli) ->
+    timer:sleep(DetectPeriodInMilli),
+    IsProcessTerminated = IsTerminatedFun(),
+    until_process_terminated(IsProcessTerminated, IsTerminatedFun, IsTerminatedFun).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Generate edoc
+%% This function generates edoc in html format.
 %%
 %% @end
 %%--------------------------------------------------------------------

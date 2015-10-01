@@ -1,2 +1,3 @@
 id,zh,en
 info,指令:rereg~n描述:重新注册人物~n例子:rereg,COMMAND:rereg~nDESCRIPTION:Register character~nExample:rereg
+please_logout_first,请先登出,Please logout first

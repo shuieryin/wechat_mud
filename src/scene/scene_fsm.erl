@@ -408,5 +408,4 @@ show_scene(DispatcherPid, State, SimplePlayerProfile) ->
             <<"\n">>,
             gen_exits_desc(ExitsMap)
         ]),
-        Lang, DispatcherPid),
-    ok.
+        Lang, DispatcherPid).

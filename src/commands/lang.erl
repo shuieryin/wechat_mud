@@ -36,7 +36,7 @@
 exec(DispatcherPid, Uid, Lang) ->
     case Lang of
         <<"all">> ->
-            player_fsm:show_langs(DispatcherPid, Uid);
+            nls_server:show_langs(DispatcherPid, player_fsm:get_lang(Uid));
         _ ->
             player_fsm:switch_lang(DispatcherPid, Uid, Lang)
     end.

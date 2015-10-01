@@ -26,4 +26,4 @@ start_web() ->
     io:format("a web test....~n"),
     Port = 13579,
     io:format("Load the page http://localhost:~p/ in your browser~n", [Port]),
-    ezwebframe:start_link(fun web_req_dispatcher:dispatch/1, Port).
+    ezwebframe:start_link(nil, Port).

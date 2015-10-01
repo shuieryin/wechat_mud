@@ -4,7 +4,7 @@
 %%% @doc
 %%%
 %%% Command dispatcher module. All wechat requests firstly mapped to
-%%% this module and dispacther to corresponding server or module for
+%%% this module and dispacthes to corresponding server or module for
 %%% furthur process, and reply processed contents back to user.
 %%%
 %%% @end
@@ -15,6 +15,7 @@
 
 %% API
 -export([start/1,
+    pending_content/3,
     return_content/2]).
 
 -define(MAX_CONTENT_SIZE, 2048).
@@ -37,7 +38,8 @@
 %% step 3.
 %%
 %% 2. if debug mode is on, process request, otherwise print error message
-%% and reply empty response.
+%% and reply empty response. If wechat debug mode is on, the signature validation
+%% will be skipped by requests sent from wechat debug tool (http://mp.weixin.qq.com/debug).
 %%
 %% 3. extract params and validate signature, if passed, go to step 4, otherwise
 %% reply empty response
@@ -62,7 +64,7 @@ start(Req) ->
             end;
         HeaderParams ->
             ParamsMap = gen_req_params_map(size(HeaderParams) - 1, HeaderParams, #{}),
-            error_logger:info_msg("ParamsMap:~p~n", [ParamsMap]),
+%%             error_logger:info_msg("ParamsMap:~p~n", [ParamsMap]),
             ValidationParamsMap = maps:with([signature, timestamp, nonce], ParamsMap),
             case validate_signature(ValidationParamsMap) of
                 true ->
@@ -80,7 +82,30 @@ start(Req) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Send back processed results to pid from private function pending_content/3.
+%% This function spawn_link a command module and waits its return
+%% content, if error occurs in the spawn process the whole request
+%% journey halted by replying NO message to user and this is
+%% expected behaviour.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec pending_content(Module, Function, Args) -> ReturnContent when
+    Module :: atom(),
+    Function :: atom(),
+    Args :: [term()],
+    ReturnContent :: [binary()].
+pending_content(Module, Function, Args) ->
+    Self = self(),
+    spawn_link(Module, Function, [Self | Args]),
+    receive
+        {execed, Self, ReturnContent} ->
+            ReturnContent
+    end.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Send back processed results to pid from function pending_content/3.
+%% @see pending_content/3.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -94,6 +119,7 @@ return_content(DispatcherPid, ReturnContent) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
 %%--------------------------------------------------------------------
 %% @doc
 %% Extract params and generate siganture first, compare the generated
@@ -158,9 +184,10 @@ generate_signature(OriginParamList) ->
 %%
 %% 5. If raw input is empty, return empty content, otherwise go to step 6.
 %%
-%% 6. If raw input is "login", process login function, otherwise reply message
-%% by reminding user to login.
-%%
+%% 6. If raw input is
+%%          "login" - process login procedure
+%%          "rereg" - process rereg procedure
+%% otherwise reply message by reminding user to login.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -181,7 +208,7 @@ process_request(Req) ->
             ReturnContent =
                 case whereis(Uid) of % login_server:is_uid_logged_in(Uid)
                     undefined ->
-                        case whereis(register_fsm:module_name(Uid)) of % login_server:is_in_registration(Uid)
+                        case whereis(register_fsm:process_name(Uid)) of % login_server:is_in_registration(Uid)
                             undefined ->
                                 case login_server:is_uid_registered(Uid) of
                                     false ->
@@ -189,6 +216,8 @@ process_request(Req) ->
                                     _ ->
                                         case RawInput of
                                             <<"login">> ->
+                                                FuncForRegsiteredUser(Uid);
+                                            <<"rereg">> ->
                                                 FuncForRegsiteredUser(Uid);
                                             subscribe ->
                                                 FuncForRegsiteredUser(Uid);
@@ -203,9 +232,9 @@ process_request(Req) ->
                         FuncForRegsiteredUser(Uid)
                 end,
 
-            error_logger:info_msg("ReplyContent:~p~n", [ReturnContent]),
+            error_logger:info_msg("ReplyContent:~ts~n", [binary_to_list(list_to_binary(lists:flatten(ReturnContent)))]),
             Response = compose_xml_response(UidBin, PlatformId, ReturnContent),
-            error_logger:info_msg("Response:~ts~n", [Response]),
+%%             error_logger:info_msg("Response:~ts~n", [binary_to_list(Response)]),
             Response
     end.
 
@@ -326,57 +355,28 @@ handle_input(Uid, ModuleNameStr, RawCommandArgs) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% This function spawn_link a command module and waits its return
-%% content, if error occurs in the spawn process the whole request
-%% journey halted by replying NO message to user and this is
-%% expected behaviour.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec pending_content(Module, Function, Args) -> ReturnContent when
-    Module :: atom(),
-    Function :: atom(),
-    Args :: [term()],
-    ReturnContent :: [binary()].
-pending_content(Module, Function, Args) ->
-    Self = self(),
-    spawn_link(Module, Function, [Self | Args]),
-    receive
-        {execed, Self, ReturnContent} ->
-            ReturnContent
-    end.
-
-%%--------------------------------------------------------------------
-%% @doc
-%% This function is called after content is returned from
-%% pending_content/3, it construct xml response only when
-%% the return content is not empty.
+%% This function is called after content is returned from pending_content/3,
+%% it construct xml response only when the return content is not empty.
 %%
 %% @end
 %%--------------------------------------------------------------------
 -spec compose_xml_response(Uid, PlatformId, Content) -> XmlContent when
     Uid :: term(),
     PlatformId :: term(),
-    Content :: term(),
+    Content :: [term()],
     XmlContent :: binary().
 compose_xml_response(Uid, PlatformId, Content) ->
-    case Content of
-        ?EMPTY_CONTENT ->
-            ?EMPTY_CONTENT;
-        _ ->
-            ContentList = lists:flatten([<<"<xml><Content><![CDATA[">>,
-                Content,
-                <<"]]></Content><ToUserName><![CDATA[">>,
-                Uid,
-                <<"]]></ToUserName><FromUserName><![CDATA[">>,
-                PlatformId,
-                <<"]]></FromUserName><CreateTime>">>,
-                integer_to_binary(common_api:timestamp()),
-                <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>]),
+    ContentList = lists:flatten([<<"<xml><Content><![CDATA[">>,
+        Content,
+        <<"]]></Content><ToUserName><![CDATA[">>,
+        Uid,
+        <<"]]></ToUserName><FromUserName><![CDATA[">>,
+        PlatformId,
+        <<"]]></FromUserName><CreateTime>">>,
+        integer_to_binary(common_api:timestamp()),
+        <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>]),
 
-            error_logger:info_msg("ResponseList:~p~n", [ContentList]),
-            list_to_binary(ContentList)
-    end.
+    list_to_binary(ContentList).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -389,7 +389,7 @@ compose_xml_response(Uid, PlatformId, Content) ->
     Result :: parse_failed | map().
 parse_xml_request(Req) ->
     {ok, Message, _} = cowboy_req:body(Req),
-    error_logger:info_msg("Message:~p~n", [Message]),
+%%     error_logger:info_msg("Message:~p~n", [Message]),
     case Message of
         <<>> ->
             parse_failed;
