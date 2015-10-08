@@ -8,5 +8,5 @@
 %%%-------------------------------------------------------------------
 -author("shuieryin").
 
--define(SCENE_PATH, "doc/scene").
+-define(SCENE_PATH, "runtime_files/scene").
 -define(FILE_EXTENSION, ".csv").

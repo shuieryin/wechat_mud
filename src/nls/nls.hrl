@@ -8,6 +8,6 @@
 %%%-------------------------------------------------------------------
 -author("shuieryin").
 
--define(NLS_PATH, "doc/nls").
+-define(NLS_PATH, "runtime_files/nls").
 -define(COMMON_NLS, "common.csv").
 -define(NLS_EXTENSION, ".csv").
