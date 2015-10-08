@@ -37,6 +37,8 @@
     format_status/2]).
 
 -define(SERVER, ?MODULE).
+-define(HOST, "127.0.0.1").
+-define(PORT, 6379).
 
 %%%===================================================================
 %%% API
@@ -400,7 +402,7 @@ connect_redis_loop() ->
 %% @end
 %%--------------------------------------------------------------------
 make_connection(ParentPid) ->
-    case eredis:start_link() of
+    case eredis:start_link(?HOST, ?PORT) of
         {ok, ClientPid} ->
             ParentPid ! {connected, ParentPid, ClientPid};
         {error, Reason} ->
