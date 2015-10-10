@@ -192,15 +192,15 @@ generate_signature(OriginParamList) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec process_request(Req) -> FormattedResponseContent when
-    Req :: cowboy_req:req(),
+    Req :: cowboy_req:req(),	
     FormattedResponseContent :: binary().
 process_request(Req) ->
     case parse_xml_request(Req) of
         parse_failed ->
-            error_logger:info_msg("Parse xml request failed:~p~n", [Req]),
+            error_logger:info_msg("Parse xml request failed:~tp~n", [Req]),
             ?EMPTY_CONTENT;
         ReqParamsMap ->
-            error_logger:info_msg("ReqParamsMap:~p~n", [ReqParamsMap]),
+            error_logger:info_msg("ReqParamsMap:~tp~n", [ReqParamsMap]),
             #{'MsgType' := MsgType, 'ToUserName' := PlatformId, 'FromUserName' := UidBin} = ReqParamsMap,
 
             Uid = binary_to_atom(UidBin, utf8),
@@ -232,7 +232,7 @@ process_request(Req) ->
                         FuncForRegsiteredUser(Uid)
                 end,
 
-            error_logger:info_msg("ReplyContent:~ts~n", [binary_to_list(list_to_binary(lists:flatten(ReturnContent)))]),
+            error_logger:info_msg("ReplyContent:~tp~n", [list_to_binary(lists:flatten(ReturnContent))]),
             Response = compose_xml_response(UidBin, PlatformId, ReturnContent),
 %%             error_logger:info_msg("Response:~ts~n", [binary_to_list(Response)]),
             Response
