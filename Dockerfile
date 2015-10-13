@@ -11,6 +11,8 @@ WORKDIR $WORKSPACE_PATH
 #Install & Run wechat_mud
 RUN  git clone https://github.com/shuieryin/wechat_mud.git \
 	&& cd wechat_mud \
+	&& git config --global user.email "shuieryin@gmail.com" \
+	&& git config --global user.name "shuieryin" \
 	&& make \
 	&& chmod 755 rel/run.sh
 	#&& cd ..
