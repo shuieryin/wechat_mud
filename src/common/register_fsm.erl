@@ -301,8 +301,8 @@ input_confirmation({Other, DispatcherPid}, State) ->
         = case Other of
               <<>> ->
                   [SummaryContent];
-              SomeInput ->
-                  [{nls, invalid_command}, SomeInput, <<"\n\n">>, SummaryContent]
+              _ ->
+                  lists:flatten([{nls, invalid_command}, Other, <<"\n\n">>, SummaryContent])
           end,
     nls_server:response_content(?MODULE, ErrorMessageNlsContent, Lang, DispatcherPid),
     {next_state, input_confirmation, State}.
