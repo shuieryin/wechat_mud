@@ -153,17 +153,15 @@ read_line({eof}, {_, _, FinalValuesMap}) ->
     Args :: [atom()],
     State :: map(),
     Reason :: term().
-init([NlsFileName]) ->
-    {ok, File} = file:open(NlsFileName, [read]),
-    {ok, ValuesMap} = ecsv:process_csv_file_with(File, fun read_line/2, {0, #{}}),
-    ok = file:close(File),
+init([NlsFilePath]) ->
+    CommonNlsFilePath = filename:append(?NLS_PATH, ?COMMON_NLS),
 
-    {ok, CommonFile} = file:open(filename:append(?NLS_PATH, ?COMMON_NLS), [read]),
-    {ok, FinalValuesMap} = ecsv:process_csv_file_with(CommonFile, fun read_line/2, {0, ValuesMap}),
-    ok = file:close(CommonFile),
+    NlsMap = read_nls_file(NlsFilePath, #{}),
+    FinalNlsMap = read_nls_file(CommonNlsFilePath, NlsMap),
 
-    error_logger:info_msg("FinalValuesMap:~tp~n", [FinalValuesMap]),
-    {ok, FinalValuesMap}.
+    FinalMap = FinalNlsMap#{nls_file_path => NlsFilePath, common_nls_file_path => CommonNlsFilePath},
+    error_logger:info_msg("FinalMap:~tp~n", [FinalMap]),
+    {ok, FinalMap}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -386,3 +384,19 @@ gen_valuesmap([Value | Tail], KeysMap, ValuesMap, Pos) ->
                                         {KeysMap, ValuesMap#{Lang := LangMap#{Id => FinalValue}}}
                                 end,
     gen_valuesmap(Tail, NewKeysMap, NewValueMap, Pos + 1).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Read nls values from file and return nls map.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec read_nls_file(NlsFileName, AccNlsMap) -> NlsMap when
+    NlsFileName :: file:name_all(),
+    AccNlsMap :: map(),
+    NlsMap :: map().
+read_nls_file(NlsFileName, AccNlsMap) ->
+    {ok, NlsFile} = file:open(NlsFileName, [read]),
+    {ok, NlsMap} = ecsv:process_csv_file_with(NlsFile, fun read_line/2, {0, AccNlsMap}),
+    ok = file:close(NlsFile),
+    NlsMap.
