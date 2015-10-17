@@ -179,6 +179,8 @@ hot_code_upgrade() ->
     [{AppName, CurVersion, _, _}] = release_handler:which_releases(permanent),
     NewVersion = increase_vsn(CurVersion, 3, 1),
     os:cmd("make OLD_VER=" ++ CurVersion ++ " NEW_VER=" ++ NewVersion ++ " upgrade"),
+    %MakeCommand = "erl -noshell -eval 'cd(\"/root/workspaces/wechat_mud\"),io:format(\"~ts~n\",[os:cmd(\"make OLD_VER=" ++ CurVersion ++ " NEW_VER=" ++ NewVersion ++ " upgrade\")]),init:stop()'",
+    %os:cmd(MakeCommand),
     release_handler:unpack_release(AppName ++ "_" ++ NewVersion),
     release_handler:install_release(NewVersion),
     release_handler:make_permanent(NewVersion).
