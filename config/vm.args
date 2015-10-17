@@ -1,8 +1,10 @@
 ## Name of the node
 -name wechat_mud@127.0.0.1
 
-## Cookie for distributed erlang
--setcookie wechat_mud_cookie
+## Cookie for distributed erlang, the cookie name has to be identical to app
+## name because below -setcookie only works for maintenance processes, hence
+## wechat_mud_sup:init/1 sets the cookie name to app name
+-setcookie wechat_mud
 
 ## Heartbeat management; auto-restarts VM if it dies or becomes unresponsive
 ## (Disabled by default..use with caution!)

@@ -23,6 +23,9 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
+    [{AppName, _, _, _}] = release_handler:which_releases(permanent),
+    erlang:set_cookie(node(), list_to_atom(AppName)),
+
     {ok, {
         {one_for_one, 5, 10},
         [
@@ -65,6 +68,7 @@ init([]) ->
                 worker,
                 [scene_sup]
             }
+
         ]
     }}.
 
