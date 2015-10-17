@@ -18,7 +18,9 @@
     hot_code_replace/1,
     index_of/2,
     until_process_terminated/2,
-    gen_doc/0]).
+    gen_doc/0,
+    increase_vsn/3,
+    hot_code_upgrade/0]).
 
 -type valid_type() :: atom | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple.
 
@@ -153,6 +155,59 @@ until_process_terminated(_, IsTerminatedFun, DetectPeriodInMilli) ->
 gen_doc() ->
     edoc:application(wechat_mud, [{dir, "doc/edoc"}]).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% This function increases version number
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec increase_vsn(SourceVersion, VersionDepth, Increment) -> UpgradedVersion when
+    SourceVersion :: string(),
+    VersionDepth :: pos_integer(),
+    Increment :: pos_integer(),
+    UpgradedVersion :: string().
+increase_vsn(SourceVersion, VersionDepth, Increment) ->
+    string:join(increase_vsn(string:tokens(SourceVersion, "."), VersionDepth, Increment, 1, []), ".").
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Hot code upgrade for hot fixes which only increase version number of the third depth.
+%%
+%% @end
+%%--------------------------------------------------------------------
+hot_code_upgrade() ->
+    [{AppName, CurVersion, _, _}] = release_handler:which_releases(permanent),
+    NewVersion = increase_vsn(CurVersion, 3, 1),
+    os:cmd("make OLD_VER=" ++ CurVersion ++ " NEW_VER=" ++ NewVersion ++ " upgrade"),
+    release_handler:unpack_release(AppName ++ "_" ++ NewVersion),
+    release_handler:install_release(NewVersion),
+    release_handler:make_permanent(NewVersion).
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% This is sub function of increase_vsn/3.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec increase_vsn(SourceVersion, VersionDepth, Increment, CurDepth, AccVersion) -> UpgradedVersion when
+    SourceVersion :: list(),
+    VersionDepth :: pos_integer(),
+    Increment :: pos_integer(),
+    CurDepth :: pos_integer(),
+    AccVersion :: list(),
+    UpgradedVersion :: string().
+increase_vsn([], _, _, _, AccVersion) ->
+    lists:reverse(AccVersion);
+increase_vsn([CurDepthVersionNumStr | Tail], VersionDepth, Increment, CurDepth, AccVersion) ->
+    UpdatedVersionNum =
+        case CurDepth =:= VersionDepth of
+            true ->
+                integer_to_list(list_to_integer(CurDepthVersionNumStr) + Increment);
+            _ ->
+                CurDepthVersionNumStr
+        end,
+    increase_vsn(Tail, VersionDepth, Increment, CurDepth + 1, [UpdatedVersionNum | AccVersion]).
