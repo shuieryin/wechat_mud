@@ -5,7 +5,11 @@
         {registered, []},
         {applications, [
             kernel,
-            stdlib
+            stdlib,
+            cowboy,
+            erlsom,
+            eredis,
+            ecsv
         ]},
         {mod, {wechat_mud_app, []}},
         {env, []}

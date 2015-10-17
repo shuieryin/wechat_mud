@@ -8,3 +8,5 @@ ebin
 *.rdb
 deps
 *.dump
+_build
+rebar.lock

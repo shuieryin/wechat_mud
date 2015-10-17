@@ -18,10 +18,10 @@
 
 start_link(Dispatch, Port) ->
     io:format("Starting:~p~n", [file:get_cwd()]),
-    ok = application:start(crypto),
-    ok = application:start(ranch),
-    ok = application:start(cowlib),
-    ok = application:start(cowboy),
+%%     ok = application:start(crypto),
+%%     ok = application:start(ranch),
+%%     ok = application:start(cowlib),
+%%     ok = application:start(cowboy),
     ok = web_server_start(Port, Dispatch).
 
 web_server_start(Port, Dispatcher) ->
