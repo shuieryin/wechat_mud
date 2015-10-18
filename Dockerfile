@@ -14,9 +14,7 @@ RUN  git clone https://github.com/shuieryin/wechat_mud.git \
 	&& cd wechat_mud \
 	&& git config --global user.email "shuieryin@gmail.com" \
 	&& git config --global user.name "shuieryin" \
-	&& make \
-	&& chmod 755 rel/run.sh
-	#&& cd ..
+	&& make
 
 #Dockerfile engine by passes environment variables in CMD, so the full path is hard coded as below. Docker version 1.8.3.
 CMD ["/root/workspaces/wechat_mud/rel/run.sh"]
