@@ -1,7 +1,7 @@
 %% Vsn auto-managed by relflow utility.
 %% DO NOT CHANGE VSN FIELD MANUALLY!
 {application,wechat_mud,
-             [{vsn,"20151018-205128-relflow"},
+             [{vsn,"20151018-213136-relflow"},
               {description,"This project aims to provide mud games funny stuffs."},
               {registered,[]},
               {applications,[kernel,stdlib,cowboy,erlsom,eredis,ecsv]},
