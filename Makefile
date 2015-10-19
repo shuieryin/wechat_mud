@@ -8,7 +8,7 @@ all:
 	sed -i.bak 's/\".*\" %% relflow/\"$(BASE_VER)\" %% relflow/1' rebar.config
 	rm -f rebar.config.bak
 	rm -f src/wechat_mud.app.src.bak
-	git commit -a -m "$(BASE_VER) release"
+	#git commit -a -m "$(BASE_VER) release"
 	rebar3 compile
 	rebar3 release
 	git tag -a v$(BASE_VER) -m "$(BASE_VER) release"
