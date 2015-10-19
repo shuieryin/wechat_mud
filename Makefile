@@ -4,7 +4,7 @@ all:
 	rm -rf _build/default/rel/wechat_mud/
 	rm -f ebin/wechat_mud.appup
 	git tag -d $$(git tag)
-	sed -i.bak 's/vsn,\s.*\".*\"/vsn, \"$(BASE_VER)\"/1' src/wechat_mud.app.src
+	sed -i.bak 's/vsn,\".*\"/vsn,\"$(BASE_VER)\"/1' src/wechat_mud.app.src
 	sed -i.bak 's/\".*\" %% relflow/\"$(BASE_VER)\" %% relflow/1' rebar.config
 	git tag -a v$(BASE_VER) -m "base release"
 	rebar3 compile
