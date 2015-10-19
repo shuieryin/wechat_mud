@@ -508,7 +508,7 @@ format_status(Opt, StatusData) ->
 validate_month(MonthBin) ->
     try
         case binary_to_integer(MonthBin) of
-            Month when Month >= 1, Month =< 12 ->
+            Month when Month >= 1, Month =< 11 ->
                 {ok, Month};
             _ ->
                 {false, MonthBin}

@@ -1,6 +1,6 @@
 all:
 	$(eval BASE_VER := 0.1.0)
-	#rebar3 relflow init-versions
+	-rebar3 relflow init-versions
 	rm -rf _build/default/rel/wechat_mud/
 	rm -f ebin/wechat_mud.appup
 	git tag -d $$(git tag)
