@@ -11,21 +11,7 @@ all:
 	rebar3 release
 
 upgrade:
-	rebar3 compile
-	./config/hcu.sh
-	#$(eval CURRENT_TAG := git describe --abbrev=0 --tags)
-	#$(eval CURRENT_VERSION := $(CURRENT_TAG) | sed -e "s/v//g")
-	#git commit -a -m upgrade_from_$$($(CURRENT_TAG))
-
-	#rebar3 relflow -u $$($(CURRENT_TAG))
-	#rebar3 release relup -u $$($(CURRENT_VERSION)) tar
-
-	#$(eval LATEST_VERSION := git describe --abbrev=0 --tags | sed -e "s/v//g")
-	#mv _build/default/rel/wechat_mud/wechat_mud-$$($(LATEST_VERSION)).tar.gz _build/default/rel/wechat_mud/releases/$$($(LATEST_VERSION))/wechat_mud.tar.gz
-	#./_build/default/rel/wechat_mud/bin/wechat_mud install $$($(LATEST_VERSION))
-	#sed -i.bak 's/$(OLD_VER)/$(NEW_VER)/1' reltool.config
-	#rebar3 relup
-	#rebar3 install $(NEW_VER)
+	bash -v ./config/hcu.sh
 
 t:
 	@echo CURRENT_TAG=$$(git describe --abbrev=0 --tags)
