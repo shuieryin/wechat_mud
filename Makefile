@@ -11,7 +11,7 @@ all:
 	rebar3 release
 
 upgrade:
-	bash -v ./config/hcu.sh
+	bash -x ./config/hcu.sh
 
 t:
 	@echo CURRENT_TAG=$$(git describe --abbrev=0 --tags)
