@@ -6,9 +6,10 @@ all:
 	git tag -d $$(git tag)
 	sed -i.bak 's/vsn,\".*\"/vsn,\"$(BASE_VER)\"/1' src/wechat_mud.app.src
 	sed -i.bak 's/\".*\" %% relflow/\"$(BASE_VER)\" %% relflow/1' rebar.config
-	git tag -a v$(BASE_VER) -m "base release"
+	git commit -a -m "$(BASE_VER) release"
 	rebar3 compile
 	rebar3 release
+	git tag -a v$(BASE_VER) -m "$(BASE_VER) release"
 
 upgrade:
 	bash -x ./config/hcu.sh
