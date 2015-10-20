@@ -16,6 +16,5 @@ all:
 upgrade:
 	bash -x ./config/hcu.sh
 
-t:
-	@echo CURRENT_TAG=$$(git describe --abbrev=0 --tags)
-	@echo $$CURRENT_TAG sdjklf
+run:
+	./config/run.sh
