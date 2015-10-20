@@ -20,7 +20,8 @@
     until_process_terminated/2,
     gen_doc/0,
     increase_vsn/3,
-    hot_code_upgrade/0]).
+    hot_code_upgrade/0,
+    quit/0]).
 
 -type valid_type() :: atom | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple.
 
@@ -185,6 +186,17 @@ hot_code_upgrade() ->
     release_handler:install_release(NewVersion),
     release_handler:make_permanent(NewVersion).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Terminate redis-server and the erlang server.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec quit() -> no_return().
+quit()->
+    os:cmd("redis-cli shutdown"),
+    init:stop().
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
@@ -213,3 +225,5 @@ increase_vsn([CurDepthVersionNumStr | Tail], VersionDepth, Increment, CurDepth, 
                 CurDepthVersionNumStr
         end,
     increase_vsn(Tail, VersionDepth, Increment, CurDepth + 1, [UpdatedVersionNum | AccVersion]).
+
+
