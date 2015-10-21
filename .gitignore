@@ -3,7 +3,7 @@
 *.iml
 out
 gen
-#ebin
+ebin
 .rebar
 *.rdb
 deps
