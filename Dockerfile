@@ -16,6 +16,8 @@ RUN  git clone https://github.com/shuieryin/wechat_mud.git \
 	&& git config --global user.name "shuieryin" \
 	&& make
 
-#Dockerfile engine by passes environment variables in CMD, so the full path is hard coded as below. Docker version 1.8.3.
-CMD ["/root/workspaces/wechat_mud/rel/run.sh"]
-
+CMD ["/usr/sbin/init"]
+#Create container:
+#	docker run --privileged -ti -v /sys/fs/cgroup:/sys/fs/cgroup:ro --name=wechat_mud -p 13579:13579 -p 32:22 shuieryin/wechat_mud
+#Prepration:
+#	docker exec -ti wechat_mud passwd
