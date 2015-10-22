@@ -1,7 +1,7 @@
 {application, wechat_mud,
     [
         {vsn,
-            "0.1.0" %% relflow-release-version-marker
+            "0.1.0" %% release-version-marker
         },
         {description, "This project aims to provide mud games funny stuffs."},
         {registered, []},
