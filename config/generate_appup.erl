@@ -2,10 +2,14 @@
 %% -*- erlang -*-
 %%! -smp enable -sname generate_appup verbose
 
+start() ->
+    Output = os:cmd("rebar3 path --app wechat_mud"),
+    io:format("~p~n", [Output])
+   
+
 main([]) ->
     try
-        Output = os:cmd("rebar3 path --app wechat_mud"),
-        io:format("~p~n", [Output])
+	start()
     catch
         _:_ ->
             usage()
