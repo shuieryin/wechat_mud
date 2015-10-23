@@ -24,4 +24,4 @@ CMD ["/usr/sbin/init"]
 #	docker exec -ti wechat_mud passwd
 
 #Create container without ssh:
-#	docker run -ti --name=wechat_mud --hostname-wechat_mud -p 13579:13579 shuieryin/wechat_mud /bin/bash
+#	docker run -ti --name=wechat_mud --hostname=wechat_mud -p 13579:13579 shuieryin/wechat_mud /bin/bash
