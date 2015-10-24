@@ -9,7 +9,8 @@ if [ "${NEW_VSN}" = "no_change" ]; then
     echo "No changed files"
 else
     rebar3 release relup -u ${OLD_VSN} tar
-    yes | cp -i _build/default/rel/${APP_NAME}/releases/${NEW_VSN}/${APP_NAME}.rel _build/default/rel/${APP_NAME}/releases/
+    rm -f _build/default/rel/${APP_NAME}/releases/${APP_NAME}.rel
+    cp _build/default/rel/${APP_NAME}/releases/${NEW_VSN}/${APP_NAME}.rel _build/default/rel/${APP_NAME}/releases/
 
     mv _build/default/rel/${APP_NAME}/${APP_NAME}-${NEW_VSN}.tar.gz _build/default/rel/${APP_NAME}/releases/${NEW_VSN}/wechat_mud.tar.gz
     ./_build/default/rel/${APP_NAME}/bin/${APP_NAME} install ${NEW_VSN}
