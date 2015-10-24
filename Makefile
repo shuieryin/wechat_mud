@@ -9,8 +9,7 @@ all:
 	rebar3 release
 
 upgrade:
-	#bash -x
-	./config/hcu.sh
+	bash -x ./config/hcu.sh
 
 run:
 	./config/run.sh
