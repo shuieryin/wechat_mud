@@ -1,9 +1,9 @@
 all:
-	./config/install.sh
+	@./config/install.sh
 
 upgrade:
-	#bash -x
-	./config/hcu.sh
+	@#bash -x
+	@./config/hcu.sh
 
 run:
-	./config/run.sh
+	@./config/run.sh
