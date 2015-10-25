@@ -2,6 +2,7 @@
 %% -*- erlang -*-
 %%! -smp enable -sname incre_ver verbose
 
+%% noinspection ErlangUnusedFunction
 main([CurVersion]) ->
     try
 	io:format("~p~n", [increase_vsn(CurVersion, 3, 1)])
