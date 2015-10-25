@@ -29,7 +29,9 @@ start(AppName, OldVsn) ->
                     [{OldVsn, AddedDeleteModifiedInstructions}],
                     [{OldVsn, []}]},
             os:cmd("mkdir -p ebin"),
-            file:write_file("ebin/" ++ AppName ++ ".appup", io_lib:format("~tp.", [AppupContent])),
+            AppupContentBin = io_lib:format("~tp.", [AppupContent]),
+            file:write_file("ebin/" ++ AppName ++ ".appup", AppupContentBin),
+            file:write_file("config/" ++ AppName ++ ".appup", AppupContentBin),
             io:format("~tp", [NewVsn])
     end.
 
@@ -77,6 +79,7 @@ update_version(AppName, TargetVsn) ->
         rm -f rebar.config.bak  ;\
         rm -f src/" ++ AppName ++ ".app.src.bak").
 
+%% noinspection ErlangUnusedFunction
 main([AppName, OldVsn]) ->
     try
         start(AppName, OldVsn)
