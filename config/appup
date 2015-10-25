@@ -18,17 +18,16 @@ start(AppName, OldVsn) ->
 
     AddedFiles = string:tokens(os:cmd("git diff --cached --name-only --diff-filter=A | grep -E 'src.*\.erl'"), "\n"),
     AddedDeleteModifiedInstructions = generate_added_deleted_instruction(add_module, AddedFiles, DeleteModifiedInstructions),
-
-    AppupContent = {NewVsn,
-        [{OldVsn, AddedDeleteModifiedInstructions}],
-        [{OldVsn, []}]},
     %% -------------------------generate appup - end---------------------------
 
-    case AppupContent of
+    case AddedDeleteModifiedInstructions of
         [] ->
             update_version(AppName, OldVsn),
             io:format("no_change");
         _ ->
+            AppupContent = {NewVsn,
+                    [{OldVsn, AddedDeleteModifiedInstructions}],
+                    [{OldVsn, []}]},
             os:cmd("mkdir -p ebin"),
             file:write_file("ebin/" ++ AppName ++ ".appup", io_lib:format("~tp.", [AppupContent])),
             io:format("~tp", [NewVsn])
