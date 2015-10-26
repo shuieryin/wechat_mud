@@ -3,10 +3,7 @@
 %%! -smp enable -sname generate_appup verbose
 
 start(AppName, OldVsn) ->
-    %% -------------------------update version number - start-------------------------
-    NewVsn = increase_vsn(OldVsn, 3, 1),
-    update_version(AppName, NewVsn),
-    %% -------------------------update version number - end---------------------------
+    NewVsn = increase_vsn(OldVsn, 3, 1), %% will not modify version number in rebar.config and [app_name].app.src
 
     %% -------------------------generate appup - start-------------------------
     BeamFolder = os:cmd("rebar3 path --app " ++ AppName),
@@ -22,9 +19,9 @@ start(AppName, OldVsn) ->
 
     case AddedDeleteModifiedInstructions of
         [] ->
-            update_version(AppName, OldVsn),
             io:format("no_change");
         _ ->
+            update_version(AppName, NewVsn),
             AppupContent = {NewVsn,
                     [{OldVsn, AddedDeleteModifiedInstructions}],
                     [{OldVsn, []}]},
