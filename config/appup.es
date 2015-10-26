@@ -67,8 +67,7 @@ generate_modified_instruction(modified, [SrcFilePath | Tail], OldVsn, NewVsn, Be
                         end
                 end;
             _ ->
-                io:format("Could not read ~s\n", [BeamFilePath]),
-                throw(fail_read_beam)
+                io:format("Could not read ~s\n", [BeamFilePath])
         end,
     generate_modified_instruction(modified, Tail, OldVsn, NewVsn, BeamFolder, [Instruction | AccInstructions]).
 
@@ -84,8 +83,6 @@ main([AppName, OldVsn]) ->
     try
         start(AppName, OldVsn)
     catch
-%%         fail_read_beam:Reason ->
-%%             io:format("~p~n", [Reason]);
         _:Reason ->
             io:format("~p~n", [Reason]),
             usage()
@@ -110,8 +107,3 @@ increase_vsn([CurDepthVersionNumStr | Tail], VersionDepth, Increment, CurDepth, 
                 CurDepthVersionNumStr
         end,
     increase_vsn(Tail, VersionDepth, Increment, CurDepth + 1, [UpdatedVersionNum | AccVersion]).
-
-%% generate_appups(Map, State) when is_map(Map) ->
-%%     maps:map(fun(K,V) ->
-%%         create_appup_term(generate_appup(K,V,State))
-%%     end, Map).
