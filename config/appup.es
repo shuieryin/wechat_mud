@@ -5,6 +5,15 @@
 start(AppName, OldVsn) ->
     NewVsn = increase_vsn(OldVsn, 3, 1), %% will not modify version number in rebar.config and [app_name].app.src
 
+    OldAppupPath = "ebin/" ++ AppName ++ ".appup",
+    ExistingInstructions =
+        case file:consult(OldAppupPath) of
+            {ok, [{OldVsn, [{_, Result}], [{_, []}]}]} ->
+                update_existing_instruction_version(Result, OldVsn, NewVsn, []);
+            _ ->
+                []
+        end,
+
     %% -------------------------generate appup - start-------------------------
     BeamFolder = os:cmd("rebar3 path --app " ++ AppName),
     ModifiedFiles = string:tokens(os:cmd("git ls-files -m | grep -E 'src.*\.erl'"), "\n"),
@@ -17,17 +26,19 @@ start(AppName, OldVsn) ->
     AddedDeleteModifiedInstructions = generate_added_deleted_instruction(add_module, AddedFiles, DeleteModifiedInstructions),
     %% -------------------------generate appup - end---------------------------
 
-    case AddedDeleteModifiedInstructions of
+    FinalInstructions = lists:ukeymerge(2, AddedDeleteModifiedInstructions, ExistingInstructions),
+
+    case FinalInstructions of
         [] ->
             io:format("no_change");
         _ ->
             update_version(AppName, NewVsn),
             AppupContent = {NewVsn,
-                    [{OldVsn, AddedDeleteModifiedInstructions}],
-                    [{OldVsn, []}]},
+                [{OldVsn, FinalInstructions}],
+                [{OldVsn, []}]},
             os:cmd("mkdir -p ebin"),
             AppupContentBin = io_lib:format("~tp.", [AppupContent]),
-            file:write_file("ebin/" ++ AppName ++ ".appup", AppupContentBin),
+            file:write_file(OldAppupPath, AppupContentBin),
             file:write_file("config/" ++ AppName ++ ".appup", AppupContentBin),
             io:format("~tp", [NewVsn])
     end.
@@ -104,3 +115,10 @@ increase_vsn([CurDepthVersionNumStr | Tail], VersionDepth, Increment, CurDepth, 
                 CurDepthVersionNumStr
         end,
     increase_vsn(Tail, VersionDepth, Increment, CurDepth + 1, [UpdatedVersionNum | AccVersion]).
+
+update_existing_instruction_version([], _, _, AccResult) ->
+    AccResult;
+update_existing_instruction_version([{update, ModName, {advanced, {_, _, []}}} | Tail], OldVsn, NewVsn, AccResult) ->
+    update_existing_instruction_version(Tail, OldVsn, NewVsn, [{update, ModName, {advanced, {OldVsn, NewVsn, []}}} | AccResult]);
+update_existing_instruction_version([Other | Tail], OldVsn, NewVsn, AccResult) ->
+    update_existing_instruction_version(Tail, OldVsn, NewVsn, [Other | AccResult]).
