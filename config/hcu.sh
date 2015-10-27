@@ -2,11 +2,10 @@
 
 APP_NAME=$(cat rebar.config | grep app-name-marker | awk '{print $1}' | tr -d ,)
 OLD_VSN=$(cat rebar.config | grep release-version-marker | awk '{print $1}' | tr -d \")
-
 NEW_VSN=$(./config/appup.es ${APP_NAME} ${OLD_VSN} | tr -d \")
 
 if [ "${NEW_VSN}" = "no_change" ]; then
-    echo "No changed files"
+    echo "No added/deleted/modified files"
 else
     rebar3 release relup -u ${OLD_VSN} tar
     rm -f _build/default/rel/${APP_NAME}/releases/${APP_NAME}.rel
