@@ -10,3 +10,5 @@ deps
 *.dump
 _build
 rebar.lock
+config/wechat_mud.appup
+logs
