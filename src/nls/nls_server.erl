@@ -3,6 +3,13 @@
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
+%%% Nls gen_server. This gen_server acts as template server and is
+%%% initialized per csv file under runtime_files/nls by nls_sup.erl
+%%% which the number of initialized nls_server (server name is set
+%%% to nls file name) equals to the number of nls files. Its job is
+%%% to hold the nls content and generate formatted response text to
+%%% player.
+%%%
 %%% @end
 %%% Created : 12. Sep 2015 12:22 PM
 %%%-------------------------------------------------------------------
@@ -36,7 +43,7 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Starts the server
+%% Starts the server by setting server name to nls file name.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -62,7 +69,8 @@ start_link(NlsFileName) ->
 %%--------------------------------------------------------------------
 -spec response_content(ServerName, ContentList, Lang, DispatcherPid) -> ok when
     ServerName :: atom(),
-    ContentList :: [term()],
+    ContentList :: [{nls, NlsKey} | term()],
+    NlsKey :: atom(),
     Lang :: atom(),
     DispatcherPid :: pid().
 response_content(ServerName, ContentList, Lang, DispatcherPid) ->
@@ -78,14 +86,16 @@ response_content(ServerName, ContentList, Lang, DispatcherPid) ->
 %%--------------------------------------------------------------------
 -spec get_nls_content(ServerName, ContentList, Lang) -> [term()] when
     ServerName :: atom(),
-    ContentList :: [term()],
+    ContentList :: [{nls, NlsKey} | term()],
+    NlsKey :: atom(),
     Lang :: atom().
 get_nls_content(ServerName, ContentList, Lang) ->
     gen_server:call(ServerName, {get_nls_content, ContentList, Lang}).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% check has language
+%% Checks whether the current nls_server supports a langauge. Supported
+%% languages maybe various from different nls_server.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -97,7 +107,7 @@ is_valid_lang(ServerName, Lang) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% show possible langauges
+%% Shows possible langauge abbreviations.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -109,7 +119,8 @@ show_langs(DispatcherPid, Lang) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Read line from csv file
+%% Reads a line from csv file. Each line contains an nls key with its
+%% supported language contents.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -136,12 +147,9 @@ read_line({eof}, {_, _, FinalValuesMap}) ->
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% Initializes the server
+%% Initializes the nls_server by parsing nls keys and values from csv
+%% file to map and put it in state.
 %%
-%% @spec init(Args) -> {ok, State} |
-%%                     {ok, State, Timeout} |
-%%                     ignore |
-%%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
 -spec init(Args) ->
@@ -223,27 +231,6 @@ handle_cast({show_langs, DispatcherPid, Lang}, State) ->
     LangsNls = lists:reverse([[atom_to_binary(LangName, utf8), <<"\n">>] || LangName <- maps:keys(State)]),
     do_response_content(Lang, State, lists:flatten([{nls, possible_lang}, <<"\n">>, LangsNls]), DispatcherPid),
     {noreply, State}.
-
--spec fill_in_nls(ListIn, LangMap, ListOut) -> [binary()] when
-    ListIn :: [term()],
-    LangMap :: map(),
-    ListOut :: [binary()].
-fill_in_nls([], _, ListOut) ->
-    lists:reverse(ListOut);
-fill_in_nls([{nls, NlsKey} | Tail], LangMap, ListOut) ->
-    fill_in_nls(Tail, LangMap, [maps:get(NlsKey, LangMap) | ListOut]);
-fill_in_nls([NonNlsKey | Tail], LangMap, ListOut) ->
-    fill_in_nls(Tail, LangMap, [NonNlsKey | ListOut]).
-
--spec do_response_content(Lang, State, ContentList, DispatcherPid) -> ok when
-    Lang :: atom(),
-    State :: map(),
-    ContentList :: [term()],
-    DispatcherPid :: pid().
-do_response_content(Lang, State, ContentList, DispatcherPid) ->
-    LangMap = maps:get(Lang, State),
-    ReturnContent = fill_in_nls(ContentList, LangMap, []),
-    command_dispatcher:return_content(DispatcherPid, ReturnContent).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -328,7 +315,7 @@ format_status(Opt, StatusData) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% generate keys map from first line
+%% Generate keys map from first line from csv file.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -357,7 +344,7 @@ gen_keysmap([RawKey | Tail], KeysMap, Pos, ValuesMap) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% generate values map from rest of lines
+%% Generates values map from rest of lines from csv file.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -373,21 +360,22 @@ gen_valuesmap([[] | Tail], KeysMap, ValuesMap, Pos) ->
     gen_valuesmap(Tail, KeysMap, ValuesMap, Pos + 1);
 gen_valuesmap([Value | Tail], KeysMap, ValuesMap, Pos) ->
     Key = maps:get(Pos, KeysMap),
-    {NewKeysMap, NewValueMap} = case Key of
-                                    id ->
-                                        Id = list_to_atom(Value),
-                                        {KeysMap#{cur_id => Id}, ValuesMap};
-                                    Lang ->
-                                        Id = maps:get(cur_id, KeysMap),
-                                        LangMap = maps:get(Lang, ValuesMap),
-                                        FinalValue = re:replace(Value, "~n", "\n", [global, {return, binary}]),
-                                        {KeysMap, ValuesMap#{Lang := LangMap#{Id => FinalValue}}}
-                                end,
+    {NewKeysMap, NewValueMap} =
+        case Key of
+            id ->
+                Id = list_to_atom(Value),
+                {KeysMap#{cur_id => Id}, ValuesMap};
+            Lang ->
+                Id = maps:get(cur_id, KeysMap),
+                LangMap = maps:get(Lang, ValuesMap),
+                FinalValue = re:replace(Value, "~n", "\n", [global, {return, binary}]),
+                {KeysMap, ValuesMap#{Lang := LangMap#{Id => FinalValue}}}
+        end,
     gen_valuesmap(Tail, NewKeysMap, NewValueMap, Pos + 1).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Read nls values from file and return nls map.
+%% Reads nls values from csv file and return nls map.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -400,3 +388,38 @@ read_nls_file(NlsFileName, AccNlsMap) ->
     {ok, NlsMap} = ecsv:process_csv_file_with(NlsFile, fun read_line/2, {0, AccNlsMap}),
     ok = file:close(NlsFile),
     NlsMap.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Actual function for response_content/4. For details see
+%% response_content/4 spec.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec do_response_content(Lang, State, ContentList, DispatcherPid) -> ok when
+    Lang :: atom(),
+    State :: map(),
+    ContentList :: [term()],
+    DispatcherPid :: pid().
+do_response_content(Lang, State, ContentList, DispatcherPid) ->
+    LangMap = maps:get(Lang, State),
+    ReturnContent = fill_in_nls(ContentList, LangMap, []),
+    command_dispatcher:return_content(DispatcherPid, ReturnContent).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Replaces nls key with actual nls content by language.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec fill_in_nls(ListIn, LangMap, ListOut) -> [binary()] when
+    ListIn :: [{nls, NlsKey} | term()],
+    NlsKey :: atom(),
+    LangMap :: map(),
+    ListOut :: [binary()].
+fill_in_nls([], _, ListOut) ->
+    lists:reverse(ListOut);
+fill_in_nls([{nls, NlsKey} | Tail], LangMap, ListOut) ->
+    fill_in_nls(Tail, LangMap, [maps:get(NlsKey, LangMap) | ListOut]);
+fill_in_nls([NonNlsKey | Tail], LangMap, ListOut) ->
+    fill_in_nls(Tail, LangMap, [NonNlsKey | ListOut]).

@@ -3,6 +3,11 @@
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
+%%% Nls gen_server supervisor. It initializes per csv file under
+%%% runtime_files/nls by nls_sup.erl which the number of initialized
+%%% nls_server (server name is set to nls file name) equals to the
+%%% number of nls files.
+%%%
 %%% @end
 %%% Created : 14. Sep 2015 10:42 PM
 %%%-------------------------------------------------------------------
@@ -26,7 +31,8 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Starts the supervisor
+%% Starts the supervisor by creating nls_server workers per nls csv
+%% files under runtime_files/nls.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -65,6 +71,13 @@ init([]) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+%%--------------------------------------------------------------------
+%% @doc
+%% Actual function which creates workers from nls files. For details
+%% see start_link/0 spec.
+%%
+%% @end
+%%--------------------------------------------------------------------
 -spec gen_child_list() -> ChildList when
     ChildList :: [{WorkerName, {nls_server, start_link, []}, Restart, Shutdown, Type, [nls_server]}],
     Restart :: supervisor:restart(),
