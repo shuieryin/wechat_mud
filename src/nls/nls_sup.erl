@@ -4,7 +4,7 @@
 %%% @doc
 %%%
 %%% Nls gen_server supervisor. It initializes per csv file under
-%%% runtime_files/nls by nls_sup.erl which the number of initialized
+%%% priv/nls by nls_sup.erl which the number of initialized
 %%% nls_server (server name is set to nls file name) equals to the
 %%% number of nls files.
 %%%
@@ -32,7 +32,7 @@
 %%--------------------------------------------------------------------
 %% @doc
 %% Starts the supervisor by creating nls_server workers per nls csv
-%% files under runtime_files/nls.
+%% files under priv/nls.
 %%
 %% @end
 %%--------------------------------------------------------------------

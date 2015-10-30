@@ -11,7 +11,7 @@
 -author("shuieryin").
 
 %% Nls files root path
--define(NLS_PATH, "runtime_files/nls").
+-define(NLS_PATH, "priv/nls").
 
 %% Common nls file name
 -define(COMMON_NLS, "common.csv").

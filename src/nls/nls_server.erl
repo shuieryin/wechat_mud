@@ -4,7 +4,7 @@
 %%% @doc
 %%%
 %%% Nls gen_server. This gen_server acts as template server and is
-%%% initialized per csv file under runtime_files/nls by nls_sup.erl
+%%% initialized per csv file under priv/nls by nls_sup.erl
 %%% which the number of initialized nls_server (server name is set
 %%% as nls file name) equals to the number of nls files. Its job is
 %%% to hold the nls content and generate formatted response text to

@@ -1,6 +1,6 @@
 %%%-------------------------------------------------------------------
 %%% @author shuieryin
-%%% @copyright (C) 2015, <COMPANY>
+%%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
 %%% @end
@@ -8,5 +8,5 @@
 %%%-------------------------------------------------------------------
 -author("shuieryin").
 
--define(SCENE_PATH, "runtime_files/scene").
+-define(SCENE_PATH, "priv/scene").
 -define(FILE_EXTENSION, ".csv").
