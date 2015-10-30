@@ -15,7 +15,7 @@
 
 %% API
 -export([start_link/1,
-    init/1]).
+    init/2]).
 
 %%%===================================================================
 %%% API
@@ -32,8 +32,10 @@
 start_link(Port) ->
     io:format("Starting:~p~n", [file:get_cwd()]),
     %% server is the name of this module
+    Env = #{},
+    Dispatch = cowboy_router:compile([{'_', [{'_', ?MODULE, Env}]}]),
     NumberOfAcceptors = 100,
-    Status = cowboy:start_http(ezwebframe, NumberOfAcceptors, [{port, Port}], []),
+    Status = cowboy:start_http(ezwebframe, NumberOfAcceptors, [{port, Port}], [{env, [{dispatch, Dispatch}]}]),
     case Status of
         {error, _} ->
             io:format("websockets could not be started -- port ~p probably in use~n", [Port]),
@@ -49,13 +51,14 @@ start_link(Port) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec init(Req) -> SocketInfo | HttpReply when
+-spec init(Req, Env) -> SocketInfo | HttpReply when
     SocketInfo :: {cowboy_websocket, Req, Pid},
     Req :: cowboy_req:req(),
     Pid :: pid(),
     HttpReply :: {ok, Resp, list()},
-    Resp :: cowboy_req:req().
-init(Req) ->
+    Resp :: cowboy_req:req(),
+    Env :: map().
+init(Req, Env) ->
 %%     error_logger:info_msg("Request raw:~p~n", [Req]),
     Resource = path(Req),
     case Resource of
@@ -66,9 +69,9 @@ init(Req) ->
             {cowboy_websocket, Req, Pid};
         ["/", "hapi", ModStr] ->
             Mod = list_to_atom(ModStr),
-            {ok, cowboy_req:reply(200, "", apply(Mod, start, [Req]), Req), nil};
+            {ok, cowboy_req:reply(200, "", apply(Mod, start, [Req]), Req), Env};
         _ ->
-            {ok, cowboy_req:reply(200, "", "", Req), nil}
+            {ok, cowboy_req:reply(200, "", "", Req), Env}
     end.
 
 %%%===================================================================
@@ -76,7 +79,6 @@ init(Req) ->
 %%%===================================================================
 
 %%--------------------------------------------------------------------
-%% @private
 %% @doc
 %% Gets the request url path from request content and split it in
 %% list with separator "/".
