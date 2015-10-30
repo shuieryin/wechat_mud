@@ -15,7 +15,12 @@
 
 %% API
 -export([start_link/1,
-    init/2]).
+    init/2,
+    websocket_handle/3,
+    websocket_info/3,
+    websocket_terminate/3]).
+
+-import(ezwebframe_mochijson2, [encode/1, decode/1]).
 
 %%%===================================================================
 %%% API
@@ -74,6 +79,51 @@ init(Req, Env) ->
             {ok, cowboy_req:reply(200, "", "", Req), Env}
     end.
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Websockets handlings.
+%%
+%% @end
+%%--------------------------------------------------------------------
+websocket_handle({text, Msg}, Req, Pid) ->
+    %% This is a Json message from the browser
+    case catch decode(Msg) of
+        {'EXIT', _Why} ->
+            Pid ! {invalidMessageNotJSON, Msg};
+        {struct, _} = Z ->
+            X1 = atomize(Z),
+            Pid ! {self(), X1};
+        Other ->
+            Pid ! {invalidMessageNotStruct, Other}
+    end,
+    {ok, Req, Pid}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Websockets info.
+%%
+%% @end
+%%--------------------------------------------------------------------
+websocket_info({send, Str}, Req, Pid) ->
+    {reply, {text, Str}, Req, Pid, hibernate};
+websocket_info([{cmd, _} | _] = L, Req, Pid) ->
+    B = list_to_binary(encode([{struct, L}])),
+    {reply, {text, B}, Req, Pid, hibernate};
+websocket_info(Info, Req, Pid) ->
+    io:format("Handle_info Info:~p Pid:~p~n", [Info, Pid]),
+    {ok, Req, Pid, hibernate}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Terminate function for websockets.
+%%
+%% @end
+%%--------------------------------------------------------------------
+websocket_terminate(_Reason, _Req, Pid) ->
+    io:format("websocket.erl terminate:~n"),
+    exit(Pid, socketClosed),
+    ok.
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
@@ -88,3 +138,25 @@ init(Req, Env) ->
 path(Req) ->
     Path = cowboy_req:path(Req),
     filename:split(binary_to_list(Path)).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Special binary_to_atom
+%%
+%% @end
+%%--------------------------------------------------------------------
+binary_to_atom(B) ->
+    list_to_atom(binary_to_list(B)).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Atomize turns all the keys in a struct to atoms
+%%
+%% @end
+%%--------------------------------------------------------------------
+atomize({struct, L}) ->
+    {struct, [{binary_to_atom(I), atomize(J)} || {I, J} <- L]};
+atomize(L) when is_list(L) ->
+    [atomize(I) || I <- L];
+atomize(X) ->
+    X.
