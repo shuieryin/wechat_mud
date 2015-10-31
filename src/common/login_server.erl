@@ -175,7 +175,7 @@ logout(DispatcherPid, Uid) ->
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% Initializes the server by retrieves registered uid list from redis
+%% Initializes the server by retrieves registered uid set from redis
 %% and cache to a gb_set, and creates new gb_sets for registering uids
 %% and logged in uids for caching.
 %%

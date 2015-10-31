@@ -3,6 +3,13 @@
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
+%%% Scene gen_fsm. This gen_fsm states linear as
+%%% state_name
+%%% This gen_fsm acts as template server and is initialized per csv
+%%% file under priv/scene by scene_sup.erl which the number of initialized
+%%% scene_fsm (server name is set as scene name) equals to the number
+%%% of rows in scene csv file.
+%%%
 %%% @end
 %%% Created : 19. Sep 2015 4:34 PM
 %%%-------------------------------------------------------------------
@@ -16,7 +23,7 @@
     stop/0,
     enter/3,
     leave/2,
-    leave/3,
+    go_direction/3,
     look/3,
     bringup_player/2]).
 
@@ -43,6 +50,8 @@
 %% initialize. To ensure a synchronized start-up procedure, this
 %% function does not return until Module:init/1 has returned.
 %%
+%% This function starts the gen_fsm by setting scene name as server name.
+%%
 %% @end
 %%--------------------------------------------------------------------
 -spec start_link(Request) -> {ok, pid()} | ignore | {error, Reason :: term()} when
@@ -54,7 +63,9 @@ start_link({init, ValuesMap}) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Enter scene
+%% Enter a scene. When entering a scene, the scene information of
+%% this scene is initially response to user and the player scene id
+%% is then added to uid map of the scene.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -67,23 +78,27 @@ enter(SceneName, SimplePlayerProfile, DispatcherPid) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Sync leave scene
+%% Go target direction. This function first checks whether the scene
+%% name of target direction exists, if so, remove player uid from uid
+%% list of scene state and returns the target scene name, or else
+%% returns {undefined, SceneNlsServerName} but does nothing.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec leave(SceneName, Uid, TargetDirection) -> Result when
+-spec go_direction(SceneName, Uid, TargetDirection) -> Result when
     SceneName :: atom(),
     Uid :: atom(),
     TargetDirection :: direction:directions(),
-    Result :: TargetSceneName | {undefined, NlsServerName},
+    Result :: TargetSceneName | {undefined, SceneNlsServerName},
     TargetSceneName :: atom(),
-    NlsServerName :: atom().
-leave(SceneName, Uid, TargetDirection) ->
-    gen_fsm:sync_send_all_state_event(SceneName, {leave, Uid, TargetDirection}).
+    SceneNlsServerName :: atom().
+go_direction(SceneName, Uid, TargetDirection) ->
+    gen_fsm:sync_send_all_state_event(SceneName, {go_direction, Uid, TargetDirection}).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Leave scene
+%% Leaves scene by removing player uid from uid map of scene state.
+%% This is usually called when player logging out.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -95,7 +110,7 @@ leave(SceneName, Uid) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Look scene
+%% Looks current scene by response current scene info to player.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -122,7 +137,7 @@ bringup_player(PlayerStateName, PlayerStateData) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Terminate this fsm
+%% Terminate this scene fsm.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -139,6 +154,8 @@ stop() ->
 %% Whenever a gen_fsm is started using gen_fsm:start/[3,4] or
 %% gen_fsm:start_link/[3,4], this function is called by the new
 %% process to initialize.
+%%
+%% Initializes empty uid map in scene state.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -268,7 +285,7 @@ handle_event({bringup_player, PlayerStateName, PlayerStateData}, StateName, Stat
     {stop, Reason, Reply, NewStateData} |
     {stop, Reason, NewStateData} when
 
-    Event :: {leave, Uid, TargetDirection},
+    Event :: {go_direction, Uid, TargetDirection},
     Uid :: atom(),
     TargetDirection :: direction:directions(),
     From :: {pid(), Tag :: term()},
@@ -278,15 +295,15 @@ handle_event({bringup_player, PlayerStateName, PlayerStateData}, StateName, Stat
     NextStateName :: atom(),
     NewStateData :: term(),
     Reason :: term().
-handle_sync_event({leave, Uid, TargetDirection}, _From, StateName, State) ->
+handle_sync_event({go_direction, Uid, TargetDirection}, _From, StateName, State) ->
     #{scene_info := SceneInfo} = State,
-    #{exits := ExitsMap, nls_server := NlsServerName} = SceneInfo,
+    #{exits := ExitsMap, nls_server := SceneNlsServerName} = SceneInfo,
 
     PlayersMap = maps:get(?PLAYERS_MAP, State),
     {TargetSceneName, UpdatedState} =
         case maps:get(TargetDirection, ExitsMap, undefined) of
             undefined ->
-                {{undefined, NlsServerName}, State};
+                {{undefined, SceneNlsServerName}, State};
             SceneName ->
                 {SceneName, State#{?PLAYERS_MAP := maps:remove(Uid, PlayersMap)}}
         end,
@@ -370,12 +387,25 @@ format_status(Opt, StatusData) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Prepares scene exits nls key list.
+%%
+%% @end
+%%--------------------------------------------------------------------
 -spec gen_exits_desc(ExitsMap) -> [ExitNls] when
     ExitsMap :: map(),
     ExitNls :: [{nls, atom()} | binary()].
 gen_exits_desc(ExitsMap) ->
     [[{nls, ExitKey}, <<"\n">>] || ExitKey <- maps:keys(ExitsMap)].
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Prepares scene player name list.
+%%
+%% @end
+%%--------------------------------------------------------------------
 -spec gen_players_name_list(PlayersMap) -> [term()] when
     PlayersMap :: map().
 gen_players_name_list(PlayersMap) ->
@@ -387,6 +417,13 @@ gen_players_name_list(PlayersMap) ->
             [[[atom_to_binary(Uid, utf8), <<"\n">>] || Uid <- maps:keys(PlayersMap)], <<"\n">>]
     end.
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Prepares scene info including scene title, scene description,
+%% scene player name list, and exits.
+%%
+%% @end
+%%--------------------------------------------------------------------
 -spec show_scene(DispatcherPid, State, SimplePlayerProfile) -> ok when
     DispatcherPid :: pid(),
     State :: map(),

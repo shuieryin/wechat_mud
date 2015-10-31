@@ -3,6 +3,10 @@
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
+%%% Scene supervisor. This supervisor starts up scene worker per row
+%%% of scene csv file under priv/scene by scene_sup.erl which the number
+%%% of children configs equals to the number of rows in scene csv file.
+%%%
 %%% @end
 %%% Created : 14. Sep 2015 10:42 PM
 %%%-------------------------------------------------------------------
@@ -64,6 +68,13 @@ init([]) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Generates scene worker configs entry.
+%%
+%% @end
+%%--------------------------------------------------------------------
 -spec gen_child_list() -> ChildList when
     ChildList :: [{WorkerName, {scene_fsm, start_link, []}, Restart, Shutdown, Type, [scene_fsm]}],
     Restart :: supervisor:restart(),
@@ -78,6 +89,14 @@ gen_child_list() ->
     {ok, FileNameList} = file:list_dir(?SCENE_PATH),
     gen_child_list(FileNameList, [], Restart, Shutdown, Type).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Generates scene worker configs per row of scene csv file under
+%% priv/scene by scene_sup.erl which the number of children configs
+%% equals to the number of rows in scene csv file.
+%%
+%% @end
+%%--------------------------------------------------------------------
 -spec gen_child_list(FileNameList, AccSceneList, Restart, Shutdown, Type) -> [term()] when
     FileNameList :: filename:filename(),
     AccSceneList :: [term()],
@@ -99,7 +118,7 @@ gen_child_list([FileName | Tail], AccSceneList, Restart, Shutdown, Type) ->
     end.
 %%--------------------------------------------------------------------
 %% @doc
-%% Read line from csv file
+%% Reads line from csv file
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -125,7 +144,7 @@ gen_scenes({eof}, {_, _, _, _, _, FinalSceneList}) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% generate keys map from first line
+%% Generates keys map from first line
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -142,7 +161,8 @@ gen_keysmap([RawKey | Tail], KeysMap, Pos) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% generate values map from rest of lines
+%% Generates values map from rest of lines
+%% todo: the scene csv file is so far hard coded under this function, will need to find a way to dynamically populates values from each row.
 %%
 %% @end
 %%--------------------------------------------------------------------

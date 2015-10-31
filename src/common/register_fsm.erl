@@ -3,7 +3,7 @@
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
-%%% Registration gen_fsm. This gen_fsm is linear stated as
+%%% Registration gen_fsm. This gen_fsm states linear as
 %%% select_lang --> input_gender --> input_born_month --> input_confirmation --> done.
 %%% This gen_fsm is created when player starts registration procedure
 %%% and destroyed when the registration is done.
