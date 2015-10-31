@@ -16,13 +16,13 @@ start(AppName, OldVsn) ->
 
     %% -------------------------generate appup - start-------------------------
     BeamFolder = os:cmd("rebar3 path --app " ++ AppName),
-    ModifiedFiles = string:tokens(os:cmd("git diff --name-only HEAD~1 --diff-filter=M | grep -E 'src.*\.erl'"), "\n"),
+    ModifiedFiles = string:tokens(os:cmd("git diff --name-only HEAD~0 --diff-filter=M | grep -E 'src.*\.erl'"), "\n"),
     ModifiedInstructions = generate_modified_instruction(modified, ModifiedFiles, OldVsn, NewVsn, BeamFolder, []),
 
-    DeletedFiles = string:tokens(os:cmd("git diff --name-only HEAD~1 --diff-filter=D | grep -E 'src.*\.erl'"), "\n"),
+    DeletedFiles = string:tokens(os:cmd("git diff --name-only HEAD~0 --diff-filter=D | grep -E 'src.*\.erl'"), "\n"),
     DeleteModifiedInstructions = generate_added_deleted_instruction(delete_module, DeletedFiles, ModifiedInstructions),
 
-    AddedFiles = string:tokens(os:cmd("git ls-files --others --exclude-standard | grep -E 'src.*\.erl'; git diff --name-only HEAD~1 --diff-filter=A | grep -E 'src.*\.erl'"), "\n"),
+    AddedFiles = string:tokens(os:cmd("git ls-files --others --exclude-standard | grep -E 'src.*\.erl'; git diff --name-only HEAD~0 --diff-filter=A | grep -E 'src.*\.erl'"), "\n"),
     AddedDeleteModifiedInstructions = generate_added_deleted_instruction(add_module, AddedFiles, DeleteModifiedInstructions),
     %% -------------------------generate appup - end---------------------------
 
