@@ -287,9 +287,9 @@ handle_event({go_direction, DispatcherPid, Direction}, StateName, State) ->
     #{scene := CurSceneName} = PlayerProfile,
 
     #{uid := Uid, lang := Lang} = PlayerProfile,
-    TargetSceneName = case scene_fsm:leave(CurSceneName, Uid, Direction) of
-                          {undefined, NlsServerName} ->
-                              nls_server:response_content(NlsServerName, [{nls, invalid_exit}], Lang, DispatcherPid),
+    TargetSceneName = case scene_fsm:go_direction(CurSceneName, Uid, Direction) of
+                          {undefined, SceneNlsServerName} ->
+                              nls_server:response_content(SceneNlsServerName, [{nls, invalid_exit}], Lang, DispatcherPid),
                               CurSceneName;
                           NewSceneName ->
                               scene_fsm:enter(NewSceneName, PlayerProfile, DispatcherPid),
