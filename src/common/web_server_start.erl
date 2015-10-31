@@ -85,6 +85,10 @@ init(Req, Env) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
+-spec websocket_handle({text, Msg}, Req, Pid) -> {ok, Req, Pid} when
+    Msg :: list(),
+    Req :: cowboy_req:req(),
+    Pid :: pid().
 websocket_handle({text, Msg}, Req, Pid) ->
     %% This is a Json message from the browser
     case catch decode(Msg) of
@@ -104,6 +108,11 @@ websocket_handle({text, Msg}, Req, Pid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
+-spec websocket_info(Action, Req, Pid) -> Result when
+    Action :: {send, string()} | [{cmd, _} | _] | term(),
+    Req :: cowboy_req:req(),
+    Pid :: pid(),
+    Result :: {reply, {text, string() | binary()}, Req, Pid, hibernate} | {ok, Req, Pid, hibernate}.
 websocket_info({send, Str}, Req, Pid) ->
     {reply, {text, Str}, Req, Pid, hibernate};
 websocket_info([{cmd, _} | _] = L, Req, Pid) ->
@@ -119,6 +128,10 @@ websocket_info(Info, Req, Pid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
+-spec websocket_terminate(_Reason, _Req, Pid) -> ok when
+    _Reason :: any(),
+    _Req :: cowboy_req:req(),
+    Pid :: pid().
 websocket_terminate(_Reason, _Req, Pid) ->
     io:format("websocket.erl terminate:~n"),
     exit(Pid, socketClosed),
@@ -135,6 +148,9 @@ websocket_terminate(_Reason, _Req, Pid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
+-spec path(Req) -> Paths when
+    Req :: cowboy_req:req(),
+    Paths :: [file:name_all()].
 path(Req) ->
     Path = cowboy_req:path(Req),
     filename:split(binary_to_list(Path)).
@@ -145,6 +161,7 @@ path(Req) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
+-spec binary_to_atom(binary()) -> atom().
 binary_to_atom(B) ->
     list_to_atom(binary_to_list(B)).
 
@@ -154,6 +171,9 @@ binary_to_atom(B) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
+-spec atomize(Source) -> Result when
+    Source :: {struct, [{binary(), list() | term()}]} | list() | term(),
+    Result :: {struct, [{atom(), list() | term()}]} | list() | term().
 atomize({struct, L}) ->
     {struct, [{binary_to_atom(I), atomize(J)} || {I, J} <- L]};
 atomize(L) when is_list(L) ->
