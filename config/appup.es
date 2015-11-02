@@ -87,19 +87,27 @@ update_version(AppName, TargetVsn) ->
         rm -f src/" ++ AppName ++ ".app.src.bak").
 
 %% noinspection ErlangUnusedFunction
-main([AppName, OldVsn]) ->
+main(Args) ->
     try
-        start(AppName, OldVsn)
+        [Option | TailArgs] = Args,
+        case list_to_atom(Option) of
+            gen_appup ->
+                [AppName, OldVsn] = TailArgs,
+                start(AppName, OldVsn);
+            rollback_vsn ->
+                [AppName, OldVsn] = TailArgs,
+                update_version(AppName, OldVsn)
+        end
     catch
         _:Reason ->
-            io:format("~p~n", [Reason]),
+            io:format("~tp~n", [Reason]),
             usage()
     end;
 main(_) ->
     usage().
 
 usage() ->
-    io:format("usage: [release-name] [version(x.x.x)]\n"),
+    io:format("usage: [gen_appup|rollback_vsn] [release-name] [version(x.x.x)]\n"),
     halt(1).
 
 increase_vsn(SourceVersion, VersionDepth, Increment) ->
