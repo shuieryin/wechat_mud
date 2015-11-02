@@ -1,5 +1,8 @@
 #!/bin/bash
 
+cp -rf src src_bak
+rm -rf src
+mv src_bak src
 APP_NAME=$(cat rebar.config | grep app-name-marker | awk '{print $1}' | tr -d ,)
 OLD_VSN=$(cat rebar.config | grep release-version-marker | awk '{print $1}' | tr -d \")
 NEW_VSN=$(./config/appup.es ${APP_NAME} ${OLD_VSN} | tr -d \")
