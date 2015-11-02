@@ -133,10 +133,10 @@ return_content(DispatcherPid, ReturnContent) ->
 -spec validate_signature(OriginalParamMap) -> IsValidSignature when
     OriginalParamMap :: map(),
     IsValidSignature :: boolean().
-validate_signature(OriginalParamMap) ->
+validate_signature(#{signature := OriginalSignatureStr} = OriginalParamMap) ->
     ParamList = maps:to_list(maps:without([signature], OriginalParamMap)),
     GeneratedSignature = generate_signature(ParamList),
-    Signature = binary_to_list(maps:get(signature, OriginalParamMap)),
+    Signature = binary_to_list(OriginalSignatureStr),
     case GeneratedSignature == Signature of
         true ->
             true;
