@@ -199,16 +199,15 @@ process_request(Req) ->
         parse_failed ->
             error_logger:info_msg("Parse xml request failed:~tp~n", [Req]),
             ?EMPTY_CONTENT;
-        ReqParamsMap ->
+        #{'MsgType' := MsgType, 'ToUserName' := PlatformId, 'FromUserName' := UidBin} = ReqParamsMap ->
             error_logger:info_msg("ReqParamsMap:~tp~n", [ReqParamsMap]),
-            #{'MsgType' := MsgType, 'ToUserName' := PlatformId, 'FromUserName' := UidBin} = ReqParamsMap,
 
             Uid = binary_to_atom(UidBin, utf8),
             {RawInput, FuncForRegsiteredUser} = gen_action_from_message_type(MsgType, ReqParamsMap),
             ReturnContent =
                 case whereis(Uid) of % login_server:is_uid_logged_in(Uid)
                     undefined ->
-                        case whereis(register_fsm:process_name(Uid)) of % login_server:is_in_registration(Uid)
+                        case whereis(register_fsm:fsm_server_name(Uid)) of % login_server:is_in_registration(Uid)
                             undefined ->
                                 case login_server:is_uid_registered(Uid) of
                                     false ->

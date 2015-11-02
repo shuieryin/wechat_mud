@@ -219,8 +219,7 @@ init([]) ->
     State :: map(),
     NewState :: map(),
     Reason :: term().
-handle_call({get, Key}, _From, State) ->
-    RedisClientPid = maps:get(redis_client_pid, State),
+handle_call({get, Key}, _From, #{redis_client_pid := RedisClientPid} = State) ->
     Value = case eredis:q(RedisClientPid, ["GET", Key]) of
                 {ok, undefined} ->
                     undefined;
@@ -234,16 +233,16 @@ handle_call({get, Key}, _From, State) ->
             end,
     {reply, Value, State};
 handle_call({set, Key, Value, IsSave}, _From, State) ->
-    IsSet = set(Key, Value, IsSave, State),
-    {reply, IsSet, State};
+    IsValueSet = set(Key, Value, IsSave, State),
+    {reply, IsValueSet, State};
 handle_call(connect_redis, _From, State) ->
     {rpely, ok, connect_reids(State)};
 handle_call(save, _From, State) ->
     save(State),
     {rpely, ok, State};
 handle_call({del, Keys, IsSave}, _From, State) ->
-    IsDel = del(Keys, IsSave, State),
-    {reply, IsDel, State}.
+    IsValueDeleted = del(Keys, IsSave, State),
+    {reply, IsValueDeleted, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -418,8 +417,7 @@ make_connection(ParentPid) ->
 %%--------------------------------------------------------------------
 -spec save(State) -> ok | fail when
     State :: map().
-save(State) ->
-    RedisClientPid = maps:get(redis_client_pid, State),
+save(#{redis_client_pid := RedisClientPid}) ->
     {ok, Result} = eredis:q(RedisClientPid, ["SAVE"]),
     case Result of
         <<"OK">> ->
@@ -436,28 +434,28 @@ save(State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec set(Key, Value, IsSave, State) -> IsSet when
+-spec set(Key, Value, IsSave, State) -> IsValueSet when
     Key :: term(),
     Value :: term(),
     IsSave :: boolean(),
     State :: map(),
-    IsSet :: boolean().
-set(Key, Value, IsSave, State) ->
-    RedisClientPid = maps:get(redis_client_pid, State),
-    IsSet = case eredis:q(RedisClientPid, ["SET", Key, term_to_binary(Value)]) of
-                {ok, <<"OK">>} ->
-                    true;
-                {Type, Reason} ->
-                    error_logger:error_msg("Redis set value failed~n Type:~p, Reason:~p~n", [Type, Reason]),
-                    false
-            end,
+    IsValueSet :: boolean().
+set(Key, Value, IsSave, #{redis_client_pid := RedisClientPid} = State) ->
+    IsValueSet =
+        case eredis:q(RedisClientPid, ["SET", Key, term_to_binary(Value)]) of
+            {ok, <<"OK">>} ->
+                true;
+            {Type, Reason} ->
+                error_logger:error_msg("Redis set value failed~n Type:~p, Reason:~p~n", [Type, Reason]),
+                false
+        end,
     case IsSave of
         true ->
             save(State);
         _ ->
             ok
     end,
-    IsSet.
+    IsValueSet.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -470,8 +468,7 @@ set(Key, Value, IsSave, State) ->
     Keys :: [term()],
     IsSave :: boolean(),
     State :: map().
-del(Keys, IsSave, State) ->
-    RedisClientPid = maps:get(redis_client_pid, State),
+del(Keys, IsSave, #{redis_client_pid := RedisClientPid} = State) ->
     IsDel = case eredis:q(RedisClientPid, ["DEL" | Keys]) of
                 {ok, <<"OK">>} ->
                     true;
