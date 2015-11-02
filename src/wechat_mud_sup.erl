@@ -61,14 +61,29 @@ init([]) ->
                 [login_server]
             },
 
-            {scene,
+            {scene_sup,
                 {scene_sup, start_link, []},
                 permanent,
                 10000,
                 worker,
                 [scene_sup]
-            }
+            },
 
+            {register_fsm_sup,
+                {register_fsm_sup, start_link, []},
+                permanent,
+                10000,
+                supervisor,
+                [register_fsm_sup]
+            },
+
+            {player_fsm_sup,
+                {player_fsm_sup, start_link, []},
+                permanent,
+                10000,
+                supervisor,
+                [player_fsm_sup]
+            }
         ]
     }}.
 

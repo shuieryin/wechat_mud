@@ -21,7 +21,6 @@
     register_uid/2,
     registration_done/2,
     delete_player/1,
-    bringup_registration/2,
     login/2,
     is_uid_logged_in/1,
     logout/2]).
@@ -123,18 +122,6 @@ delete_player(Uid) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% This function brings up register_fsm when its process terminated abnormally.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec bringup_registration(StateName, StateData) -> ok when
-    StateName :: atom(),
-    StateData :: map().
-bringup_registration(StateName, StateData) ->
-    gen_server:cast(?MODULE, {bringup_registration, StateName, StateData}).
-
-%%--------------------------------------------------------------------
-%% @doc
 %% Logs user in by creating its own player_fsm process.
 %%
 %% @end
@@ -226,25 +213,21 @@ init([]) ->
     State :: map(),
     NewState :: map(),
     Reason :: term().
-handle_call({is_uid_registered, Uid}, _From, State) ->
-    RegisteredUidsSet = maps:get(?R_REGISTERED_UIDS_SET, State),
+handle_call({is_uid_registered, Uid}, _From, #{?R_REGISTERED_UIDS_SET := RegisteredUidsSet} = State) ->
     {reply, gb_sets:is_element(Uid, RegisteredUidsSet), State};
-handle_call({is_in_registration, Uid}, _From, State) ->
-    RegisteringUidsSet = maps:get(?REGISTERING_UIDS_SET, State),
+handle_call({is_in_registration, Uid}, _From, #{?REGISTERING_UIDS_SET := RegisteringUidsSet} = State) ->
     Result = gb_sets:is_element(Uid, RegisteringUidsSet),
     {reply, Result, State};
-handle_call({delete_user, Uid}, _From, State) ->
+handle_call({delete_user, Uid}, _From, #{?R_REGISTERED_UIDS_SET := RegisteredUidsSet} = State) ->
     LoggedOutState = logout(internal, Uid, State),
     ok = common_api:until_process_terminated(Uid, 20),
-    RegisteredUidsSet = maps:get(?R_REGISTERED_UIDS_SET, State),
     UpdatedRegisteredUidsSet = gb_sets:delete(Uid, RegisteredUidsSet),
 
     redis_client_server:async_del([Uid], false),
     redis_client_server:async_set(?R_REGISTERED_UIDS_SET, UpdatedRegisteredUidsSet, true),
 
     {reply, ok, LoggedOutState#{?R_REGISTERED_UIDS_SET := UpdatedRegisteredUidsSet}};
-handle_call({is_uid_logged_in, Uid}, _From, State) ->
-    LoggedUidsSet = maps:get(?LOGGED_IN_UIDS_SET, State),
+handle_call({is_uid_logged_in, Uid}, _From, #{?LOGGED_IN_UIDS_SET := LoggedUidsSet} = State) ->
     {reply, gb_sets:is_element(Uid, LoggedUidsSet), State}.
 
 %%--------------------------------------------------------------------
@@ -259,45 +242,41 @@ handle_call({is_uid_logged_in, Uid}, _From, State) ->
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: {registration_done, PlayerProfile, DispatcherPid} | {register_uid, DispatcherPid, Uid} | {bringup_registration, StateName, StateData} | {login, DispatcherPid, Uid},
+    Request :: {registration_done, PlayerProfile, DispatcherPid} | {register_uid, DispatcherPid, Uid} | {login, DispatcherPid, Uid},
     DispatcherPid :: pid(),
     Uid :: atom(),
     PlayerProfile :: command_dispatcher:uid_profile(),
     State :: map(),
     NewState :: map(),
-    Reason :: term(),
-    StateName :: atom(),
-    StateData :: map().
-handle_cast({registration_done, PlayerProfile, DispatcherPid}, State) ->
-    Uid = maps:get(uid, PlayerProfile),
-    UpdatedRegisteredUidsSet = gb_sets:add(Uid, maps:get(?R_REGISTERED_UIDS_SET, State)),
+    Reason :: term().
+handle_cast({registration_done, #{uid := Uid} = PlayerProfile, DispatcherPid}, #{?REGISTERING_UIDS_SET := RegisteringUidsSet, ?R_REGISTERED_UIDS_SET := RegisteredUidsSet} = State) ->
+    UpdatedRegisteredUidsSet = gb_sets:add(Uid, RegisteredUidsSet),
 
     redis_client_server:async_set(Uid, PlayerProfile, false),
     redis_client_server:async_set(?R_REGISTERED_UIDS_SET, UpdatedRegisteredUidsSet, true),
 
-    RegisteringUidsSet = maps:get(?REGISTERING_UIDS_SET, State),
     UpdatedState = State#{?R_REGISTERED_UIDS_SET := UpdatedRegisteredUidsSet, ?REGISTERING_UIDS_SET => gb_sets:del_element(Uid, RegisteringUidsSet)},
 
     login(DispatcherPid, Uid),
     {noreply, UpdatedState};
 handle_cast({register_uid, DispatcherPid, Uid}, State) ->
-    register_fsm:start({init, DispatcherPid, Uid}),
-    RegisteringUidsSet = maps:get(?REGISTERING_UIDS_SET, State),
-    {noreply, State#{?REGISTERING_UIDS_SET := gb_sets:add(Uid, RegisteringUidsSet)}};
-handle_cast({bringup_registration, StateName, StateData}, State) ->
-    spawn(fun() ->
-        register_fsm:start({bringup, StateName, StateData})
-    end),
-    {noreply, State};
-handle_cast({login, DispatcherPid, Uid}, State) ->
-    LoggedInUidsSet = maps:get(?LOGGED_IN_UIDS_SET, State),
-
+    UpdatedState =
+        case supervisor:start_child(register_fsm_sup, [DispatcherPid, Uid]) of
+            {ok, _} ->
+                error_logger:info_msg("Started register fsm successfully.~nUid:~p~n", [Uid]),
+                RegisteringUidsSet = maps:get(?REGISTERING_UIDS_SET, State),
+                State#{?REGISTERING_UIDS_SET := gb_sets:add(Uid, RegisteringUidsSet)};
+            {'error', Reason} ->
+                error_logger:error_msg("Failed to start register fsm.~nUid:~p~nReason:~p~n", [Uid, Reason]),
+                State
+        end,
+    {noreply, UpdatedState};
+handle_cast({login, DispatcherPid, Uid}, #{?LOGGED_IN_UIDS_SET := LoggedInUidsSet} = State) ->
     UpdatedLoggedInUidsSet =
         case gb_sets:is_element(Uid, LoggedInUidsSet) of
             false ->
-                PlayerProfile = redis_client_server:get(Uid),
-                #{scene := CurSceneName} = PlayerProfile,
-                player_fsm:start({init, PlayerProfile}),
+                #{scene := CurSceneName} = PlayerProfile = redis_client_server:get(Uid),
+                supervisor:start_child(player_fsm_sup, [PlayerProfile]),
                 scene_fsm:enter(CurSceneName, PlayerProfile, DispatcherPid),
                 gb_sets:add(Uid, LoggedInUidsSet);
             _ ->
@@ -405,14 +384,13 @@ format_status(Opt, StatusData) ->
     Uid :: atom(),
     State :: map(),
     UpdatedState :: map().
-logout(internal, Uid, State) ->
-    LoggedInUidsSet = maps:get(?LOGGED_IN_UIDS_SET, State),
+logout(internal, Uid, #{?LOGGED_IN_UIDS_SET := LoggedInUidsSet} = State) ->
     UpdatedLoggedInUidsSet =
         case gb_sets:is_element(Uid, LoggedInUidsSet) of
             false ->
                 LoggedInUidsSet;
             _ ->
-                player_fsm:logout(Uid),
+                spawn(player_fsm, logout, [Uid]),
                 gb_sets:del_element(Uid, LoggedInUidsSet)
         end,
     State#{?LOGGED_IN_UIDS_SET := UpdatedLoggedInUidsSet}.

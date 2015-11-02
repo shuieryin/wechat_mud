@@ -24,8 +24,7 @@
     enter/3,
     leave/2,
     go_direction/3,
-    look/3,
-    bringup_player/2]).
+    look/3]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -57,8 +56,7 @@
 -spec start_link(Request) -> {ok, pid()} | ignore | {error, Reason :: term()} when
     Request :: {init, ValuesMap},
     ValuesMap :: map().
-start_link({init, ValuesMap}) ->
-    SceneName = maps:get(id, ValuesMap),
+start_link({init, #{id := SceneName} = ValuesMap}) ->
     gen_fsm:start_link({local, SceneName}, ?MODULE, [{init, ValuesMap}], []).
 
 %%--------------------------------------------------------------------
@@ -120,20 +118,6 @@ leave(SceneName, Uid) ->
     SimplePlayerProfile :: map().
 look(CurSceneName, DispatcherPid, SimplePlayerProfile) ->
     gen_fsm:send_all_state_event(CurSceneName, {look, DispatcherPid, SimplePlayerProfile}).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Bring up player
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec bringup_player(PlayerStateName, PlayerStateData) -> ok when
-    PlayerStateName :: atom(),
-    PlayerStateData :: map().
-bringup_player(PlayerStateName, PlayerStateData) ->
-    #{self := PlayerProfile} = PlayerStateData,
-    #{scene := CurSceneName} = PlayerProfile,
-    gen_fsm:send_all_state_event(CurSceneName, {bringup_player, PlayerStateName, PlayerStateData}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -239,9 +223,7 @@ state_name(_Event, _From, State) ->
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
 
-    Event :: {enter, SimplePlayerProfile, DispatcherPid} | {leave, Uid} | {look, DispatcherPid} | {bringup_player, PlayerStateName, PlayerStateData},
-    PlayerStateName :: atom(),
-    PlayerStateData :: map(),
+    Event :: {enter, SimplePlayerProfile, DispatcherPid} | {leave, Uid} | {look, DispatcherPid},
     SimplePlayerProfile :: map(),
     DispatcherPid :: pid(),
     Uid :: atom(),
@@ -250,22 +232,13 @@ state_name(_Event, _From, State) ->
     NextStateName :: atom(),
     NewStateData :: map(),
     Reason :: term().
-handle_event({enter, SimplePlayerProfile, DispatcherPid}, StateName, State) ->
+handle_event({enter, #{uid := Uid} = SimplePlayerProfile, DispatcherPid}, StateName, #{?PLAYERS_MAP := PlayersMap} = State) ->
     show_scene(DispatcherPid, State, SimplePlayerProfile),
-
-    PlayersMap = maps:get(?PLAYERS_MAP, State),
-    Uid = maps:get(uid, SimplePlayerProfile),
     {next_state, StateName, State#{?PLAYERS_MAP := PlayersMap#{Uid => SimplePlayerProfile}}};
-handle_event({leave, Uid}, StateName, State) ->
-    PlayersMap = maps:get(?PLAYERS_MAP, State),
+handle_event({leave, Uid}, StateName, #{?PLAYERS_MAP := PlayersMap} = State) ->
     {next_state, StateName, State#{?PLAYERS_MAP := maps:remove(Uid, PlayersMap)}};
 handle_event({look, DispatcherPid, SimplePlayerProfile}, StateName, State) ->
     show_scene(DispatcherPid, State, SimplePlayerProfile),
-    {next_state, StateName, State};
-handle_event({bringup_player, PlayerStateName, PlayerStateData}, StateName, State) ->
-    spawn(fun() ->
-        player_fsm:start({bringup, PlayerStateName, PlayerStateData})
-    end),
     {next_state, StateName, State}.
 
 %%--------------------------------------------------------------------
@@ -295,11 +268,7 @@ handle_event({bringup_player, PlayerStateName, PlayerStateData}, StateName, Stat
     NextStateName :: atom(),
     NewStateData :: term(),
     Reason :: term().
-handle_sync_event({go_direction, Uid, TargetDirection}, _From, StateName, State) ->
-    #{scene_info := SceneInfo} = State,
-    #{exits := ExitsMap, nls_server := SceneNlsServerName} = SceneInfo,
-
-    PlayersMap = maps:get(?PLAYERS_MAP, State),
+handle_sync_event({go_direction, Uid, TargetDirection}, _From, StateName, #{scene_info := #{exits := ExitsMap, nls_server := SceneNlsServerName}, ?PLAYERS_MAP := PlayersMap} = State) ->
     {TargetSceneName, UpdatedState} =
         case maps:get(TargetDirection, ExitsMap, undefined) of
             undefined ->
@@ -428,19 +397,15 @@ gen_players_name_list(PlayersMap) ->
     DispatcherPid :: pid(),
     State :: map(),
     SimplePlayerProfile :: map().
-show_scene(DispatcherPid, State, SimplePlayerProfile) ->
-    #{uid := Uid, lang := Lang} = SimplePlayerProfile,
-    #{scene_info := SceneInfo} = State,
-
-    PlayersMap = maps:remove(Uid, maps:get(?PLAYERS_MAP, State)),
-    #{exits := ExitsMap, title := SceneTitle, desc := SceneDesc, nls_server := NlsServerName} = SceneInfo,
+show_scene(DispatcherPid, #{scene_info := #{exits := ExitsMap, title := SceneTitle, desc := SceneDesc, nls_server := NlsServerName}, ?PLAYERS_MAP := PlayersMap}, #{uid := Uid, lang := Lang}) ->
+    WithoutUidPlayersMap = maps:remove(Uid, PlayersMap),
     nls_server:response_content(NlsServerName,
         lists:flatten([
             {nls, SceneTitle},
             <<"\n\n">>,
             {nls, SceneDesc},
             <<"\n\n">>,
-            gen_players_name_list(PlayersMap),
+            gen_players_name_list(WithoutUidPlayersMap),
             {nls, obvious_exits},
             <<"\n">>,
             gen_exits_desc(ExitsMap)

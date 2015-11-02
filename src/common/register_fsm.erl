@@ -17,13 +17,13 @@
 -behaviour(gen_fsm).
 
 %% API
--export([start/1,
+-export([start_link/2,
     input/3,
     select_lang/2,
     input_gender/2,
     input_born_month/2,
     input_confirmation/2,
-    process_name/1]).
+    fsm_server_name/1]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -51,32 +51,19 @@
 %% initialize. To ensure a synchronized start-up procedure, this
 %% function does not return until Module:init/1 has returned.
 %%
-%% When the first variable in the tuple is "init", it creates a
-%% register gen_fsm with uid and the default state, and prints all
-%% supported langauge abbreviations to user.
-%%
-%% When the first variable in the tuple is "bringup", it creats
-%% a register gen_fsm with state name and state data from the
-%% abnormally terminiated register gen_fsm.
-%%
-%% This functino starts gen_fsm by setting "uid+_register_fsm" as fsm name.
+%% This function creates a register gen_fsm with uid and the default
+%% state, and prints all supported langauge abbreviations to user.
+%% The server name is set to "uid+_register_fsm".
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start(Request) -> {ok, pid()} | ignore | {error, Reason} when
-    Request :: {init, DispatcherPid, Uid} | {bringup, StateName, StateData},
+-spec start_link(DispatcherPid, Uid) -> {ok, pid()} | ignore | {error, Reason} when
     Uid :: atom(),
     DispatcherPid :: pid(),
-    StateName :: atom(),
-    StateData :: map(),
     Reason :: term().
-start({init, DispatcherPid, Uid}) ->
+start_link(DispatcherPid, Uid) ->
     nls_server:response_content(?MODULE, [{nls, select_lang}], zh, DispatcherPid),
-    gen_fsm:start({local, process_name(Uid)}, ?MODULE, {init, Uid}, []);
-start({bringup, StateName, StateData}) ->
-    Uid = maps:get(uid, StateData),
-    ok = common_api:until_process_terminated(process_name(Uid), 20),
-    gen_fsm:start({local, process_name(Uid)}, ?MODULE, {bringup, StateName, StateData}, []).
+    gen_fsm:start({local, fsm_server_name(Uid)}, ?MODULE, Uid, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -91,18 +78,18 @@ start({bringup, StateName, StateData}) ->
     Input :: string(),
     DispatcherPid :: pid().
 input(DispatcherPid, Uid, Input) ->
-    gen_fsm:send_event(process_name(Uid), {Input, DispatcherPid}).
+    gen_fsm:send_event(fsm_server_name(Uid), {Input, DispatcherPid}).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Appends "_register_fsm" to Uid as the register_fsm process name.
+%% Appends "_register_fsm" to Uid as the register_fsm server name.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec process_name(Uid) -> RegisterFsmName when
+-spec fsm_server_name(Uid) -> RegisterFsmName when
     Uid :: atom(),
     RegisterFsmName :: atom().
-process_name(Uid) ->
+fsm_server_name(Uid) ->
     list_to_atom(atom_to_list(Uid) ++ "_register_fsm").
 
 %%%===================================================================
@@ -116,27 +103,21 @@ process_name(Uid) ->
 %% gen_fsm:start_link/[3,4], this function is called by the new
 %% process to initialize.
 %%
-%% See start/1 for details of "init" and "bringup" definitions.
+%% See start_link/2 for details.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec init(Request) ->
+-spec init(Uid) ->
     {ok, StateName, StateData} |
     {ok, StateName, StateData, timeout() | hibernate} |
     {stop, Reason} |
     ignore when
 
-    Request :: {init, Uid} | {bringup, StateName, StateData},
     Uid :: atom(),
-    StateName :: atom(),
-    StateData :: map(),
     Reason :: term().
-init({init, Uid}) ->
-    error_logger:info_msg("register fsm init~n", []),
-    {ok, select_lang, #{uid => Uid}};
-init({bringup, StateName, StateData}) ->
-    error_logger:info_msg("register fsm bringup~n", []),
-    {ok, StateName, StateData}.
+init(Uid) ->
+    error_logger:info_msg("register fsm init~nUid:~p~n", [Uid]),
+    {ok, select_lang, #{uid => Uid}}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -206,8 +187,7 @@ input_gender({Gender, DispatcherPid}, State) when Gender == <<"m">> orelse Gende
     input_gender(male, DispatcherPid, State);
 input_gender({Gender, DispatcherPid}, State) when Gender == <<"f">> orelse Gender == <<"F">> ->
     input_gender(female, DispatcherPid, State);
-input_gender({Other, DispatcherPid}, State) ->
-    Lang = maps:get(lang, State),
+input_gender({Other, DispatcherPid}, #{lang := Lang} = State) ->
     ErrorMessageNlsContent =
         case Other of
             <<>> ->
@@ -217,8 +197,7 @@ input_gender({Other, DispatcherPid}, State) ->
         end,
     nls_server:response_content(?MODULE, ErrorMessageNlsContent, Lang, DispatcherPid),
     {next_state, input_gender, State}.
-input_gender(Gender, DispatcherPid, State) ->
-    Lang = maps:get(lang, State),
+input_gender(Gender, DispatcherPid, #{lang := Lang} = State) ->
     nls_server:response_content(?MODULE, [{nls, please_input_born_month}], Lang, DispatcherPid),
     {next_state, input_born_month, maps:put(gender, Gender, State)}.
 
@@ -242,8 +221,7 @@ input_gender(Gender, DispatcherPid, State) ->
     NextState :: map(),
     NewState :: map(),
     Reason :: term().
-input_born_month({MonthBin, DispatcherPid}, State) ->
-    Lang = maps:get(lang, State),
+input_born_month({MonthBin, DispatcherPid}, #{lang := Lang} = State) ->
     {NewStateName, NewState, ContentList} =
         case validate_month(MonthBin) of
             {ok, Month} ->
@@ -289,14 +267,11 @@ input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"y">> orelse
     State2 = maps:remove(summary_content, State1),
 
     login_server:registration_done(State2, DispatcherPid),
-    {stop, done, State2};
-input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"n">> orelse Answer == <<"N">> ->
-    Lang = maps:get(lang, State),
+    {stop, normal, State2};
+input_confirmation({Answer, DispatcherPid}, #{lang := Lang, uid := Uid}) when Answer == <<"n">> orelse Answer == <<"N">> ->
     nls_server:response_content(?MODULE, [{nls, please_input_gender}], Lang, DispatcherPid),
-    {next_state, input_gender, #{uid => maps:get(uid, State), lang => Lang}};
-input_confirmation({Other, DispatcherPid}, State) ->
-    Lang = maps:get(lang, State),
-    SummaryContent = maps:get(summary_content, State),
+    {next_state, input_gender, #{uid => Uid, lang => Lang}};
+input_confirmation({Other, DispatcherPid}, #{lang := Lang, summary_content := SummaryContent} = State) ->
     ErrorMessageNlsContent
         = case Other of
               <<>> ->
@@ -448,13 +423,8 @@ handle_info(_Info, StateName, State) ->
     Reason :: normal | done | shutdown | {shutdown, term()} | term(),
     StateName :: atom(),
     StateData :: term().
-terminate(Reason, StateName, StateData) ->
-    case Reason of
-        Result when Result /= normal andalso Result /= done ->
-            login_server:bringup_registration(StateName, StateData);
-        _ ->
-            ok
-    end.
+terminate(_Reason, _StateName, _StateData) ->
+    ok.
 
 %%--------------------------------------------------------------------
 %% @private

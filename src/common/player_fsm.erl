@@ -16,7 +16,7 @@
 -behaviour(gen_fsm).
 
 %% API
--export([start/1,
+-export([start_link/1,
     logout/1,
     go_direction/3,
     look_scene/2,
@@ -48,30 +48,15 @@
 %% initialize. To ensure a synchronized start-up procedure, this
 %% function does not return until Module:init/1 has returned.
 %%
-%% When the first variable in the tuple is "init", it creates a
-%% player gen_fsm with player profile and the default state.
-%%
-%% When the first variable in the tuple is "bringup", it creats
-%% a player gen_fsm with state name and state data from the
-%% abnormally terminiated player gen_fsm.
-%%
-%% This functino starts gen_fsm by setting uid as fsm name.
+%% This function starts gen_fsm by setting player uid as fsm name.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start(Request) -> {ok, pid()} | ignore | {error, Reason :: term()} when
-    Request :: {init, PlayerProfile} | {bringup, StateName, StateData},
-    StateName :: atom(),
-    StateData :: map(),
-    PlayerProfile :: command_dispatcher:uid_profile().
-start({init, PlayerProfile}) ->
-    Uid = maps:get(uid, PlayerProfile),
-    gen_fsm:start({local, Uid}, ?MODULE, {init, PlayerProfile}, []);
-start({bringup, StateName, StateData}) ->
-    #{self := PlayerProfile} = StateData,
-    #{uid := Uid} = PlayerProfile,
-    ok = common_api:until_process_terminated(Uid, 20),
-    gen_fsm:start({local, Uid}, ?MODULE, {bringup, StateName, StateData}, []).
+-spec start_link(PlayerProfile) -> {ok, pid()} | ignore | {error, Reason} when
+    PlayerProfile :: command_dispatcher:uid_profile(),
+    Reason :: term().
+start_link(#{uid := Uid} = PlayerProfile) ->
+    gen_fsm:start({local, Uid}, ?MODULE, PlayerProfile, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -185,24 +170,23 @@ logout(Uid) ->
 %% gen_fsm:start_link/[3,4], this function is called by the new
 %% process to initialize.
 %%
-%% See start/1 for details of "init" and "bringup" definitions.
+%% See start_link/1 for details.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec init(Args :: term()) ->
+-spec init(PlayerProfile) ->
     {ok, StateName, StateData} |
     {ok, StateName, StateData, timeout() | hibernate} |
     {stop, Reason} |
     ignore when
+
+    PlayerProfile :: command_dispatcher:uid_profile(),
     StateName :: atom(),
     StateData :: map(),
     Reason :: term().
-init({init, PlayerProfile}) ->
+init(PlayerProfile) ->
     error_logger:info_msg("Init player:~p~n", [PlayerProfile]),
-    {ok, non_battle, #{self => PlayerProfile}};
-init({bringup, StateName, StateData}) ->
-    error_logger:info_msg("player fsm bringup:~p~n", [StateData]),
-    {ok, StateName, StateData}.
+    {ok, non_battle, #{self => PlayerProfile}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -272,21 +256,25 @@ state_name(_Event, _From, State) ->
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
 
-    Event :: {go_direction, DispatcherPid, Direction} | {look_scene, DispatcherPid} | {response_content, NlsServer, ContentList, DispatcherPid},
+    Event ::
+    {go_direction, DispatcherPid, Direction} |
+    {look_scene, DispatcherPid} |
+    {response_content, NlsServer, ContentList, DispatcherPid} |
+    leave_scene |
+    {switch_lang, DispatcherPid, RawTargetLang} |
+    logout,
+
     NlsServer :: atom(),
     ContentList :: [term()],
     DispatcherPid :: pid(),
     Direction :: direction:directions(),
     StateName :: atom(),
     StateData :: map(),
+    RawTargetLang :: atom(),
     NextStateName :: atom(),
     NewStateData :: map(),
     Reason :: term().
-handle_event({go_direction, DispatcherPid, Direction}, StateName, State) ->
-    #{self := PlayerProfile} = State,
-    #{scene := CurSceneName} = PlayerProfile,
-
-    #{uid := Uid, lang := Lang} = PlayerProfile,
+handle_event({go_direction, DispatcherPid, Direction}, StateName, #{self := #{scene := CurSceneName, uid := Uid, lang := Lang} = PlayerProfile} = State) ->
     TargetSceneName = case scene_fsm:go_direction(CurSceneName, Uid, Direction) of
                           {undefined, SceneNlsServerName} ->
                               nls_server:response_content(SceneNlsServerName, [{nls, invalid_exit}], Lang, DispatcherPid),
@@ -297,25 +285,16 @@ handle_event({go_direction, DispatcherPid, Direction}, StateName, State) ->
                       end,
 
     {next_state, StateName, State#{self := PlayerProfile#{scene := TargetSceneName}}};
-handle_event({look_scene, DispatcherPid}, StateName, State) ->
-    #{self := PlayerProfile} = State,
-    #{scene := CurSceneName} = PlayerProfile,
+handle_event({look_scene, DispatcherPid}, StateName, #{self := #{scene := CurSceneName} = PlayerProfile} = State) ->
     scene_fsm:look(CurSceneName, DispatcherPid, PlayerProfile),
     {next_state, StateName, State};
-handle_event({response_content, NlsServer, ContentList, DispatcherPid}, StateName, State) ->
-    #{self := PlayerProfile} = State,
-    #{lang := Lang} = PlayerProfile,
+handle_event({response_content, NlsServer, ContentList, DispatcherPid}, StateName, #{self := #{lang := Lang}} = State) ->
     nls_server:response_content(NlsServer, ContentList, Lang, DispatcherPid),
     {next_state, StateName, State};
-handle_event(leave_scene, StateName, State) ->
-    #{self := PlayerProfile} = State,
-    #{scene := CurSceneName, uid := Uid} = PlayerProfile,
+handle_event(leave_scene, StateName, #{self := #{scene := CurSceneName, uid := Uid} } = State) ->
     scene_fsm:leave(CurSceneName, Uid),
     {next_state, StateName, State};
-handle_event({switch_lang, DispatcherPid, RawTargetLang}, StateName, State) ->
-    #{self := PlayerProfile} = State,
-    #{uid := Uid, lang := CurLang} = PlayerProfile,
-
+handle_event({switch_lang, DispatcherPid, RawTargetLang}, StateName, #{self := #{uid := Uid, lang := CurLang} = PlayerProfile} = State) ->
     InvalidLangFun = fun() ->
         nls_server:response_content(lang, [{nls, invalid_lang}, RawTargetLang, <<"\n\n">>, {nls, info}], CurLang, DispatcherPid),
         State
@@ -339,12 +318,9 @@ handle_event({switch_lang, DispatcherPid, RawTargetLang}, StateName, State) ->
         end,
 
     {next_state, StateName, UpdatedState};
-handle_event(logout, _StateName, State) ->
-    #{self := PlayerProfile} = State,
-    #{scene := CurSceneName, uid := Uid} = PlayerProfile,
+handle_event(logout, _StateName, #{self := #{scene := CurSceneName, uid := Uid} = PlayerProfile} = State) ->
     scene_fsm:leave(CurSceneName, Uid),
-
-    error_logger:info_msg("logout PlayerProfile:~p~n", [PlayerProfile]),
+    error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
     redis_client_server:set(Uid, PlayerProfile, true),
     {stop, normal, State}.
 
@@ -373,9 +349,8 @@ handle_event(logout, _StateName, State) ->
     NextStateName :: atom(),
     NewStateData :: term(),
     Reason :: term().
-handle_sync_event(get_lang, _From, StateName, State) ->
-    #{self := PlayerProfile} = State,
-    {reply, maps:get(lang, PlayerProfile), StateName, State}.
+handle_sync_event(get_lang, _From, StateName, #{self := #{lang := Lang}} = State) ->
+    {reply, Lang, StateName, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -414,13 +389,8 @@ handle_info(_Info, StateName, State) ->
     Reason :: normal | shutdown | {shutdown, term()} | term(),
     StateName :: atom(),
     StateData :: term().
-terminate(Reason, StateName, StateData) ->
-    case Reason of
-        Result when Result /= normal andalso Result /= done ->
-            scene_fsm:bringup_player(StateName, StateData);
-        _ ->
-            ok
-    end.
+terminate(_Reason, _StateName, _StateData) ->
+    ok.
 
 %%--------------------------------------------------------------------
 %% @private
