@@ -90,4 +90,4 @@ gen_child_list() ->
     Type = worker,
 
     {ok, FileNameList} = file:list_dir(?NLS_PATH),
-    [{list_to_atom(FileName), {nls_server, start_link, [filename:join(?NLS_PATH, FileName)]}, Restart, Shutdown, Type, [nls_server]} || FileName <- FileNameList, filename:extension(FileName) == ?NLS_EXTENSION, FileName /= ?COMMON_NLS].
+    [{list_to_atom(filename:rootname(FileName)), {nls_server, start_link, [filename:join(?NLS_PATH, FileName)]}, Restart, Shutdown, Type, [nls_server]} || FileName <- FileNameList, filename:extension(FileName) == ?NLS_EXTENSION, FileName /= ?COMMON_NLS].
