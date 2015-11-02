@@ -2,9 +2,32 @@
 %% -*- erlang -*-
 %%! -smp enable -sname generate_appup verbose
 
+%% noinspection ErlangUnusedFunction
+main(Args) ->
+    try
+        [Option | TailArgs] = Args,
+        case list_to_atom(Option) of
+            gen_appup ->
+                [AppName, OldVsn] = TailArgs,
+                start(AppName, OldVsn);
+            rollback_vsn ->
+                [AppName, OldVsn] = TailArgs,
+                update_version(AppName, OldVsn)
+        end
+    catch
+        _:Reason ->
+            io:format("~tp~n", [Reason]),
+            usage()
+    end.
+
+usage() ->
+    io:format("usage: [gen_appup|rollback_vsn] [release-name] [version(x.x.x)]\n"),
+    halt(1).
+
 start(AppName, OldVsn) ->
     NewVsn = increase_vsn(OldVsn, 3, 1), %% will not modify version number in rebar.config and [app_name].app.src
 
+    %% -------------------------get existing instructions - start-------------------------
     OldAppupPath = "ebin/" ++ AppName ++ ".appup",
     ExistingInstructions =
         case file:consult(OldAppupPath) of
@@ -13,8 +36,9 @@ start(AppName, OldVsn) ->
             _ ->
                 []
         end,
+    %% -------------------------get existing instructions - end---------------------------
 
-    %% -------------------------generate appup - start-------------------------
+    %% -------------------------generate new instructions - start-------------------------
     BeamFolder = os:cmd("rebar3 path --app " ++ AppName),
     ModifiedFiles = string:tokens(os:cmd("git diff --name-only HEAD~0 --diff-filter=M | grep -E 'src.*\.erl'"), "\n"),
     ModifiedInstructions = generate_modified_instruction(modified, ModifiedFiles, OldVsn, NewVsn, BeamFolder, []),
@@ -24,7 +48,7 @@ start(AppName, OldVsn) ->
 
     AddedFiles = string:tokens(os:cmd("git ls-files --others --exclude-standard | grep -E 'src.*\.erl'; git diff --name-only HEAD~0 --diff-filter=A | grep -E 'src.*\.erl'"), "\n"),
     AddedDeletedModifiedInstructions = generate_added_deleted_instruction(add_module, AddedFiles, DeletedModifiedInstructions),
-    %% -------------------------generate appup - end---------------------------
+    %% -------------------------generate new instructions - end---------------------------
 
     FinalInstructions = ukeymerge(2, AddedDeletedModifiedInstructions, ExistingInstructions),
 
@@ -85,30 +109,6 @@ update_version(AppName, TargetVsn) ->
         sed -i.bak 's/\".*\" %% " ++ RelVsnMarker ++ "/\"" ++ TargetVsn ++ "\" %% " ++ RelVsnMarker ++ "/1' rebar.config  ;\
         rm -f rebar.config.bak  ;\
         rm -f src/" ++ AppName ++ ".app.src.bak").
-
-%% noinspection ErlangUnusedFunction
-main(Args) ->
-    try
-        [Option | TailArgs] = Args,
-        case list_to_atom(Option) of
-            gen_appup ->
-                [AppName, OldVsn] = TailArgs,
-                start(AppName, OldVsn);
-            rollback_vsn ->
-                [AppName, OldVsn] = TailArgs,
-                update_version(AppName, OldVsn)
-        end
-    catch
-        _:Reason ->
-            io:format("~tp~n", [Reason]),
-            usage()
-    end;
-main(_) ->
-    usage().
-
-usage() ->
-    io:format("usage: [gen_appup|rollback_vsn] [release-name] [version(x.x.x)]\n"),
-    halt(1).
 
 increase_vsn(SourceVersion, VersionDepth, Increment) ->
     string:join(increase_vsn(string:tokens(SourceVersion, "."), VersionDepth, Increment, 1, []), ".").
