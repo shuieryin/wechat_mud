@@ -17,7 +17,7 @@
 
 %% API
 -export([start_link/1,
-    logout/1,
+    logout/2,
     go_direction/3,
     look_scene/2,
     get_lang/1,
@@ -156,16 +156,11 @@ switch_lang(DispatcherPid, Uid, Lang) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec logout(Uid) -> ok when
-    Uid :: atom().
-logout(Uid) ->
-    Self = self(),
-    gen_fsm:send_all_state_event(Uid, {logout, Self}),
-    receive
-        {logged_out, Self} ->
-            error_logger:info_msg("logged out"),
-            ok
-    end.
+-spec logout(Uid, NotifyOkPid) -> ok when
+    Uid :: atom(),
+    NotifyOkPid :: pid().
+logout(Uid, NotifyOkPid) ->
+    gen_fsm:send_all_state_event(Uid, {logout, NotifyOkPid}).
 
 %%%===================================================================
 %%% gen_fsm callbacks
