@@ -176,33 +176,34 @@ gen_keysmap([RawKey | Tail], KeysMap, Pos) ->
     Type :: atom(),
     Id :: atom(),
     SceneChild :: {Id, {scene_fsm, start_link, [{init, ValuesMap}]}, Restart, Shutdown, Type, [scene_fsm]}.
-gen_scene([], _, ValuesMap, _, Restart, Shutdown, Type) ->
-    Id = maps:get(id, ValuesMap),
+gen_scene([], _, #{id := Id} = ValuesMap, _, Restart, Shutdown, Type) ->
     {Id, {scene_fsm, start_link, [{init, ValuesMap}]}, Restart, Shutdown, Type, [scene_fsm]};
 gen_scene([[] | Tail], KeysMap, ValuesMap, Pos, Restart, Shutdown, Type) ->
     gen_scene(Tail, KeysMap, ValuesMap, Pos + 1, Restart, Shutdown, Type);
 gen_scene([RawValue | Tail], KeysMap, ValuesMap, Pos, Restart, Shutdown, Type) ->
     Key = maps:get(Pos, KeysMap),
-    Value = case Key of
-                id ->
-                    list_to_atom(RawValue);
-                exits ->
-                    {ok, Tokens, _} = erl_scan:string(RawValue),
-                    {ok, Term} = erl_parse:parse_term(Tokens),
-                    Term;
-                title ->
-                    list_to_atom(RawValue);
-                desc ->
-                    list_to_atom(RawValue);
-                nls_server ->
-                    list_to_atom(RawValue);
-                _ ->
-                    undefined
-            end,
-    UpdatedValuesMap = case Value of
-                           undefined ->
-                               ValuesMap;
-                           _ ->
-                               ValuesMap#{Key => Value}
-                       end,
+    Value =
+        case Key of
+            id ->
+                list_to_atom(RawValue);
+            exits ->
+                {ok, Tokens, _} = erl_scan:string(RawValue),
+                {ok, Term} = erl_parse:parse_term(Tokens),
+                Term;
+            title ->
+                list_to_atom(RawValue);
+            desc ->
+                list_to_atom(RawValue);
+            nls_server ->
+                list_to_atom(RawValue);
+            _ ->
+                undefined
+        end,
+    UpdatedValuesMap =
+        case Value of
+            undefined ->
+                ValuesMap;
+            _ ->
+                ValuesMap#{Key => Value}
+        end,
     gen_scene(Tail, KeysMap, UpdatedValuesMap, Pos + 1, Restart, Shutdown, Type).
