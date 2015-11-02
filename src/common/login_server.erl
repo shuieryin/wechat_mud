@@ -390,7 +390,7 @@ logout(internal, Uid, #{?LOGGED_IN_UIDS_SET := LoggedInUidsSet} = State) ->
             false ->
                 LoggedInUidsSet;
             _ ->
-                spawn(player_fsm, logout, [Uid]),
+                player_fsm:logout(Uid),
                 gb_sets:del_element(Uid, LoggedInUidsSet)
         end,
     State#{?LOGGED_IN_UIDS_SET := UpdatedLoggedInUidsSet}.

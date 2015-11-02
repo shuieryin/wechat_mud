@@ -156,8 +156,16 @@ switch_lang(DispatcherPid, Uid, Lang) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
+-spec logout(Uid) -> ok when
+    Uid :: atom().
 logout(Uid) ->
-    gen_fsm:send_all_state_event(Uid, logout).
+    Self = self(),
+    gen_fsm:send_all_state_event(Uid, {logout, Self}),
+    receive
+        {logged_out, Self} ->
+            error_logger:info_msg("logged out"),
+            ok
+    end.
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -185,7 +193,7 @@ logout(Uid) ->
     StateData :: map(),
     Reason :: term().
 init(PlayerProfile) ->
-    error_logger:info_msg("Init player:~p~n", [PlayerProfile]),
+    error_logger:info_msg("Player fsm initialized:~p~n", [PlayerProfile]),
     {ok, non_battle, #{self => PlayerProfile}}.
 
 %%--------------------------------------------------------------------
@@ -262,7 +270,7 @@ state_name(_Event, _From, State) ->
     {response_content, NlsServer, ContentList, DispatcherPid} |
     leave_scene |
     {switch_lang, DispatcherPid, RawTargetLang} |
-    logout,
+    {logout, NotifyOkPid},
 
     NlsServer :: atom(),
     ContentList :: [term()],
@@ -273,7 +281,8 @@ state_name(_Event, _From, State) ->
     RawTargetLang :: atom(),
     NextStateName :: atom(),
     NewStateData :: map(),
-    Reason :: term().
+    Reason :: term(),
+    NotifyOkPid :: pid().
 handle_event({go_direction, DispatcherPid, Direction}, StateName, #{self := #{scene := CurSceneName, uid := Uid, lang := Lang} = PlayerProfile} = State) ->
     TargetSceneName = case scene_fsm:go_direction(CurSceneName, Uid, Direction) of
                           {undefined, SceneNlsServerName} ->
@@ -291,7 +300,7 @@ handle_event({look_scene, DispatcherPid}, StateName, #{self := #{scene := CurSce
 handle_event({response_content, NlsServer, ContentList, DispatcherPid}, StateName, #{self := #{lang := Lang}} = State) ->
     nls_server:response_content(NlsServer, ContentList, Lang, DispatcherPid),
     {next_state, StateName, State};
-handle_event(leave_scene, StateName, #{self := #{scene := CurSceneName, uid := Uid} } = State) ->
+handle_event(leave_scene, StateName, #{self := #{scene := CurSceneName, uid := Uid}} = State) ->
     scene_fsm:leave(CurSceneName, Uid),
     {next_state, StateName, State};
 handle_event({switch_lang, DispatcherPid, RawTargetLang}, StateName, #{self := #{uid := Uid, lang := CurLang} = PlayerProfile} = State) ->
@@ -318,10 +327,11 @@ handle_event({switch_lang, DispatcherPid, RawTargetLang}, StateName, #{self := #
         end,
 
     {next_state, StateName, UpdatedState};
-handle_event(logout, _StateName, #{self := #{scene := CurSceneName, uid := Uid} = PlayerProfile} = State) ->
+handle_event({logout, NotifyOkPid}, _StateName, #{self := #{scene := CurSceneName, uid := Uid} = PlayerProfile} = State) ->
     scene_fsm:leave(CurSceneName, Uid),
     error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
     redis_client_server:set(Uid, PlayerProfile, true),
+    NotifyOkPid ! {logged_out, NotifyOkPid},
     {stop, normal, State}.
 
 %%--------------------------------------------------------------------
