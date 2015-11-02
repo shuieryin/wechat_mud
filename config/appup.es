@@ -8,8 +8,8 @@ start(AppName, OldVsn) ->
     OldAppupPath = "ebin/" ++ AppName ++ ".appup",
     ExistingInstructions =
         case file:consult(OldAppupPath) of
-            {ok, [{OldVsn, [{_, Result}], [{_, []}]}]} ->
-                update_existing_instruction_version(Result, OldVsn, NewVsn, []);
+            {ok, [{OldVsn, [{_, SrcInstructions}], [{_, []}]}]} ->
+                update_existing_instruction_version(SrcInstructions, OldVsn, NewVsn, []);
             _ ->
                 []
         end,
@@ -20,13 +20,13 @@ start(AppName, OldVsn) ->
     ModifiedInstructions = generate_modified_instruction(modified, ModifiedFiles, OldVsn, NewVsn, BeamFolder, []),
 
     DeletedFiles = string:tokens(os:cmd("git diff --name-only HEAD~0 --diff-filter=D | grep -E 'src.*\.erl'"), "\n"),
-    DeleteModifiedInstructions = generate_added_deleted_instruction(delete_module, DeletedFiles, ModifiedInstructions),
+    DeletedModifiedInstructions = generate_added_deleted_instruction(delete_module, DeletedFiles, ModifiedInstructions),
 
     AddedFiles = string:tokens(os:cmd("git ls-files --others --exclude-standard | grep -E 'src.*\.erl'; git diff --name-only HEAD~0 --diff-filter=A | grep -E 'src.*\.erl'"), "\n"),
-    AddedDeleteModifiedInstructions = generate_added_deleted_instruction(add_module, AddedFiles, DeleteModifiedInstructions),
+    AddedDeletedModifiedInstructions = generate_added_deleted_instruction(add_module, AddedFiles, DeletedModifiedInstructions),
     %% -------------------------generate appup - end---------------------------
 
-    FinalInstructions = lists:ukeymerge(2, AddedDeleteModifiedInstructions, ExistingInstructions),
+    FinalInstructions = ukeymerge(2, AddedDeletedModifiedInstructions, ExistingInstructions),
 
     case FinalInstructions of
         [] ->
@@ -122,3 +122,14 @@ update_existing_instruction_version([{update, ModName, {advanced, {_, _, []}}} |
     update_existing_instruction_version(Tail, OldVsn, NewVsn, [{update, ModName, {advanced, {OldVsn, NewVsn, []}}} | AccResult]);
 update_existing_instruction_version([Other | Tail], OldVsn, NewVsn, AccResult) ->
     update_existing_instruction_version(Tail, OldVsn, NewVsn, [Other | AccResult]).
+
+ukeymerge(ElemPos, SrcList, MergeList) ->
+    MergeMap = proplist_to_map(ElemPos, MergeList, #{}),
+    FinalMap = proplist_to_map(ElemPos, SrcList, MergeMap),
+    maps:values(FinalMap).
+
+proplist_to_map(_, [], AccMap) ->
+    AccMap;
+proplist_to_map(ElemPos, [Value | Tail], AccMap) ->
+    Key = erlang:element(ElemPos, Value),
+    proplist_to_map(ElemPos, Tail, AccMap#{Key => Value}).
