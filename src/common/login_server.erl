@@ -390,13 +390,7 @@ logout(internal, Uid, #{?LOGGED_IN_UIDS_SET := LoggedInUidsSet} = State) ->
             false ->
                 LoggedInUidsSet;
             _ ->
-                Self = self(),
-                player_fsm:logout(Uid, Self),
-                receive
-                    {logged_out, Self} ->
-                        error_logger:info_msg("loggedsss out~n"),
-                        ok
-                end,
+                spawn(player_fsm, logout, [Uid]),
                 gb_sets:del_element(Uid, LoggedInUidsSet)
         end,
     State#{?LOGGED_IN_UIDS_SET := UpdatedLoggedInUidsSet}.

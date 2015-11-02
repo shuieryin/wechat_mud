@@ -17,7 +17,7 @@
 
 %% API
 -export([start_link/1,
-    logout/2,
+    logout/1,
     go_direction/3,
     look_scene/2,
     get_lang/1,
@@ -156,11 +156,10 @@ switch_lang(DispatcherPid, Uid, Lang) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec logout(Uid, NotifyOkPid) -> ok when
-    Uid :: atom(),
-    NotifyOkPid :: pid().
-logout(Uid, NotifyOkPid) ->
-    gen_fsm:send_all_state_event(Uid, {logout, NotifyOkPid}).
+-spec logout(Uid) -> ok when
+    Uid :: atom().
+logout(Uid) ->
+    gen_fsm:send_all_state_event(Uid, logout).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -322,11 +321,10 @@ handle_event({switch_lang, DispatcherPid, RawTargetLang}, StateName, #{self := #
         end,
 
     {next_state, StateName, UpdatedState};
-handle_event({logout, NotifyOkPid}, _StateName, #{self := #{scene := CurSceneName, uid := Uid} = PlayerProfile} = State) ->
+handle_event(logout, _StateName, #{self := #{scene := CurSceneName, uid := Uid} = PlayerProfile} = State) ->
     scene_fsm:leave(CurSceneName, Uid),
     error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
     redis_client_server:set(Uid, PlayerProfile, true),
-    NotifyOkPid ! {logged_out, NotifyOkPid},
     {stop, normal, State}.
 
 %%--------------------------------------------------------------------
