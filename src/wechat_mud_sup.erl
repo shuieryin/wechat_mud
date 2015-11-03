@@ -29,7 +29,7 @@ init([]) ->
     {ok, {
         {one_for_one, 5, 10},
         [
-            {redis_client,
+            {redis_client_server,
                 {redis_client_server, start_link, []},
                 permanent,
                 10000,
@@ -37,7 +37,7 @@ init([]) ->
                 [redis_client_server]
             },
 
-            {common,
+            {common_server,
                 {common_server, start_link, []},
                 permanent,
                 10000,
@@ -53,7 +53,7 @@ init([]) ->
                 [nls_sup]
             },
 
-            {login,
+            {login_server,
                 {login_server, start_link, []},
                 permanent,
                 10000,
