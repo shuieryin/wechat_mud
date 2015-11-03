@@ -65,7 +65,7 @@ init([]) ->
                 {scene_sup, start_link, []},
                 permanent,
                 10000,
-                worker,
+                supervisor,
                 [scene_sup]
             },
 
