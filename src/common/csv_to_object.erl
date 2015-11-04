@@ -35,7 +35,7 @@
     ListFromFiles :: [term()].
 traverse_files(FolderPath, RowFun) ->
     {ok, FileNameList} = file:list_dir(FolderPath),
-    traverse_files(FileNameList, [], RowFun, FolderPath).
+    lists:flatten([parse_file(filename:join(FolderPath, FileName), RowFun) || FileName <- FileNameList, filename:extension(FileName) == ?FILE_EXTENSION]).
 
 
 %%--------------------------------------------------------------------
@@ -48,7 +48,7 @@ traverse_files(FolderPath, RowFun) ->
 -spec parse_file(FilePath, RowFun) -> ListFromFile when
     FilePath :: file:filename(),
     RowFun :: function,
-    ListFromFile :: [term()].
+    ListFromFile :: [any()].
 parse_file(FilePath, RowFun) ->
     {ok, File} = file:open(FilePath, [read]),
     {ok, ListFromFile} = ecsv:process_csv_file_with(File, fun traverse_rows/2, {0, RowFun}),
@@ -58,31 +58,6 @@ parse_file(FilePath, RowFun) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Generates object configs per file of csv file under given folder
-%% which the number of object configs equals to the number of rows
-%% times number of csv files.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec traverse_files(FileNameList, AccFileList, RowFun, FolderPath) -> ListFromFiles when
-    FileNameList :: filename:filename(),
-    AccFileList :: [term()],
-    RowFun :: function(),
-    FolderPath :: file:name(),
-    ListFromFiles :: [term()].
-traverse_files([], AccFileList, _, _) ->
-    AccFileList;
-traverse_files([FileName | Tail], AccFileList, RowFun, FolderPath) ->
-    case filename:extension(FileName) == ?FILE_EXTENSION of
-        true ->
-            CurListFromFile = parse_file(filename:join(FolderPath, FileName), RowFun),
-            traverse_files(Tail, CurListFromFile ++ AccFileList, RowFun, FolderPath);
-        _ ->
-            traverse_files(Tail, AccFileList, RowFun, FolderPath)
-    end.
 
 %%--------------------------------------------------------------------
 %% @doc

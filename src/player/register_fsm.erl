@@ -114,7 +114,9 @@ fsm_server_name(Uid) ->
     ignore when
 
     Uid :: atom(),
-    Reason :: term().
+    Reason :: term(),
+    StateName :: atom(),
+    StateData :: map().
 init(Uid) ->
     error_logger:info_msg("register fsm init~nUid:~p~n", [Uid]),
     {ok, select_lang, #{uid => Uid}}.
@@ -210,11 +212,11 @@ input_gender(Gender, DispatcherPid, #{lang := Lang} = State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec input_born_month({MonthStr, DispatcherPid}, State) ->
+-spec input_born_month({MonthBin, DispatcherPid}, State) ->
     {next_state, NextStateName, NextState} |
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
-    MonthStr :: string(),
+    MonthBin :: binary(),
     DispatcherPid :: pid(),
     State :: map(),
     NextStateName :: input_confirmation | input_born_month,
@@ -473,7 +475,7 @@ format_status(Opt, StatusData) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec validate_month(MonthBin) -> {ok, Month} | {false, MonthBin} when
-    MonthBin :: string(),
+    MonthBin :: binary(),
     Month :: 1..12.
 validate_month(MonthBin) ->
     try

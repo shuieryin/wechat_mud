@@ -208,12 +208,12 @@ quit()->
 %% @end
 %%--------------------------------------------------------------------
 -spec increase_vsn(SourceVersion, VersionDepth, Increment, CurDepth, AccVersion) -> UpgradedVersion when
-    SourceVersion :: list(),
+    SourceVersion :: [string()],
     VersionDepth :: pos_integer(),
     Increment :: pos_integer(),
     CurDepth :: pos_integer(),
-    AccVersion :: list(),
-    UpgradedVersion :: string().
+    AccVersion :: [string()],
+    UpgradedVersion :: [string()].
 increase_vsn([], _, _, _, AccVersion) ->
     lists:reverse(AccVersion);
 increase_vsn([CurDepthVersionNumStr | Tail], VersionDepth, Increment, CurDepth, AccVersion) ->
@@ -225,5 +225,3 @@ increase_vsn([CurDepthVersionNumStr | Tail], VersionDepth, Increment, CurDepth, 
                 CurDepthVersionNumStr
         end,
     increase_vsn(Tail, VersionDepth, Increment, CurDepth + 1, [UpdatedVersionNum | AccVersion]).
-
-

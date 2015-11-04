@@ -32,8 +32,8 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link(Port) -> no_return() when
-    Port :: port().
+-spec start_link(Port) -> ok when
+    Port :: pos_integer().
 start_link(Port) ->
     io:format("Starting:~p~n", [file:get_cwd()]),
     %% server is the name of this module
@@ -47,7 +47,8 @@ start_link(Port) ->
             init:stop();
         {ok, _Pid} ->
             io:format("websockets started on port:~p~n", [Port])
-    end.
+    end,
+    ok.
 
 %%--------------------------------------------------------------------
 %% @doc

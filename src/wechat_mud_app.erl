@@ -10,8 +10,8 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-    start_web(),
-    wechat_mud_sup:start_link().
+    ok = start_web(),
+    {ok, _} = wechat_mud_sup:start_link().
 
 stop(_State) ->
     ok.
