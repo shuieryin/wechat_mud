@@ -1,4 +1,4 @@
-id,exits,title,desc,nls_server
+id:atom,exits:term,title:atom,desc:atom,nls_server:atom
 dream_board_nw,"#{east => dream_board_n,
 south => dream_board_w,
 southeast => dream_board_center}.",dream_board_nw_title,dream_board_nw_desc,dream_board_nls
