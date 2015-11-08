@@ -26,7 +26,8 @@
     show_langs/2,
     read_nls_file/2,
     do_response_content/4,
-    get_nls_map/1]).
+    get_nls_map/1,
+    merge_nls_map/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -170,6 +171,20 @@ do_response_content(Lang, State, ContentList, DispatcherPid) ->
     NlsMap :: state().
 get_nls_map(NlsServerName) ->
     gen_server:call(NlsServerName, get_nls_map).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Merge two nls maps.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec merge_nls_map(NlsMap1, NlsMap2) -> NlsMap when
+    NlsMap1 :: state(),
+    NlsMap2 :: NlsMap1,
+    NlsMap :: NlsMap1.
+merge_nls_map(NlsMap1, NlsMap2) ->
+    Langs = maps:keys(NlsMap1),
+    merge_nls_map(Langs, NlsMap1, NlsMap2, #{}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -465,3 +480,22 @@ fill_in_nls([{nls, NlsKey} | Tail], LangMap, ListOut) ->
     fill_in_nls(Tail, LangMap, [maps:get(NlsKey, LangMap) | ListOut]);
 fill_in_nls([NonNlsKey | Tail], LangMap, ListOut) ->
     fill_in_nls(Tail, LangMap, [NonNlsKey | ListOut]).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% See parent function merge_nls_map/2.
+%% @see merge_nls_map/2.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec merge_nls_map(Langs, NlsMap1, NlsMap2, AccNlsMap) -> NlsMap when
+    Langs :: [nls_server:support_lang()],
+    NlsMap1 :: nls_server:state(),
+    NlsMap2 :: NlsMap1,
+    AccNlsMap :: NlsMap1,
+    NlsMap :: NlsMap1.
+merge_nls_map([CurLang | Tail], NlsMap1, NlsMap2, AccNlsMap) ->
+    CurLangMap = maps:merge(maps:get(CurLang, NlsMap1), maps:get(CurLang, NlsMap2)),
+    merge_nls_map(Tail, NlsMap1, NlsMap2, AccNlsMap#{CurLang => CurLangMap});
+merge_nls_map([], _, _, AccNlsMap) ->
+    AccNlsMap.

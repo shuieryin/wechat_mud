@@ -569,4 +569,5 @@ show_scene(#{?SCENE_INFO := #{exits := ExitsMap, title := SceneTitle, desc := Sc
     NlsMap :: AccNlsMap.
 load_nls_file(NlsFileName, AccNlsMap) ->
     NlsServerName = list_to_atom(NlsFileName),
-    maps:merge(AccNlsMap, nls_server:get_nls_map(NlsServerName)).
+    CurNlsMap = nls_server:get_nls_map(NlsServerName),
+    nls_server:merge_nls_map(AccNlsMap, CurNlsMap).
