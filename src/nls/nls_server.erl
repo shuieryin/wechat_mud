@@ -215,7 +215,11 @@ load_nls_file(NlsFileName, AccNlsMap) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: {get, NlsKey, Lang} | {is_valid_lang, Lang} | {get_nls_content, ConentList, Lang},
+    Request ::
+    {get, NlsKey, Lang} |
+    {is_valid_lang, Lang} |
+    {get_nls_content, ConentList, Lang},
+
     NlsKey :: atom(),
     Lang :: atom(),
     ConentList :: [term()],

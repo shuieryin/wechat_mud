@@ -42,6 +42,7 @@ exec(DispatcherPid, Uid) ->
 %%--------------------------------------------------------------------
 %% @doc
 %% Show the first matched target scene object description.
+%% Convert from <<"little boy 2">> to "Target=little_boy" and "Sequence=2".
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -50,14 +51,15 @@ exec(DispatcherPid, Uid) ->
     DispatcherPid :: pid(),
     Args :: binary().
 exec(DispatcherPid, Uid, Args) ->
-    [RawTarget | Rest] = binary:split(Args, <<" ">>),
-    Sequence = case Rest of
-                   [] ->
-                       1;
-                   [RawSequence] ->
-                       binary_to_integer(RawSequence)
-               end,
-    player_fsm:look_target(Uid, DispatcherPid, binary_to_atom(RawTarget, utf8), Sequence).
+    [RawSequence | Rest] = lists:reverse(string:tokens(binary_to_list(Args), " ")),
+    {Target, Sequence} =
+        case re:run(RawSequence, "^[0-9]*$") of
+            {match, _} ->
+                {list_to_atom(string:join(lists:reverse(Rest), "_")), list_to_integer(RawSequence)};
+            _ ->
+                {list_to_atom(re:replace(Args, <<" ">>, <<"_">>, [global, {return, list}])), 1}
+        end,
+    player_fsm:look_target(Uid, DispatcherPid, Target, Sequence).
 
 %%%===================================================================
 %%% Internal functions (N/A)

@@ -289,7 +289,8 @@ handle_event({look_target, Uid, Lang, DispatcherPid, Target, Sequence}, StateNam
     TargetSceneObject = grab_target_scene_objects(SceneObjectList, Target, Sequence),
     ok = case TargetSceneObject of
              undefined ->
-                 nls_server:do_response_content(Lang, NlsMap, [{nls, no_such_target}, <<"\n">>], DispatcherPid);
+                 TargetForDisplay = re:replace(atom_to_list(Target), "_", " ", [global, {return, binary}]),
+                 nls_server:do_response_content(Lang, NlsMap, [{nls, no_such_target}, TargetForDisplay, <<"\n">>], DispatcherPid);
              {npc, TargetNpcFsmId, _, _} ->
                  ContentList = npc_fsm:being_looked(TargetNpcFsmId, Uid),
                  nls_server:do_response_content(Lang, NlsMap, ContentList, DispatcherPid);
@@ -513,7 +514,8 @@ gen_characters_name_list(SceneObjectList, CallerUid) ->
 gen_character_name([], _, AccList) ->
     AccList;
 gen_character_name([{npc, _, NpcType, NpcNameNlsKey} | Tail], CallerUid, AccSceneObjectNameList) ->
-    gen_character_name(Tail, CallerUid, [{nls, NpcNameNlsKey}, <<" (">>, atom_to_binary(NpcType, utf8), <<")">>, <<"\n">>] ++ AccSceneObjectNameList);
+    NpcTypeForDisplay = re:replace(atom_to_list(NpcType), "_", " ", [global, {return, binary}]),
+    gen_character_name(Tail, CallerUid, [{nls, NpcNameNlsKey}, <<" (">>, NpcTypeForDisplay, <<")">>, <<"\n">>] ++ AccSceneObjectNameList);
 gen_character_name([{player, CallerUid} | Tail], CallerUid, AccCharactersNameList) ->
     gen_character_name(Tail, CallerUid, AccCharactersNameList);
 gen_character_name([{player, Uid} | Tail], CallerUid, AccSceneObjectNameList) ->

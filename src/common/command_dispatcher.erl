@@ -98,12 +98,15 @@ start(Req) ->
 pending_content(Module, Function, Args) ->
     Self = self(),
     FunctionArgs = [Self | Args],
-    spawn_link(fun() ->
+    spawn(fun() ->
         execute_command(Module, Function, FunctionArgs)
     end),
     receive
         {execed, Self, ReturnContent} ->
             ReturnContent
+    after
+        1000 ->
+            no_response
     end.
 
 %%--------------------------------------------------------------------
@@ -232,15 +235,20 @@ process_request(Req) ->
                 end,
 
             Response =
-                try
-                    ReturnContentBinary = list_to_binary(lists:flatten(common_api:remove_last_newline(ReturnContent))),
-                    error_logger:info_msg("ReplyContent:~tp~n", [ReturnContentBinary]),
-                    compose_xml_response(UidBin, PlatformId, ReturnContentBinary)
-                catch
-                    Type:Reason ->
-                        error_logger:error_msg("Invalid Content:~p~n", [ReturnContent]),
-                        error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
-                        <<>>
+                case ReturnContent of
+                    no_response ->
+                        <<>>;
+                    _ ->
+                        try
+                            ReturnContentBinary = list_to_binary(lists:flatten(common_api:remove_last_newline(ReturnContent))),
+                            error_logger:info_msg("ReplyContent:~tp~n", [ReturnContentBinary]),
+                            compose_xml_response(UidBin, PlatformId, ReturnContentBinary)
+                        catch
+                            Type:Reason ->
+                                error_logger:error_msg("Invalid Content:~p~n", [ReturnContent]),
+                                error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
+                                <<>>
+                        end
                 end,
 
 %%             error_logger:info_msg("Response:~ts~n", [binary_to_list(Response)]),
