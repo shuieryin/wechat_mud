@@ -376,18 +376,18 @@ handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec compose_xml_response(Uid, PlatformId, ContentBinary) -> XmlContent when
-    Uid :: term(),
-    PlatformId :: term(),
-    ContentBinary :: binary(),
+-spec compose_xml_response(UidBin, PlatformIdBin, ContentBin) -> XmlContent when
+    UidBin :: binary(),
+    PlatformIdBin :: binary(),
+    ContentBin :: binary(),
     XmlContent :: binary().
-compose_xml_response(Uid, PlatformId, ContentBinary) ->
+compose_xml_response(UidBin, PlatformIdBin, ContentBin) ->
     XmlContentList = [<<"<xml><Content><![CDATA[">>,
-        ContentBinary,
+        ContentBin,
         <<"]]></Content><ToUserName><![CDATA[">>,
-        Uid,
+        UidBin,
         <<"]]></ToUserName><FromUserName><![CDATA[">>,
-        PlatformId,
+        PlatformIdBin,
         <<"]]></FromUserName><CreateTime>">>,
         integer_to_binary(common_api:timestamp()),
         <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>],
