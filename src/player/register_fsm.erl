@@ -223,7 +223,7 @@ input_gender(Gender, DispatcherPid, #{lang := Lang} = State) ->
     MonthBin :: binary(),
     DispatcherPid :: pid(),
     State :: state(),
-    NextStateName :: input_confirmation | input_born_month,
+    NextStateName :: state_name(),
     NextState :: State,
     NewState :: State,
     Reason :: term().
