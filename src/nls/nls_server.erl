@@ -68,10 +68,8 @@
 start_link(NlsFilePath) ->
     ServerNamesStr = filename:rootname(filename:basename(NlsFilePath)),
     [ServerNameStr | ExtraNlsFileNames] = string:tokens(ServerNamesStr, "."),
-
     ServerName = list_to_atom(ServerNameStr),
-    io:format("nls server ~p starting~n", [ServerName]),
-    gen_server:start_link({local, ServerName}, ?MODULE, {ExtraNlsFileNames, NlsFilePath}, []).
+    gen_server:start_link({local, ServerName}, ?MODULE, {ServerName, ExtraNlsFileNames, NlsFilePath}, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -207,16 +205,21 @@ merge_nls_map(NlsMap1, NlsMap2) ->
     {stop, Reason} |
     ignore when
 
-    Args :: {ExtraNlsFileNames, NlsFilePath},
+    Args :: {ServerName, ExtraNlsFileNames, NlsFilePath},
+    ServerName :: atom(),
     ExtraNlsFileNames :: [string()],
     NlsFilePath :: file:filename_all(),
     State :: state(),
     Reason :: term().
-init({ExtraNlsFileNames, NlsFilePath}) ->
+init({ServerName, ExtraNlsFileNames, NlsFilePath}) ->
+    io:format("nls server ~p starting...", [ServerName]),
+
     CommonNlsFilePath = filename:append(?NLS_PATH, ?COMMON_NLS),
     CommonNlsMap = nls_server:read_nls_file(CommonNlsFilePath, #{}),
     NlsMap = read_nls_file(NlsFilePath, CommonNlsMap),
     FinalNlsMap = lists:foldl(fun load_nls_file/2, NlsMap, ExtraNlsFileNames),
+
+    io:format("done~n"),
     {ok, FinalNlsMap}.
 
 %%--------------------------------------------------------------------

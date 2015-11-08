@@ -182,7 +182,7 @@ logout(DispatcherPid, Uid) ->
     State :: state(),
     Reason :: term().
 init([]) ->
-    io:format("~p starting~n", [?MODULE]),
+    io:format("~p starting...", [?MODULE]),
     RegisteredUidsSet =
         case redis_client_server:get(?R_REGISTERED_UIDS_SET) of
             undefined ->
@@ -195,8 +195,10 @@ init([]) ->
         end,
 
     BornTypesMap = common_server:get_runtime_data([born_types]),
+    State = #{?REGISTERING_UIDS_SET => gb_sets:new(), ?R_REGISTERED_UIDS_SET => RegisteredUidsSet, ?LOGGED_IN_UIDS_SET => gb_sets:new(), ?BORN_TYPES => BornTypesMap},
 
-    {ok, #{?REGISTERING_UIDS_SET => gb_sets:new(), ?R_REGISTERED_UIDS_SET => RegisteredUidsSet, ?LOGGED_IN_UIDS_SET => gb_sets:new(), ?BORN_TYPES => BornTypesMap}}.
+    io:format("done~n"),
+    {ok, State}.
 
 %%--------------------------------------------------------------------
 %% @private

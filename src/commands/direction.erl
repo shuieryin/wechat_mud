@@ -59,7 +59,6 @@ parse_direction('3') -> northeast;
 parse_direction('9') -> southeast;
 parse_direction('7') -> southwest;
 parse_direction('1') -> northwest;
-parse_direction('5') -> look;
 
 parse_direction(e) -> east;
 parse_direction(s) -> south;
@@ -69,7 +68,6 @@ parse_direction(ne) -> northeast;
 parse_direction(se) -> southeast;
 parse_direction(sw) -> southwest;
 parse_direction(nw) -> northwest;
-parse_direction(l) -> look;
 
 parse_direction(east) -> east;
 parse_direction(south) -> south;
@@ -79,7 +77,6 @@ parse_direction(northeast) -> northeast;
 parse_direction(southeast) -> southeast;
 parse_direction(southwest) -> southwest;
 parse_direction(northwest) -> northwest;
-parse_direction(look) -> look;
 
 parse_direction(_) -> undefined.
 

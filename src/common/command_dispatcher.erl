@@ -24,7 +24,8 @@
 
 -type validation_params() :: #{signature => string() | binary(), timestamp => string() | binary(), nonce => string() | binary(), echostr => string() | binary()}.
 -type req_params() :: #{'Content' => binary(), 'CreateTime' => binary(), 'FromUserName' => binary(), 'MsgId' => binary(), 'MsgType' => binary(), 'ToUserName' => binary()}.
--type command() :: '5' | l.
+-type short_command() :: '5' | l.
+-type command() :: lang | login | logout | look | rereg.
 
 %%%===================================================================
 %%% API
@@ -341,7 +342,7 @@ handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
     try
         RawModuleName = parse_raw_command(list_to_atom(string:to_lower(binary_to_list(ModuleNameBin)))),
         {ModuleName, CommandArgs} =
-            case common_api:is_module_exists(RawModuleName) of
+            case is_command_exist(RawModuleName) of
                 true ->
                     {RawModuleName, RawCommandArgs};
                 _ ->
@@ -516,9 +517,23 @@ execute_command(Module, Function, [DispatcherPid, Uid | CommandArgs] = FunctionA
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec parse_raw_command(RawCommand) -> command() | atom() when
+-spec parse_raw_command(RawCommand) -> short_command() | atom() when
     RawCommand :: atom().
 parse_raw_command('5') -> look;
 parse_raw_command(l) -> look;
-
 parse_raw_command(Other) -> Other.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Checks if command exists.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec is_command_exist(Command) -> boolean() when
+    Command :: command().
+is_command_exist(look) -> true;
+is_command_exist(lang) -> true;
+is_command_exist(login) -> true;
+is_command_exist(logout) -> true;
+is_command_exist(rereg) -> true;
+is_command_exist(_) -> false.

@@ -12,7 +12,7 @@
 -author("Shuieryin").
 
 %% API
--export([is_module_exists/1,
+-export([is_module_exist/1,
     type_of/1,
     timestamp/0,
     hot_code_replace/1,
@@ -37,9 +37,9 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec is_module_exists(Module) -> boolean() when
+-spec is_module_exist(Module) -> boolean() when
     Module :: atom().
-is_module_exists(Module) ->
+is_module_exist(Module) ->
     case is_atom(Module) of
         true ->
             try Module:module_info() of

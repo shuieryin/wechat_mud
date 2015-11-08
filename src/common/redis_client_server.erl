@@ -195,8 +195,12 @@ clear_all() ->
     State :: state(),
     Reason :: term().
 init([]) ->
-    io:format("~p starting~n", [?MODULE]),
-    {ok, connect_reids(#{})}.
+    io:format("~p starting...", [?MODULE]),
+
+    State = connect_reids(#{}),
+
+    io:format("done~n"),
+    {ok, State}.
 
 %%--------------------------------------------------------------------
 %% @private

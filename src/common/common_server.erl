@@ -140,7 +140,8 @@ get_runtime_data(Phases) ->
     State :: state(),
     Reason :: term().
 init([]) ->
-    io:format("~p starting~n", [?MODULE]),
+    io:format("~p starting...", [?MODULE]),
+
     CommonConfig =
         case redis_client_server:get(?R_COMMON_CONFIG) of
             undefined ->
@@ -152,7 +153,10 @@ init([]) ->
         end,
 
     RuntimeDatas = csv_to_object:traverse_files("priv/runtime"),
-    {ok, #{?R_COMMON_CONFIG => CommonConfig, ?RUNTIME_DATAS => RuntimeDatas}}.
+    State = #{?R_COMMON_CONFIG => CommonConfig, ?RUNTIME_DATAS => RuntimeDatas},
+
+    io:format("done~n"),
+    {ok, State}.
 
 %%--------------------------------------------------------------------
 %% @private

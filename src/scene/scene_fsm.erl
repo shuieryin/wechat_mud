@@ -70,8 +70,7 @@
     Request :: {init, SceneInfo},
     SceneInfo :: scene_info().
 start_link({init, #{id := SceneName} = SceneInfo}) ->
-    io:format("scene server ~p starting~n", [SceneName]),
-    gen_fsm:start_link({local, SceneName}, ?MODULE, {init, SceneInfo}, []).
+    gen_fsm:start_link({local, SceneName}, ?MODULE, SceneInfo, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -187,11 +186,15 @@ stop() ->
     StateName :: state_name(),
     StateData :: state(),
     Reason :: term().
-init({init, #{npcs := NpcsSpec, nls_files := NlsFileNames} = SceneInfo}) ->
+init(#{id := SceneName, npcs := NpcsSpec, nls_files := NlsFileNames} = SceneInfo) ->
+    io:format("scene server ~p starting...", [SceneName]),
+
     NlsMap = load_nls_file(string:tokens(NlsFileNames, ","), #{}),
     SceneNpcFsmList = npc_fsm_manager:new_npcs(NpcsSpec),
+    State = #{?SCENE_INFO => SceneInfo, ?SCENE_OBJECT_LIST => SceneNpcFsmList, ?NLS_MAP => NlsMap},
 
-    {ok, state_name, #{?SCENE_INFO => SceneInfo, ?SCENE_OBJECT_LIST => SceneNpcFsmList, ?NLS_MAP => NlsMap}}.
+    io:format("done~n"),
+    {ok, state_name, State}.
 
 %%--------------------------------------------------------------------
 %% @private
