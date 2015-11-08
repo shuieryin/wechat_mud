@@ -38,7 +38,6 @@
     code_change/4,
     format_status/2]).
 
--define(SCENE_NLS_PATH, "priv/scene_nls").
 -define(SCENE_INFO, scene_info).
 -define(SCENE_OBJECT_LIST, scene_object_list).
 -define(NLS_MAP, nls_map).
