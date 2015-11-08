@@ -25,7 +25,7 @@
     leave/2,
     go_direction/5,
     look_scene/4,
-    look_target/6]).
+    look_target/5]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -138,18 +138,19 @@ look_scene(CurSceneName, Uid, Lang, DispatcherPid) ->
 %%--------------------------------------------------------------------
 %% @doc
 %% Looks at current scene by response current scene info to player.
+%% LookArgs is converted from
+%%        <<"little boy 2">> to "Target=little_boy" and "Sequence=2".
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec look_target(CurSceneName, Uid, Lang, DispatcherPid, Target, Sequence) -> ok when
+-spec look_target(CurSceneName, Uid, Lang, DispatcherPid, LookArgs) -> ok when
     CurSceneName :: atom(),
     DispatcherPid :: pid(),
     Uid :: atom(),
     Lang :: atom(),
-    Target :: look:target(),
-    Sequence :: look:sequence().
-look_target(CurSceneName, Uid, Lang, DispatcherPid, Target, Sequence) ->
-    gen_fsm:send_all_state_event(CurSceneName, {look_target, Uid, Lang, DispatcherPid, Target, Sequence}).
+    LookArgs :: binary().
+look_target(CurSceneName, Uid, Lang, DispatcherPid, LookArgs) ->
+    gen_fsm:send_all_state_event(CurSceneName, {look_target, Uid, Lang, DispatcherPid, LookArgs}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -265,7 +266,7 @@ state_name(_Event, _From, State) ->
     {enter, Uid, Lang, DispatcherPid} |
     {leave, Uid} |
     {look_scene, Uid, Lang, DispatcherPid} |
-    {look_target, Uid, Lang, DispatcherPid, Target, Sequence},
+    {look_target, Uid, Lang, DispatcherPid, LookArgs},
 
     DispatcherPid :: pid(),
     Uid :: atom(),
@@ -275,8 +276,7 @@ state_name(_Event, _From, State) ->
     NextStateName :: atom(),
     NewStateData :: map(),
     Reason :: term(),
-    Target :: look:target(),
-    Sequence :: look:sequence().
+    LookArgs :: binary().
 handle_event({enter, Uid, Lang, DispatcherPid}, StateName, #{?SCENE_OBJECT_LIST := SceneObjectList} = State) ->
     ok = show_scene(State, Uid, Lang, DispatcherPid),
     {next_state, StateName, State#{?SCENE_OBJECT_LIST := [{player, Uid} | SceneObjectList]}};
@@ -285,19 +285,19 @@ handle_event({leave, Uid}, StateName, State) ->
 handle_event({look_scene, Uid, Lang, DispatcherPid}, StateName, State) ->
     ok = show_scene(State, Uid, Lang, DispatcherPid),
     {next_state, StateName, State};
-handle_event({look_target, Uid, Lang, DispatcherPid, Target, Sequence}, StateName, #{?SCENE_OBJECT_LIST := SceneObjectList, ?NLS_MAP := NlsMap} = State) ->
+handle_event({look_target, Uid, Lang, DispatcherPid, LookArgs}, StateName, #{?SCENE_OBJECT_LIST := SceneObjectList, ?NLS_MAP := NlsMap} = State) ->
+    [RawSequence | Rest] = lists:reverse(string:tokens(binary_to_list(LookArgs), " ")),
+    {Target, Sequence} =
+        case re:run(RawSequence, "^[0-9]*$") of
+            {match, _} ->
+                {list_to_atom(string:join(lists:reverse(Rest), "_")), list_to_integer(RawSequence)};
+            _ ->
+                {list_to_atom(re:replace(LookArgs, <<" ">>, <<"_">>, [global, {return, list}])), 1}
+        end,
     TargetSceneObject = grab_target_scene_objects(SceneObjectList, Target, Sequence),
     ok = case TargetSceneObject of
              undefined ->
-                 TargetForDisplay = re:replace(atom_to_list(Target), "_", " ", [global, {return, binary}]),
-                 SequenceForDisplay =
-                     case Sequence of
-                         1 ->
-                             <<>>;
-                         _ ->
-                             list_to_binary([<<" ">>, integer_to_binary(Sequence)])
-                     end,
-                 nls_server:do_response_content(Lang, NlsMap, [{nls, no_such_target}, TargetForDisplay, SequenceForDisplay, <<"\n">>], DispatcherPid);
+                 nls_server:do_response_content(Lang, NlsMap, [{nls, no_such_target}, LookArgs, <<"\n">>], DispatcherPid);
              {npc, TargetNpcFsmId, _, _} ->
                  ContentList = npc_fsm:being_looked(TargetNpcFsmId, Uid),
                  nls_server:do_response_content(Lang, NlsMap, ContentList, DispatcherPid);

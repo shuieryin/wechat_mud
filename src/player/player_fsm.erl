@@ -24,7 +24,7 @@
     response_content/4,
     leave_scene/1,
     switch_lang/3,
-    look_target/4]).
+    look_target/3]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -97,13 +97,12 @@ look_scene(Uid, DispatcherPid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec look_target(Uid, DispatcherPid, Target, Sequence) -> ok when
+-spec look_target(Uid, DispatcherPid, LookArgs) -> ok when
     Uid :: atom(),
     DispatcherPid :: pid(),
-    Target :: look:target(),
-    Sequence :: look:sequence().
-look_target(Uid, DispatcherPid, Target, Sequence) ->
-    gen_fsm:send_all_state_event(Uid, {look_target, DispatcherPid, Target, Sequence}).
+    LookArgs :: binary().
+look_target(Uid, DispatcherPid, LookArgs) ->
+    gen_fsm:send_all_state_event(Uid, {look_target, DispatcherPid, LookArgs}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -276,7 +275,7 @@ state_name(_Event, _From, State) ->
     Event ::
     {go_direction, DispatcherPid, Direction} |
     {look_scene, DispatcherPid} |
-    {look_target, DispatcherPid, Target, Sequence} |
+    {look_target, DispatcherPid, LookArgs} |
     {response_content, NlsServer, ContentList, DispatcherPid} |
     leave_scene |
     {switch_lang, DispatcherPid, TargetLang} |
@@ -292,8 +291,7 @@ state_name(_Event, _From, State) ->
     NextStateName :: atom(),
     NewStateData :: map(),
     Reason :: term(),
-    Target :: look:target(),
-    Sequence :: look:sequence(),
+    LookArgs :: binary(),
     NotifyOkPid :: pid().
 handle_event({go_direction, DispatcherPid, Direction}, StateName, #{self := #{scene := CurSceneName, uid := Uid, lang := Lang} = PlayerProfile} = State) ->
     TargetSceneName =
@@ -309,8 +307,8 @@ handle_event({go_direction, DispatcherPid, Direction}, StateName, #{self := #{sc
 handle_event({look_scene, DispatcherPid}, StateName, #{self := #{scene := CurSceneName, uid := Uid, lang := Lang}} = State) ->
     scene_fsm:look_scene(CurSceneName, Uid, Lang, DispatcherPid),
     {next_state, StateName, State};
-handle_event({look_target, DispatcherPid, Target, Sequence}, StateName, #{self := #{scene := CurSceneName, uid := Uid, lang := Lang}} = State) ->
-    scene_fsm:look_target(CurSceneName, Uid, Lang, DispatcherPid, Target, Sequence),
+handle_event({look_target, DispatcherPid, LookArgs}, StateName, #{self := #{scene := CurSceneName, uid := Uid, lang := Lang}} = State) ->
+    scene_fsm:look_target(CurSceneName, Uid, Lang, DispatcherPid, LookArgs),
     {next_state, StateName, State};
 handle_event({response_content, NlsServer, ContentList, DispatcherPid}, StateName, #{self := #{lang := Lang}} = State) ->
     nls_server:response_content(NlsServer, ContentList, Lang, DispatcherPid),
