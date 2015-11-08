@@ -14,3 +14,7 @@ upgrade:
 
 run:
 	@./config/run.sh
+
+reset:
+	git fetch --all
+	git reset --hard origin/master
