@@ -25,7 +25,8 @@
     get_nls_content/3,
     show_langs/2,
     read_nls_file/2,
-    do_response_content/4]).
+    do_response_content/4,
+    get_nls_map/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -38,11 +39,9 @@
 
 -include("nls.hrl").
 
--define(COMMON_NLS_PATH, common_nls_path).
-
 -type support_lang() :: zh | en.
 -type lang_map() :: #{NlsKey :: atom() => NlsValue :: binary()}.
--type state() :: #{?COMMON_NLS_PATH => file:filename_all(), support_lang() => lang_map()}.
+-type state() :: #{support_lang() => lang_map()}.
 -type keys_map() :: #{Pos :: non_neg_integer() => FieldName :: atom()}.
 
 -export_type([support_lang/0]).
@@ -160,6 +159,18 @@ do_response_content(Lang, State, ContentList, DispatcherPid) ->
     ReturnContent = fill_in_nls(ContentList, LangMap, []),
     command_dispatcher:return_content(DispatcherPid, ReturnContent).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Retrieves the current nls map which is the target nls server state.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec get_nls_map(NlsServerName) -> NlsMap when
+    NlsServerName :: atom(),
+    NlsMap :: state().
+get_nls_map(NlsServerName) ->
+    gen_server:call(NlsServerName, get_nls_map).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -181,19 +192,16 @@ do_response_content(Lang, State, ContentList, DispatcherPid) ->
     Args :: {ExtraNlsFileNames, NlsFilePath},
     ExtraNlsFileNames :: [string()],
     NlsFilePath :: file:filename_all(),
-    State :: #{?COMMON_NLS_PATH => file:filename_all(), support_lang() => #{NlsKey :: atom() => NlsValue :: binary()}},
+    State :: state(),
     Reason :: term().
 init({ExtraNlsFileNames, NlsFilePath}) ->
-    CommonNlsFilePath = filename:append(?NLS_PATH, ?COMMON_NLS),
-
     CommonNlsFilePath = filename:append(?NLS_PATH, ?COMMON_NLS),
     CommonNlsMap = nls_server:read_nls_file(CommonNlsFilePath, #{}),
     NlsMap = read_nls_file(NlsFilePath, CommonNlsMap),
     FinalNlsMap = lists:foldl(fun load_nls_file/2, NlsMap, ExtraNlsFileNames),
 
-    FinalMap = FinalNlsMap#{nls_file_path => NlsFilePath, ?COMMON_NLS_PATH => CommonNlsFilePath},
-    error_logger:info_msg("FilePath:~p~nFinalMap:~tp~n", [NlsFilePath, FinalMap]),
-    {ok, FinalMap}.
+    error_logger:info_msg("FilePath:~p~nFinalMap:~tp~n", [NlsFilePath, FinalNlsMap]),
+    {ok, FinalNlsMap}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -245,7 +253,9 @@ handle_call({is_valid_lang, Lang}, _From, State) ->
 handle_call({get_nls_content, ContentList, Lang}, _From, State) ->
     LangMap = maps:get(Lang, State),
     ReturnContent = fill_in_nls(ContentList, LangMap, []),
-    {reply, ReturnContent, State}.
+    {reply, ReturnContent, State};
+handle_call(get_nls_map, _From, State) ->
+    {reply, State, State}.
 
 %%--------------------------------------------------------------------
 %% @private

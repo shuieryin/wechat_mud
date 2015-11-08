@@ -38,8 +38,6 @@
     code_change/4,
     format_status/2]).
 
--include("../nls/nls.hrl").
-
 -define(SCENE_NLS_PATH, "priv/scene_nls").
 -define(SCENE_INFO, scene_info).
 -define(SCENE_OBJECT_LIST, scene_object_list).
@@ -192,11 +190,9 @@ stop() ->
 init({init, #{npcs := NpcsSpec, nls_files := NlsFileNames} = SceneInfo}) ->
     error_logger:info_msg("Starting scene:~p~n", [SceneInfo]),
 
-    CommonNlsFilePath = filename:append(?NLS_PATH, ?COMMON_NLS),
-    CommonNlsMap = nls_server:read_nls_file(CommonNlsFilePath, #{}),
-    NlsMap = lists:foldl(fun load_nls_file/2, CommonNlsMap, string:tokens(NlsFileNames, ",")),
-
+    NlsMap = lists:foldl(fun load_nls_file/2, #{}, string:tokens(NlsFileNames, ",")),
     SceneNpcFsmList = npc_fsm_manager:new_npcs(NpcsSpec),
+
     {ok, state_name, #{?SCENE_INFO => SceneInfo, ?SCENE_OBJECT_LIST => SceneNpcFsmList, ?NLS_MAP => NlsMap}}.
 
 %%--------------------------------------------------------------------
@@ -573,4 +569,5 @@ show_scene(#{?SCENE_INFO := #{exits := ExitsMap, title := SceneTitle, desc := Sc
     AccNlsMap :: nls_server:state(),
     NlsMap :: AccNlsMap.
 load_nls_file(NlsFileName, AccNlsMap) ->
-    nls_server:read_nls_file(filename:join(?SCENE_NLS_PATH, NlsFileName) ++ ?NLS_EXTENSION, AccNlsMap).
+    NlsServerName = list_to_atom(NlsFileName),
+    maps:merge(AccNlsMap, nls_server:get_nls_map(NlsServerName)).

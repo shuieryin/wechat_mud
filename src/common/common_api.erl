@@ -61,7 +61,7 @@ is_module_exists(Module) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec type_of(X) -> Result when
-    X :: term(),
+    X :: term(), % generic term
     Result :: valid_type() | unknown.
 type_of(X) when is_integer(X) -> integer;
 type_of(X) when is_float(X) -> float;
