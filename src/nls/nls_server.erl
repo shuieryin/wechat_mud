@@ -69,7 +69,7 @@ start_link(NlsFilePath) ->
     ServerNamesStr = filename:rootname(filename:basename(NlsFilePath)),
     [ServerNameStr | ExtraNlsFileNames] = string:tokens(ServerNamesStr, "."),
 
-    io:format("nls server ~p starting", [ServerNameStr]),
+    io:format("nls server ~p starting~n", [ServerNameStr]),
     gen_server:start_link({local, list_to_atom(ServerNameStr)}, ?MODULE, {ExtraNlsFileNames, NlsFilePath}, []).
 
 %%--------------------------------------------------------------------

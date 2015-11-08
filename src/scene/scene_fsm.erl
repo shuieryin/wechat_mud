@@ -70,7 +70,7 @@
     Request :: {init, SceneInfo},
     SceneInfo :: scene_info().
 start_link({init, #{id := SceneName} = SceneInfo}) ->
-    io:format("scene server ~p starting", [SceneName]),
+    io:format("scene server ~p starting~n", [SceneName]),
     gen_fsm:start_link({local, SceneName}, ?MODULE, {init, SceneInfo}, []).
 
 %%--------------------------------------------------------------------
