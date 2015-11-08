@@ -103,7 +103,7 @@ look_scene(Uid, DispatcherPid) ->
     Target :: look:target(),
     Sequence :: pos_integer().
 look_target(Uid, DispatcherPid, Target, Sequence) ->
-    gen_fsm:send_all_state_event(Uid, {look_target, DispatcherPid, Target, Sequence}).
+    gen_fsm:send_all_state_event(Uid, {look_target, DispatcherPid, binary_to_atom(Target, utf8), Sequence}).
 
 %%--------------------------------------------------------------------
 %% @doc

@@ -46,7 +46,7 @@
 -define(NLS_MAP, nls_map).
 
 -type player() :: {player, Uid :: atom()}.
--type npc_fsm() :: {npc, NpcFsmUuid :: uuid:uuid(), npc_fsm_manager:npc_type(), NpcNameNlsKey :: atom()}.
+-type npc_fsm() :: {npc, NpcFsmUuid :: npc_fsm_manager:uuid(), npc_fsm_manager:npc_type(), NpcNameNlsKey :: atom()}.
 -type scene_object() :: player() | npc_fsm().
 
 -export_type([npc_fsm/0]).
@@ -329,8 +329,12 @@ grab_target_scene_objects([{npc, _, TargetName, _} = SceneObject | _], TargetNam
     SceneObject;
 grab_target_scene_objects([{player, TargetName} = SceneObject | _], TargetName, Sequence, Sequence) ->
     SceneObject;
-grab_target_scene_objects([_ | Tail], TargetName, Sequence, Counter) ->
+grab_target_scene_objects([{npc, _, TargetName, _} | Tail], TargetName, Sequence, Counter) ->
     grab_target_scene_objects(Tail, TargetName, Sequence, Counter + 1);
+grab_target_scene_objects([{player, TargetName} | Tail], TargetName, Sequence, Counter) ->
+    grab_target_scene_objects(Tail, TargetName, Sequence, Counter + 1);
+grab_target_scene_objects([_ | Tail], TargetName, Sequence, Counter) ->
+    grab_target_scene_objects(Tail, TargetName, Sequence, Counter);
 grab_target_scene_objects([], _, _, _) ->
     undefined.
 
