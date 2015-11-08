@@ -186,10 +186,10 @@ stop() ->
     StateName :: state_name(),
     StateData :: state(),
     Reason :: term().
-init({init, #{npcs := NpcsSpec, nls_files := NlsFileNames} = SceneInfo}) ->
-    error_logger:info_msg("Starting scene:~p~n", [SceneInfo]),
+init({init, #{id := SceneName, npcs := NpcsSpec, nls_files := NlsFileNames} = SceneInfo}) ->
+    error_logger:info_msg("Starting scene:~p~n", [SceneName]),
 
-    NlsMap = lists:foldl(fun load_nls_file/2, #{}, string:tokens(NlsFileNames, ",")),
+    NlsMap = load_nls_file(string:tokens(NlsFileNames, ","), #{}),
     SceneNpcFsmList = npc_fsm_manager:new_npcs(NpcsSpec),
 
     {ok, state_name, #{?SCENE_INFO => SceneInfo, ?SCENE_OBJECT_LIST => SceneNpcFsmList, ?NLS_MAP => NlsMap}}.
@@ -563,11 +563,14 @@ show_scene(#{?SCENE_INFO := #{exits := ExitsMap, title := SceneTitle, desc := Sc
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec load_nls_file(NlsFileName, AccNlsMap) -> NlsMap when
-    NlsFileName :: file:filename_all(),
+-spec load_nls_file(NlsFileNames, AccNlsMap) -> NlsMap when
+    NlsFileNames :: [file:filename_all()],
     AccNlsMap :: nls_server:state(),
     NlsMap :: AccNlsMap.
-load_nls_file(NlsFileName, AccNlsMap) ->
+load_nls_file([NlsFileName | Tail], AccNlsMap) ->
     NlsServerName = list_to_atom(NlsFileName),
     CurNlsMap = nls_server:get_nls_map(NlsServerName),
-    nls_server:merge_nls_map(AccNlsMap, CurNlsMap).
+    UpdatedAccNlsMap = nls_server:merge_nls_map(CurNlsMap, AccNlsMap),
+    load_nls_file(Tail, UpdatedAccNlsMap);
+load_nls_file([], AccNlsMap) ->
+    AccNlsMap.

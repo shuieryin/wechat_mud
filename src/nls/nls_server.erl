@@ -495,7 +495,7 @@ fill_in_nls([NonNlsKey | Tail], LangMap, ListOut) ->
     AccNlsMap :: NlsMap1,
     NlsMap :: NlsMap1.
 merge_nls_map([CurLang | Tail], NlsMap1, NlsMap2, AccNlsMap) ->
-    CurLangMap = maps:merge(maps:get(CurLang, NlsMap1), maps:get(CurLang, NlsMap2)),
+    CurLangMap = maps:merge(maps:get(CurLang, NlsMap1, #{}), maps:get(CurLang, NlsMap2, #{})),
     merge_nls_map(Tail, NlsMap1, NlsMap2, AccNlsMap#{CurLang => CurLangMap});
 merge_nls_map([], _, _, AccNlsMap) ->
     AccNlsMap.
