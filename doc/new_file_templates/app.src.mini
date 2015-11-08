@@ -1,0 +1,14 @@
+#parse("Erlang File Header.erl")
+{application, ${NAME},
+    [
+        {description, ""},
+        {vsn, "0.1.0"},
+        {registered, []},
+        {applications, [
+            kernel,
+            stdlib
+        ]},
+        {mod, {${NAME}, []}},
+        {env, []}
+    ]
+}.
