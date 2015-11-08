@@ -15,11 +15,10 @@
 
 %% API
 -export([exec/2,
-    exec/3,
-    exec/4]).
+    exec/3]).
 
 -type sequence() :: pos_integer().
--type target() :: atom() | binary().
+-type target() :: atom().
 
 -export_type([sequence/0,
     target/0]).
@@ -46,26 +45,19 @@ exec(DispatcherPid, Uid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispatcherPid, Uid, RawTarget) -> ok when
+-spec exec(DispatcherPid, Uid, Args) -> ok when
     Uid :: atom(),
     DispatcherPid :: pid(),
-    RawTarget :: target().
-exec(DispatcherPid, Uid, Target) ->
-    player_fsm:look_target(Uid, DispatcherPid, Target, 1).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Show the matched target scene object description by sequence.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec exec(DispatcherPid, Uid, RawTarget, Sequence) -> ok when
-    Uid :: atom(),
-    DispatcherPid :: pid(),
-    RawTarget :: target(),
-    Sequence :: sequence().
-exec(DispatcherPid, Uid, RawTarget, Sequence) ->
-    player_fsm:look_target(Uid, DispatcherPid, RawTarget, Sequence).
+    Args :: binary().
+exec(DispatcherPid, Uid, Args) ->
+    [RawTarget | Rest] = binary:split(Args, <<" ">>),
+    Sequence = case Rest of
+                   [] ->
+                       1;
+                   [RawSequence] ->
+                       binary_to_integer(RawSequence)
+               end,
+    player_fsm:look_target(Uid, DispatcherPid, binary_to_atom(RawTarget, utf8), Sequence).
 
 %%%===================================================================
 %%% Internal functions (N/A)

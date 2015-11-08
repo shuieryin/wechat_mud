@@ -20,7 +20,7 @@
 
 %% API
 -export([start_link/1,
-    is_valid_lang/2,
+    is_valid_lang/1,
     response_content/4,
     get_nls_content/3,
     show_langs/2,
@@ -101,11 +101,10 @@ get_nls_content(ServerName, ContentList, Lang) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec is_valid_lang(ServerName, Lang) -> boolean() when
-    ServerName :: atom(),
+-spec is_valid_lang(Lang) -> boolean() when
     Lang :: atom().
-is_valid_lang(ServerName, Lang) ->
-    gen_server:call(ServerName, {is_valid_lang, Lang}).
+is_valid_lang(Lang) ->
+    gen_server:call(commands, {is_valid_lang, Lang}).
 
 %%--------------------------------------------------------------------
 %% @doc

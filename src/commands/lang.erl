@@ -29,16 +29,23 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispatcherPid, Uid, Lang) -> ok when
+-spec exec(DispatcherPid, Uid, RawTargetLang) -> ok when
     Uid :: atom(),
-    Lang :: atom(),
+    RawTargetLang :: binary(),
     DispatcherPid :: pid().
-exec(DispatcherPid, Uid, Lang) ->
-    case Lang of
-        <<"all">> ->
-            nls_server:show_langs(DispatcherPid, player_fsm:get_lang(Uid));
+exec(DispatcherPid, Uid, RawTargetLang) ->
+    CurLang = player_fsm:get_lang(Uid),
+    TargetLang = binary_to_atom(RawTargetLang, utf8),
+    case TargetLang of
+        all ->
+            nls_server:show_langs(DispatcherPid, CurLang);
         _ ->
-            player_fsm:switch_lang(DispatcherPid, Uid, Lang)
+            case nls_server:is_valid_lang(TargetLang) of
+                true ->
+                    player_fsm:switch_lang(DispatcherPid, Uid, TargetLang);
+                _ ->
+                    nls_server:response_content(commands, [{nls, invalid_lang}, TargetLang, <<"\n\n">>, {nls, info}], CurLang, DispatcherPid)
+            end
     end.
 
 %%%===================================================================

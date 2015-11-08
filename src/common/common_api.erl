@@ -22,7 +22,8 @@
     increase_vsn/3,
     hot_code_upgrade/0,
     quit/0,
-    first_to_lower/1]).
+    first_to_lower/1,
+    remove_last_newline/1]).
 
 -type valid_type() :: atom | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple.
 
@@ -212,6 +213,23 @@ first_to_lower([First | Rest] = SrcString) when is_list(SrcString) ->
     FirstLowered ++ Rest;
 first_to_lower(Other) ->
     Other.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Removes last <<"\n">> in List.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec remove_last_newline(SrcList) -> RetList when
+    SrcList :: [term()],
+    RetList :: SrcList.
+remove_last_newline(SrcList) ->
+    case lists:reverse(SrcList) of
+        [<<"\n">> | Rest] ->
+            lists:reverse(Rest);
+        _ ->
+            SrcList
+    end.
 
 %%%===================================================================
 %%% Internal functions

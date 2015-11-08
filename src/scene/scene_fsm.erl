@@ -287,6 +287,7 @@ handle_event({look_scene, Uid, Lang, DispatcherPid}, StateName, State) ->
     {next_state, StateName, State};
 handle_event({look_target, Uid, Lang, DispatcherPid, Target, Sequence}, StateName, #{?SCENE_OBJECT_LIST := SceneObjectList, ?NLS_MAP := NlsMap} = State) ->
     TargetSceneObject = grab_target_scene_objects(SceneObjectList, Target, Sequence),
+    io:format("SceneObjectList:~p~nTargetSceneObject:~p~nTarget:~p~nSequence:~p~n", [SceneObjectList, TargetSceneObject, Target, Sequence]),
     ok = case TargetSceneObject of
              undefined ->
                  nls_server:do_response_content(Lang, NlsMap, [{nls, no_such_target}, <<"\n">>], DispatcherPid);
@@ -532,18 +533,17 @@ gen_character_name([{player, Uid} | Tail], CallerUid, AccSceneObjectNameList) ->
     Uid :: atom(),
     Lang :: atom().
 show_scene(#{?SCENE_INFO := #{exits := ExitsMap, title := SceneTitle, desc := SceneDesc}, ?NLS_MAP := NlsMap, ?SCENE_OBJECT_LIST :=  SceneObjectList}, Uid, Lang, DispatcherPid) ->
-    nls_server:do_response_content(Lang, NlsMap,
-        lists:flatten([
-            {nls, SceneTitle},
-            <<"\n\n">>,
-            {nls, SceneDesc},
-            <<"\n\n">>,
-            gen_characters_name_list(SceneObjectList, Uid),
-            {nls, obvious_exits},
-            <<"\n">>,
-            gen_exits_desc(ExitsMap)
-        ]),
-        DispatcherPid).
+    ContentList = lists:flatten([
+        {nls, SceneTitle},
+        <<"\n\n">>,
+        {nls, SceneDesc},
+        <<"\n\n">>,
+        gen_characters_name_list(SceneObjectList, Uid),
+        {nls, obvious_exits},
+        <<"\n">>,
+        gen_exits_desc(ExitsMap)
+    ]),
+    nls_server:do_response_content(Lang, NlsMap, ContentList, DispatcherPid).
 
 %%--------------------------------------------------------------------
 %% @doc

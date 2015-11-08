@@ -152,7 +152,7 @@ select_lang({LangBin, DispatcherPid}, State) ->
     {NextState, NewState, ContentList, Lang} =
         try
             CurLang = binary_to_atom(LangBin, utf8),
-            case nls_server:is_valid_lang(?MODULE, CurLang) of
+            case nls_server:is_valid_lang(CurLang) of
                 true ->
                     {input_gender, State#{lang => CurLang}, [{nls, please_input_gender}], CurLang};
                 _ ->

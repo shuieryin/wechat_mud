@@ -97,7 +97,10 @@ start(Req) ->
     ReturnContent :: [binary()].
 pending_content(Module, Function, Args) ->
     Self = self(),
-    spawn_link(Module, Function, [Self | Args]),
+    FunctionArgs = [Self | Args],
+    spawn_link(fun() ->
+        execute_command(Module, Function, FunctionArgs)
+    end),
     receive
         {execed, Self, ReturnContent} ->
             ReturnContent
@@ -363,7 +366,7 @@ handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
     XmlContent :: binary().
 compose_xml_response(Uid, PlatformId, Content) ->
     ContentList = lists:flatten([<<"<xml><Content><![CDATA[">>,
-        Content,
+        common_api:remove_last_newline(Content),
         <<"]]></Content><ToUserName><![CDATA[">>,
         Uid,
         <<"]]></ToUserName><FromUserName><![CDATA[">>,
@@ -469,6 +472,28 @@ gen_req_param_value($=, ValueBinList, Pos, _) ->
     {list_to_binary(ValueBinList), Pos};
 gen_req_param_value(CurByte, ValueBinList, Pos, SrcBin) ->
     gen_req_param_value(binary:at(SrcBin, Pos), [CurByte | ValueBinList], Pos - 1, SrcBin).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Return command help content to player before throwm catched
+%% exception. This function can be called only within catch clause.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec execute_command(Module, Function, FunctionArgs) -> ok when
+    Module :: atom(),
+    Function :: atom(),
+    FunctionArgs :: [term()].
+execute_command(Module, Function, [DispatcherPid, Uid | CommandArgs] = FunctionArgs) ->
+    try
+        apply(Module, Function, FunctionArgs)
+    catch
+        Type:Reason ->
+            nls_server:response_content(commands, [{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(atom_to_list(Module) ++ "_help")}], player_fsm:get_lang(Uid), DispatcherPid),
+            error_logger:error_report(Type, Reason),
+            erlang:display(erlang:get_stacktrace()),
+            throw(Reason)
+    end.
 
 %%--------------------------------------------------------------------
 %% @doc

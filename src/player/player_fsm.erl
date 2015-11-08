@@ -97,13 +97,13 @@ look_scene(Uid, DispatcherPid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec look_target(Uid, DispatcherPid, RawTarget, Sequence) -> ok when
+-spec look_target(Uid, DispatcherPid, Target, Sequence) -> ok when
     Uid :: atom(),
     DispatcherPid :: pid(),
-    RawTarget :: look:target(),
+    Target :: look:target(),
     Sequence :: look:sequence().
 look_target(Uid, DispatcherPid, Target, Sequence) ->
-    gen_fsm:send_all_state_event(Uid, {look_target, DispatcherPid, binary_to_atom(Target, utf8), Sequence}).
+    gen_fsm:send_all_state_event(Uid, {look_target, DispatcherPid, Target, Sequence}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -157,12 +157,12 @@ leave_scene(Uid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec switch_lang(DispatcherPid, Uid, Lang) -> ok when
+-spec switch_lang(DispatcherPid, Uid, TargetLang) -> ok when
     DispatcherPid :: pid(),
     Uid :: atom(),
-    Lang :: atom().
-switch_lang(DispatcherPid, Uid, Lang) ->
-    gen_fsm:send_all_state_event(Uid, {switch_lang, DispatcherPid, Lang}).
+    TargetLang :: atom().
+switch_lang(DispatcherPid, Uid, TargetLang) ->
+    gen_fsm:send_all_state_event(Uid, {switch_lang, DispatcherPid, TargetLang}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -279,7 +279,7 @@ state_name(_Event, _From, State) ->
     {look_target, DispatcherPid, Target, Sequence} |
     {response_content, NlsServer, ContentList, DispatcherPid} |
     leave_scene |
-    {switch_lang, DispatcherPid, RawTargetLang} |
+    {switch_lang, DispatcherPid, TargetLang} |
     {logout, NotifyOkPid},
 
     NlsServer :: atom(),
@@ -288,7 +288,7 @@ state_name(_Event, _From, State) ->
     Direction :: direction:directions(),
     StateName :: atom(),
     StateData :: map(),
-    RawTargetLang :: atom(),
+    TargetLang :: atom(),
     NextStateName :: atom(),
     NewStateData :: map(),
     Reason :: term(),
@@ -318,30 +318,11 @@ handle_event({response_content, NlsServer, ContentList, DispatcherPid}, StateNam
 handle_event(leave_scene, StateName, #{self := #{scene := CurSceneName, uid := Uid}} = State) ->
     scene_fsm:leave(CurSceneName, Uid),
     {next_state, StateName, State};
-handle_event({switch_lang, DispatcherPid, RawTargetLang}, StateName, #{self := #{uid := Uid, lang := CurLang} = PlayerProfile} = State) ->
-    InvalidLangFun = fun() ->
-        nls_server:response_content(commands, [{nls, invalid_lang}, RawTargetLang, <<"\n\n">>, {nls, info}], CurLang, DispatcherPid),
-        State
-    end,
-
-    UpdatedState =
-        try
-            TargetLang = binary_to_atom(RawTargetLang, utf8),
-            case nls_server:is_valid_lang(lang, TargetLang) of
-                true ->
-                    nls_server:response_content(commands, [{nls, lang_switched}], TargetLang, DispatcherPid),
-                    UpdatedPlayerProfile = PlayerProfile#{lang := TargetLang},
-                    redis_client_server:async_set(Uid, UpdatedPlayerProfile, true),
-                    State#{self := UpdatedPlayerProfile};
-                _ ->
-                    InvalidLangFun()
-            end
-        catch
-            _:_ ->
-                InvalidLangFun()
-        end,
-
-    {next_state, StateName, UpdatedState};
+handle_event({switch_lang, DispatcherPid, TargetLang}, StateName, #{self := #{uid := Uid} = PlayerProfile} = State) ->
+    nls_server:response_content(commands, [{nls, lang_switched}], TargetLang, DispatcherPid),
+    UpdatedPlayerProfile = PlayerProfile#{lang := TargetLang},
+    redis_client_server:async_set(Uid, UpdatedPlayerProfile, true),
+    {next_state, StateName, State#{self := UpdatedPlayerProfile}};
 handle_event(logout, _StateName, #{self := #{scene := CurSceneName, uid := Uid} = PlayerProfile} = State) ->
     scene_fsm:leave(CurSceneName, Uid),
     error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
