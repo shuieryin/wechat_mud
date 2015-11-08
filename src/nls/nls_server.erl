@@ -68,6 +68,8 @@
 start_link(NlsFilePath) ->
     ServerNamesStr = filename:rootname(filename:basename(NlsFilePath)),
     [ServerNameStr | ExtraNlsFileNames] = string:tokens(ServerNamesStr, "."),
+
+    io:format("nls server ~p starting", [ServerNameStr]),
     gen_server:start_link({local, list_to_atom(ServerNameStr)}, ?MODULE, {ExtraNlsFileNames, NlsFilePath}, []).
 
 %%--------------------------------------------------------------------
@@ -214,8 +216,6 @@ init({ExtraNlsFileNames, NlsFilePath}) ->
     CommonNlsMap = nls_server:read_nls_file(CommonNlsFilePath, #{}),
     NlsMap = read_nls_file(NlsFilePath, CommonNlsMap),
     FinalNlsMap = lists:foldl(fun load_nls_file/2, NlsMap, ExtraNlsFileNames),
-
-    error_logger:info_msg("FilePath:~p~nFinalMap:~tp~n", [NlsFilePath, FinalNlsMap]),
     {ok, FinalNlsMap}.
 
 %%--------------------------------------------------------------------

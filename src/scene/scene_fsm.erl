@@ -70,6 +70,7 @@
     Request :: {init, SceneInfo},
     SceneInfo :: scene_info().
 start_link({init, #{id := SceneName} = SceneInfo}) ->
+    io:format("scene server ~p starting", [SceneName]),
     gen_fsm:start_link({local, SceneName}, ?MODULE, {init, SceneInfo}, []).
 
 %%--------------------------------------------------------------------
@@ -186,9 +187,7 @@ stop() ->
     StateName :: state_name(),
     StateData :: state(),
     Reason :: term().
-init({init, #{id := SceneName, npcs := NpcsSpec, nls_files := NlsFileNames} = SceneInfo}) ->
-    error_logger:info_msg("Starting scene:~p~n", [SceneName]),
-
+init({init, #{npcs := NpcsSpec, nls_files := NlsFileNames} = SceneInfo}) ->
     NlsMap = load_nls_file(string:tokens(NlsFileNames, ","), #{}),
     SceneNpcFsmList = npc_fsm_manager:new_npcs(NpcsSpec),
 

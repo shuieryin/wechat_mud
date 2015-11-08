@@ -65,7 +65,6 @@ init([]) ->
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
 
     ChildList = gen_child_list(),
-    error_logger:info_msg("ChildList:~p~n", [ChildList]),
     {ok, {SupFlags, ChildList}}.
 
 %%%===================================================================
