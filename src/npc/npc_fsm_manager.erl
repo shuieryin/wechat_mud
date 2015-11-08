@@ -28,16 +28,20 @@
     format_status/2]).
 
 -define(SERVER, ?MODULE).
--define(NPC_FSM_IDS_MAP, nps_fsm_ids).
+-define(NPC_FSMS_MAP, nps_fsms_map).
 
 -type uuid() :: atom().
 -type npc_type() :: dog | little_boy.
 -type npc_spec() :: {npc_type(), Amount :: pos_integer()}.
 -type npc_born_info() :: #{npc_id => atom(), name_nls_key => atom(), description_nls_key => atom(), attack => integer(), defence => integer(), hp => integer(), dexterity => integer()}.
+-type npc_fsm() :: #{uuid() => uuid()}.
+-type simple_npc_fsm() :: {npc, NpcFsmUuid :: npc_fsm_manager:uuid(), npc_fsm_manager:npc_type(), NpcNameNlsKey :: atom()}.
+-type state() :: #{?NPC_FSMS_MAP => npc_fsm()}.
 
 -export_type([npc_type/0,
     npc_spec/0,
-    npc_born_info/0]).
+    npc_born_info/0,
+    simple_npc_fsm/0]).
 
 %%%===================================================================
 %%% API
@@ -67,7 +71,7 @@ start_link() ->
 %%--------------------------------------------------------------------
 -spec new_npcs(NpcsSpec) -> SceneNpcFsmList when
     NpcsSpec :: [npc_spec()],
-    SceneNpcFsmList :: [scene_fsm:npc_fsm()].
+    SceneNpcFsmList :: [simple_npc_fsm()].
 new_npcs([]) ->
     [];
 new_npcs(NpcsSpec) ->
@@ -97,10 +101,10 @@ new_npcs(NpcsSpec) ->
     ignore when
 
     Args :: term(),
-    State :: map(),
+    State :: state(),
     Reason :: term().
 init([]) ->
-    {ok, #{?NPC_FSM_IDS_MAP => #{}}}.
+    {ok, #{?NPC_FSMS_MAP => #{}}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -120,8 +124,8 @@ init([]) ->
     Request :: term(),
     From :: {pid(), Tag :: term()},
     Reply :: term(),
-    State :: map(),
-    NewState :: map(),
+    State :: state(),
+    NewState :: State,
     Reason :: term().
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
@@ -138,14 +142,14 @@ handle_call(_Request, _From, State) ->
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: {new_npcs, NewNpcFsmIdsMap},
-    NewNpcFsmIdsMap :: #{uuid() => uuid()},
-    State :: map(),
-    NewState :: map(),
+    Request :: {new_npcs, NewNpcFsmsMap},
+    NewNpcFsmsMap :: npc_fsm(),
+    State :: state(),
+    NewState :: State,
     Reason :: term().
-handle_cast({new_npcs, NewNpcFsmIdsMap}, #{?NPC_FSM_IDS_MAP := NpcFsmIdsMap} = State) ->
-    UpdatedNpcFsmIdsMap = maps:merge(NpcFsmIdsMap, NewNpcFsmIdsMap),
-    {noreply, State#{?NPC_FSM_IDS_MAP := UpdatedNpcFsmIdsMap}}.
+handle_cast({new_npcs, NewNpcFsmsMap}, #{?NPC_FSMS_MAP := NpcFsmsMap} = State) ->
+    UpdatedNpcFsmsMap = maps:merge(NpcFsmsMap, NewNpcFsmsMap),
+    {noreply, State#{?NPC_FSMS_MAP := UpdatedNpcFsmsMap}}.
 
 
 %%--------------------------------------------------------------------
@@ -164,8 +168,8 @@ handle_cast({new_npcs, NewNpcFsmIdsMap}, #{?NPC_FSM_IDS_MAP := NpcFsmIdsMap} = S
     {stop, Reason, NewState} when
 
     Info :: timeout(),
-    State :: map(),
-    NewState :: map(),
+    State :: state(),
+    NewState :: State,
     Reason :: term().
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -183,7 +187,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(Reason, State) -> term() when
     Reason :: (normal | shutdown | {shutdown, term()} | term()),
-    State :: map().
+    State :: state().
 terminate(_Reason, _State) ->
     ok.
 
@@ -200,9 +204,9 @@ terminate(_Reason, _State) ->
     {error, Reason} when
 
     OldVsn :: term() | {down, term()},
-    State :: map(),
+    State :: state(),
     Extra :: term(),
-    NewState :: map(),
+    NewState :: State,
     Reason :: term().
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -238,7 +242,7 @@ format_status(Opt, StatusData) ->
 %%--------------------------------------------------------------------
 -spec traverse_npcspec(NpcsSpec) -> {SceneNpcFsmList, NpcFsmMap} when
     NpcsSpec :: [npc_spec()],
-    SceneNpcFsmList :: [scene_fsm:npc_fsm()],
+    SceneNpcFsmList :: [simple_npc_fsm()],
     NpcFsmMap :: #{uuid() => uuid()}.
 traverse_npcspec(NpcsSpec) ->
     traverse_npcspec(NpcsSpec, [], #{}).
@@ -252,7 +256,7 @@ traverse_npcspec(NpcsSpec) ->
 %%--------------------------------------------------------------------
 -spec traverse_npcspec(NpcsSpec, AccNpcFsmList, AccNpcFsmMap) -> {NpcFsmList, NpcFsmMap} when
     NpcsSpec :: [npc_spec()],
-    AccNpcFsmList :: [scene_fsm:npc_fsm()],
+    AccNpcFsmList :: [simple_npc_fsm()],
     AccNpcFsmMap :: #{uuid() => uuid()},
     NpcFsmList :: AccNpcFsmList,
     NpcFsmMap :: AccNpcFsmMap.
@@ -272,7 +276,7 @@ traverse_npcspec([{NpcType, Amount} | Tail], AccNpcFsmList, AccNpcFsmMap) ->
 -spec new_npc(Amount, NpcBornProfile, AccNpcFsmList, AccOverallNpcFsmMap) -> {NpcFsmList, OverallNpcFsmMap} when
     Amount :: pos_integer(),
     NpcBornProfile :: npc_born_info(),
-    AccNpcFsmList :: [scene_fsm:npc_fsm()],
+    AccNpcFsmList :: [simple_npc_fsm()],
     AccOverallNpcFsmMap :: #{uuid() => uuid()},
     NpcFsmList :: AccNpcFsmList,
     OverallNpcFsmMap :: AccOverallNpcFsmMap.

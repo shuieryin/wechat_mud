@@ -45,7 +45,7 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 -spec add_child(NpcProfile) -> supervisor:startchild_ret() when
-    NpcProfile :: map().
+    NpcProfile :: npc_fsm_manager:npc_born_info().
 add_child(NpcProfile) ->
     supervisor:start_child(?MODULE, [NpcProfile]).
 

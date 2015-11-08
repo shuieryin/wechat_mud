@@ -46,7 +46,7 @@ start_link() ->
 %%--------------------------------------------------------------------
 -spec add_child(DispatcherPid, Uid) -> supervisor:startchild_ret() when
     DispatcherPid :: pid(),
-    Uid :: atom().
+    Uid :: player_fsm:uid().
 add_child(DispatcherPid, Uid) ->
     supervisor:start_child(?MODULE, [DispatcherPid, Uid]).
 

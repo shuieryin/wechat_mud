@@ -40,6 +40,9 @@
 -define(HOST, "127.0.0.1").
 -define(PORT, 6379).
 
+-type redis_client() :: pid().
+-type state() :: #{redis_client_pid => redis_client()}.
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -189,7 +192,7 @@ clear_all() ->
     ignore when
 
     Args :: term(),
-    State :: map(),
+    State :: state(),
     Reason :: term().
 init([]) ->
     io:format("~p starting~n", [?MODULE]),
@@ -216,8 +219,8 @@ init([]) ->
     Value :: term(),
     From :: {pid(), Tag :: term()},
     Reply :: term(),
-    State :: map(),
-    NewState :: map(),
+    State :: state(),
+    NewState :: state(),
     Reason :: term().
 handle_call({get, Key}, _From, #{redis_client_pid := RedisClientPid} = State) ->
     Value = case eredis:q(RedisClientPid, ["GET", Key]) of
@@ -261,8 +264,8 @@ handle_call({del, Keys, IsSave}, _From, State) ->
     Keys :: [term()],
     Value :: term(),
     IsSave :: boolean(),
-    State :: map(),
-    NewState :: map(),
+    State :: state(),
+    NewState :: state(),
     Reason :: term().
 handle_cast({set, Key, Value, IsSave}, State) ->
     set(Key, Value, IsSave, State),
@@ -290,8 +293,8 @@ handle_cast({del, Keys, IsSave}, State) ->
     {stop, Reason, NewState} when
 
     Info :: timeout(),
-    State :: map(),
-    NewState :: map(),
+    State :: state(),
+    NewState :: state(),
     Reason :: term().
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -309,7 +312,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(Reason, State) -> term() when
     Reason :: (normal | shutdown | {shutdown, term()} | term()),
-    State :: map().
+    State :: state().
 terminate(_Reason, _State) ->
     ok.
 
@@ -326,9 +329,9 @@ terminate(_Reason, _State) ->
     {error, Reason} when
 
     OldVsn :: term() | {down, term()},
-    State :: map(),
+    State :: state(),
     Extra :: term(),
-    NewState :: map(),
+    NewState :: state(),
     Reason :: term().
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -363,10 +366,10 @@ format_status(Opt, StatusData) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec connect_reids(State) -> map() when
-    State :: map().
+    State :: state().
 connect_reids(State) ->
     RedisClientPid = connect_redis_loop(),
-    maps:put(redis_client_pid, RedisClientPid, State).
+    State#{redis_client_pid => RedisClientPid}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -376,8 +379,8 @@ connect_reids(State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec connect_redis_loop() -> ClientPid when
-    ClientPid :: pid().
+-spec connect_redis_loop() -> RedisClientPid when
+    RedisClientPid :: redis_client().
 connect_redis_loop() ->
     SelfPid = self(),
     spawn(fun() ->
@@ -416,7 +419,7 @@ make_connection(ParentPid) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec save(State) -> ok | fail when
-    State :: map().
+    State :: state().
 save(#{redis_client_pid := RedisClientPid}) ->
     {ok, Result} = eredis:q(RedisClientPid, ["SAVE"]),
     case Result of
@@ -438,7 +441,7 @@ save(#{redis_client_pid := RedisClientPid}) ->
     Key :: term(),
     Value :: term(),
     IsSave :: boolean(),
-    State :: map(),
+    State :: state(),
     IsValueSet :: boolean().
 set(Key, Value, IsSave, #{redis_client_pid := RedisClientPid} = State) ->
     IsValueSet =
@@ -467,7 +470,7 @@ set(Key, Value, IsSave, #{redis_client_pid := RedisClientPid} = State) ->
 -spec del(Keys, IsSave, State) -> boolean() when
     Keys :: [term()],
     IsSave :: boolean(),
-    State :: map().
+    State :: state().
 del(Keys, IsSave, #{redis_client_pid := RedisClientPid} = State) ->
     IsDel = case eredis:q(RedisClientPid, ["DEL" | Keys]) of
                 {ok, <<"OK">>} ->

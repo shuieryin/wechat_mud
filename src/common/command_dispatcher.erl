@@ -22,9 +22,8 @@
 -define(EMPTY_CONTENT, <<>>).
 -define(WECHAT_TOKEN, <<"collinguo">>).
 
--export_type([uid_profile/0]).
-
--type uid_profile() :: #{uid => atom(), gender => male | female, born_month => 1..12, scene => atom(), lang => atom(), register_time => pos_integer()}.
+-type validation_params() :: #{signature => string() | binary(), timestamp => string() | binary(), nonce => string() | binary(), echostr => string() | binary()}.
+-type req_params() :: #{'Content' => binary(), 'CreateTime' => binary(), 'FromUserName' => binary(), 'MsgId' => binary(), 'MsgType' => binary(), 'ToUserName' => binary()}.
 -type command() :: '5' | l.
 
 %%%===================================================================
@@ -60,7 +59,7 @@ start(Req) ->
                 true ->
                     process_request(Req);
                 _ ->
-                    error_logger:error_msg("Header params empty~n", []),
+                    error_logger:error_msg("Validation params empty~n", []),
                     ?EMPTY_CONTENT
             end;
         HeaderParams ->
@@ -94,7 +93,7 @@ start(Req) ->
     Module :: atom(),
     Function :: atom(),
     Args :: [term()],
-    ReturnContent :: [binary()].
+    ReturnContent :: [binary()] | no_response.
 pending_content(Module, Function, Args) ->
     Self = self(),
     FunctionArgs = [Self | Args],
@@ -138,7 +137,7 @@ return_content(DispatcherPid, ReturnContent) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec validate_signature(OriginalParamMap) -> IsValidSignature when
-    OriginalParamMap :: map(),
+    OriginalParamMap :: validation_params(),
     IsValidSignature :: boolean().
 validate_signature(#{signature := OriginalSignatureStr} = OriginalParamMap) ->
     ParamList = maps:to_list(maps:without([signature], OriginalParamMap)),
@@ -281,7 +280,7 @@ process_request(Req) ->
 %%--------------------------------------------------------------------
 -spec gen_action_from_message_type(MsgType, ReqParamsMap) -> {InputForUnregister, FuncForRegsiter} when
     MsgType :: binary(),
-    ReqParamsMap :: map(),
+    ReqParamsMap :: req_params(),
     InputForUnregister :: binary() | no_reply | subscribe | unsubscribe,
     FuncForRegsiter :: function().
 gen_action_from_message_type(MsgType, ReqParamsMap) ->
@@ -334,7 +333,7 @@ gen_action_from_message_type(MsgType, ReqParamsMap) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec handle_input(Uid, ModuleNameBin, RawCommandArgs) -> ReturnContent when
-    Uid :: atom(),
+    Uid :: player_fsm:uid(),
     ModuleNameBin :: binary(),
     RawCommandArgs :: [binary()],
     ReturnContent :: [term()].
@@ -401,12 +400,11 @@ compose_xml_response(Uid, PlatformId, ContentBinary) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec parse_xml_request(Req) -> Result when
+-spec parse_xml_request(Req) -> ReqParamsMap when
     Req :: cowboy_req:req(),
-    Result :: parse_failed | map().
+    ReqParamsMap :: req_params() | parse_failed.
 parse_xml_request(Req) ->
     {ok, Message, _} = cowboy_req:body(Req),
-%%     error_logger:info_msg("Message:~p~n", [Message]),
     case Message of
         <<>> ->
             parse_failed;
@@ -433,8 +431,8 @@ parse_xml_request(Req) ->
     SrcList :: [{ParamKey, [], [ParamValue]}],
     ParamKey :: string(),
     ParamValue :: string(),
-    ParamsMap :: map(),
-    FinalParamsMap :: map().
+    ParamsMap :: req_params(),
+    FinalParamsMap :: req_params().
 unmarshall_params([], ParamsMap) ->
     ParamsMap;
 unmarshall_params([{ParamKey, [], [ParamValue]} | Tail], ParamsMap) ->
@@ -449,7 +447,7 @@ unmarshall_params([{ParamKey, [], [ParamValue]} | Tail], ParamsMap) ->
 -spec gen_req_params_map(Pos, Bin, ParamsMap) -> map() when
     Pos :: integer(),
     Bin :: binary(),
-    ParamsMap :: map().
+    ParamsMap :: validation_params().
 gen_req_params_map(-1, _, ParamsMap) ->
     ParamsMap;
 gen_req_params_map(Pos, Bin, ParamsMap) ->

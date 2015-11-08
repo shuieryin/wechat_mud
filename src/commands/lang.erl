@@ -30,7 +30,7 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec exec(DispatcherPid, Uid, RawTargetLang) -> ok when
-    Uid :: atom(),
+    Uid :: player_fsm:uid(),
     RawTargetLang :: binary(),
     DispatcherPid :: pid().
 exec(DispatcherPid, Uid, RawTargetLang) ->

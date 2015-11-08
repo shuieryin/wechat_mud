@@ -45,7 +45,7 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 -spec add_child(PlayerProfile) -> supervisor:startchild_ret() when
-    PlayerProfile :: map().
+    PlayerProfile :: player_fsm:player_profile().
 add_child(PlayerProfile) ->
     supervisor:start_child(?MODULE, [PlayerProfile]).
 

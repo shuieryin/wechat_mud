@@ -99,11 +99,11 @@ gen_scene_child_list() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec populate_scene_child(SceneValuesMap, Restart, Shutdown, Type) -> SceneChild when
-    SceneValuesMap :: map(),
+-spec populate_scene_child(SceneInfo, Restart, Shutdown, Type) -> SceneChild when
+    SceneInfo :: scene_fsm:scene_info(),
     Restart :: supervisor:restart(),
     Shutdown :: supervisor:shutdown(),
     Type :: supervisor:worker(),
     SceneChild :: scene_child().
-populate_scene_child(#{id := Id} = SceneValuesMap, Restart, Shutdown, Type) ->
-    {Id, {scene_fsm, start_link, [{init, SceneValuesMap}]}, Restart, Shutdown, Type, [scene_fsm]}.
+populate_scene_child(#{id := Id} = SceneInfo, Restart, Shutdown, Type) ->
+    {Id, {scene_fsm, start_link, [{init, SceneInfo}]}, Restart, Shutdown, Type, [scene_fsm]}.

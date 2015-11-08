@@ -38,6 +38,15 @@
 
 -include("nls.hrl").
 
+-define(COMMON_NLS_PATH, common_nls_path).
+
+-type support_lang() :: zh | en.
+-type lang_map() :: #{NlsKey :: atom() => NlsValue :: binary()}.
+-type state() :: #{?COMMON_NLS_PATH => file:filename_all(), support_lang() => lang_map()}.
+-type keys_map() :: #{Pos :: non_neg_integer() => FieldName :: atom()}.
+
+-export_type([support_lang/0]).
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -73,7 +82,7 @@ start_link(NlsFilePath) ->
     ServerName :: atom(),
     ContentList :: [{nls, NlsKey} | term()],
     NlsKey :: atom(),
-    Lang :: atom(),
+    Lang :: support_lang(),
     DispatcherPid :: pid().
 response_content(ServerName, ContentList, Lang, DispatcherPid) ->
     gen_server:cast(ServerName, {response_content, ContentList, Lang, DispatcherPid}).
@@ -90,7 +99,7 @@ response_content(ServerName, ContentList, Lang, DispatcherPid) ->
     ServerName :: atom(),
     ContentList :: [{nls, NlsKey} | term()],
     NlsKey :: atom(),
-    Lang :: atom().
+    Lang :: support_lang().
 get_nls_content(ServerName, ContentList, Lang) ->
     gen_server:call(ServerName, {get_nls_content, ContentList, Lang}).
 
@@ -102,7 +111,7 @@ get_nls_content(ServerName, ContentList, Lang) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec is_valid_lang(Lang) -> boolean() when
-    Lang :: atom().
+    Lang :: support_lang().
 is_valid_lang(Lang) ->
     gen_server:call(commands, {is_valid_lang, Lang}).
 
@@ -114,7 +123,7 @@ is_valid_lang(Lang) ->
 %%--------------------------------------------------------------------
 -spec show_langs(DispatcherPid, Lang) -> ok when
     DispatcherPid :: pid(),
-    Lang :: atom().
+    Lang :: support_lang().
 show_langs(DispatcherPid, Lang) ->
     gen_server:cast(commands, {show_langs, DispatcherPid, Lang}).
 
@@ -126,8 +135,8 @@ show_langs(DispatcherPid, Lang) ->
 %%--------------------------------------------------------------------
 -spec read_nls_file(NlsFileName, AccNlsMap) -> NlsMap when
     NlsFileName :: file:name_all(),
-    AccNlsMap :: map(),
-    NlsMap :: map().
+    AccNlsMap :: state(),
+    NlsMap :: AccNlsMap.
 read_nls_file(NlsFileName, AccNlsMap) ->
     {ok, NlsFile} = file:open(NlsFileName, [read]),
     {ok, NlsMap} = ecsv:process_csv_file_with(NlsFile, fun read_line/2, {0, AccNlsMap}),
@@ -142,8 +151,8 @@ read_nls_file(NlsFileName, AccNlsMap) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec do_response_content(Lang, State, ContentList, DispatcherPid) -> ok when
-    Lang :: atom(),
-    State :: map(),
+    Lang :: support_lang(),
+    State :: state(),
     ContentList :: [term()],
     DispatcherPid :: pid().
 do_response_content(Lang, State, ContentList, DispatcherPid) ->
@@ -172,7 +181,7 @@ do_response_content(Lang, State, ContentList, DispatcherPid) ->
     Args :: {ExtraNlsFileNames, NlsFilePath},
     ExtraNlsFileNames :: [string()],
     NlsFilePath :: file:filename_all(),
-    State :: map(),
+    State :: #{?COMMON_NLS_PATH => file:filename_all(), support_lang() => #{NlsKey :: atom() => NlsValue :: binary()}},
     Reason :: term().
 init({ExtraNlsFileNames, NlsFilePath}) ->
     CommonNlsFilePath = filename:append(?NLS_PATH, ?COMMON_NLS),
@@ -182,7 +191,7 @@ init({ExtraNlsFileNames, NlsFilePath}) ->
     NlsMap = read_nls_file(NlsFilePath, CommonNlsMap),
     FinalNlsMap = lists:foldl(fun load_nls_file/2, NlsMap, ExtraNlsFileNames),
 
-    FinalMap = FinalNlsMap#{nls_file_path => NlsFilePath, common_nls_file_path => CommonNlsFilePath},
+    FinalMap = FinalNlsMap#{nls_file_path => NlsFilePath, ?COMMON_NLS_PATH => CommonNlsFilePath},
     error_logger:info_msg("FilePath:~p~nFinalMap:~tp~n", [NlsFilePath, FinalMap]),
     {ok, FinalMap}.
 
@@ -195,7 +204,7 @@ init({ExtraNlsFileNames, NlsFilePath}) ->
 %%--------------------------------------------------------------------
 -spec load_nls_file(NlsFileName, AccNlsMap) -> NlsMap when
     NlsFileName :: file:filename_all(),
-    AccNlsMap :: map(),
+    AccNlsMap :: state(),
     NlsMap :: AccNlsMap.
 load_nls_file(NlsFileName, AccNlsMap) ->
     read_nls_file(filename:join(?NLS_PATH, NlsFileName) ++ ?NLS_EXTENSION, AccNlsMap).
@@ -221,12 +230,12 @@ load_nls_file(NlsFileName, AccNlsMap) ->
     {get_nls_content, ConentList, Lang},
 
     NlsKey :: atom(),
-    Lang :: atom(),
+    Lang :: support_lang(),
     ConentList :: [term()],
     From :: {pid(), Tag :: term()},
     Reply :: term(),
-    State :: map(),
-    NewState :: map(),
+    State :: state(),
+    NewState :: State,
     Reason :: term().
 handle_call({get, NlsKey, Lang}, _From, State) ->
     NlsValue = maps:get(NlsKey, maps:get(Lang, State)),
@@ -252,10 +261,10 @@ handle_call({get_nls_content, ContentList, Lang}, _From, State) ->
 
     Request :: {response_content, ContentList, Lang, DispatcherPid} | {show_langs, DispatcherPid, Lang},
     ContentList :: [term()],
-    Lang :: atom(),
+    Lang :: support_lang(),
     DispatcherPid :: pid(),
-    State :: map(),
-    NewState :: map(),
+    State :: state(),
+    NewState :: State,
     Reason :: term().
 handle_cast({response_content, ContentList, Lang, DispatcherPid}, State) ->
     do_response_content(Lang, State, ContentList, DispatcherPid),
@@ -281,8 +290,8 @@ handle_cast({show_langs, DispatcherPid, Lang}, State) ->
     {stop, Reason, NewState} when
 
     Info :: timeout(),
-    State :: map(),
-    NewState :: map(),
+    State :: state(),
+    NewState :: State,
     Reason :: term().
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -300,7 +309,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(Reason, State) -> term() when
     Reason :: (normal | shutdown | {shutdown, term()} | term()),
-    State :: map().
+    State :: state().
 terminate(_Reason, _State) ->
     ok.
 
@@ -317,9 +326,9 @@ terminate(_Reason, _State) ->
     {error, Reason} when
 
     OldVsn :: term() | {down, term()},
-    State :: map(),
+    State :: state(),
     Extra :: term(),
-    NewState :: map(),
+    NewState :: State,
     Reason :: term().
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -358,9 +367,9 @@ format_status(Opt, StatusData) ->
     NewLine :: [term()],
     State :: {Counter, KeysMap, ValuesMap},
     Counter :: non_neg_integer(),
-    KeysMap :: map(),
-    ValuesMap :: map(),
-    FinalValuesMap :: map().
+    KeysMap :: keys_map(),
+    ValuesMap :: lang_map(),
+    FinalValuesMap :: ValuesMap.
 read_line({newline, NewLine}, {Counter, KeysMap, ValuesMap}) ->
     {Counter + 1, KeysMap, gen_valuesmap(NewLine, KeysMap, ValuesMap, 0)};
 read_line({newline, NewLine}, {0, ValuesMap}) ->
@@ -377,10 +386,10 @@ read_line({eof}, {_, _, FinalValuesMap}) ->
 %%--------------------------------------------------------------------
 -spec gen_keysmap(NewLine, KeysMap, Pos, ValuesMap) -> {KeysMap, FinalKeysMap} when
     NewLine :: [string()],
-    KeysMap :: map(),
-    ValuesMap :: map(),
+    KeysMap :: keys_map(),
+    ValuesMap :: lang_map(),
     Pos :: non_neg_integer(),
-    FinalKeysMap :: map().
+    FinalKeysMap :: KeysMap.
 gen_keysmap([], KeysMap, _, ValuesMap) ->
     {KeysMap, ValuesMap};
 gen_keysmap([RawKey | Tail], KeysMap, Pos, ValuesMap) ->
@@ -406,10 +415,10 @@ gen_keysmap([RawKey | Tail], KeysMap, Pos, ValuesMap) ->
 %%--------------------------------------------------------------------
 -spec gen_valuesmap(NewLine, KeysMap, ValuesMap, Pos) -> FinalValuesMap when
     NewLine :: [term()],
-    KeysMap :: map(),
-    ValuesMap :: map(),
+    KeysMap :: keys_map(),
+    ValuesMap :: lang_map(),
     Pos :: non_neg_integer(),
-    FinalValuesMap :: map().
+    FinalValuesMap :: ValuesMap.
 gen_valuesmap([], _, ValueMap, _) ->
     ValueMap;
 gen_valuesmap([[] | Tail], KeysMap, ValuesMap, Pos) ->
@@ -438,7 +447,7 @@ gen_valuesmap([Value | Tail], KeysMap, ValuesMap, Pos) ->
 -spec fill_in_nls(ListIn, LangMap, ListOut) -> [binary()] when
     ListIn :: [{nls, NlsKey} | term()],
     NlsKey :: atom(),
-    LangMap :: map(),
+    LangMap :: lang_map(),
     ListOut :: [binary()].
 fill_in_nls([], _, ListOut) ->
     lists:reverse(ListOut);

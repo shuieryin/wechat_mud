@@ -30,7 +30,7 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec exec(DispatcherPid, Uid) -> ok when
-    Uid :: atom(),
+    Uid :: player_fsm:uid(),
     DispatcherPid :: pid().
 exec(DispatcherPid, Uid) ->
     case whereis(Uid) of

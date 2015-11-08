@@ -29,7 +29,7 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec exec(DispatcherPid, Uid) -> ok when
-    Uid :: atom(),
+    Uid :: player_fsm:uid(),
     DispatcherPid :: pid().
 exec(DispatcherPid, Uid) ->
     login_server:login(DispatcherPid, Uid).

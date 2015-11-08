@@ -39,6 +39,20 @@
 
 -define(SERVER, ?MODULE).
 
+-type uid() :: atom().
+-type born_month() :: 1..12.
+-type gender() :: male | female.
+-type born_type_info() :: #{born_type => born_month(), attack => integer(), defence => integer(), hp => integer(), dexterity => integer()}.
+-type player_profile() :: #{uid => uid(), born_month => born_month, born_type => born_type_info, gender => gender(), lang => nls_server:support_lang(), register_time => pos_integer(), scene => scene_fsm:scene_name()}.
+-type simple_player() :: {player, Uid :: uid()}.
+-type state() :: #{self => player_profile()}.
+-type state_name() :: state_name | non_battle.
+
+-export_type([born_type_info/0,
+    player_profile/0,
+    simple_player/0,
+    born_month/0]).
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -54,7 +68,7 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec start_link(PlayerProfile) -> {ok, pid()} | ignore | {error, Reason} when
-    PlayerProfile :: command_dispatcher:uid_profile(),
+    PlayerProfile :: player_profile(),
     Reason :: term().
 start_link(#{uid := Uid} = PlayerProfile) ->
     gen_fsm:start({local, Uid}, ?MODULE, PlayerProfile, []).
@@ -73,7 +87,7 @@ start_link(#{uid := Uid} = PlayerProfile) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec go_direction(Uid, DispatcherPid, Direction) -> ok when
-    Uid :: atom(),
+    Uid :: uid(),
     DispatcherPid :: pid(),
     Direction :: direction:directions().
 go_direction(Uid, DispatcherPid, Direction) ->
@@ -86,7 +100,7 @@ go_direction(Uid, DispatcherPid, Direction) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec look_scene(Uid, DispatcherPid) -> ok when
-    Uid :: atom(),
+    Uid :: uid(),
     DispatcherPid :: pid().
 look_scene(Uid, DispatcherPid) ->
     gen_fsm:send_all_state_event(Uid, {look_scene, DispatcherPid}).
@@ -98,7 +112,7 @@ look_scene(Uid, DispatcherPid) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec look_target(Uid, DispatcherPid, LookArgs) -> ok when
-    Uid :: atom(),
+    Uid :: uid(),
     DispatcherPid :: pid(),
     LookArgs :: binary().
 look_target(Uid, DispatcherPid, LookArgs) ->
@@ -111,8 +125,8 @@ look_target(Uid, DispatcherPid, LookArgs) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec get_lang(Uid) -> Lang when
-    Uid :: atom(),
-    Lang :: atom().
+    Uid :: uid(),
+    Lang :: nls_server:support_lang().
 get_lang(Uid) ->
     gen_fsm:sync_send_all_state_event(Uid, get_lang).
 
@@ -129,7 +143,7 @@ get_lang(Uid) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec response_content(Uid, NlsServer, ContentList, DispatcherPid) -> ok when
-    Uid :: atom(),
+    Uid :: uid(),
     NlsServer :: atom(),
     ContentList :: [term()],
     DispatcherPid :: pid().
@@ -146,7 +160,7 @@ response_content(Uid, NlsServer, ContentList, DispatcherPid) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec leave_scene(Uid) -> ok when
-    Uid :: atom().
+    Uid :: uid().
 leave_scene(Uid) ->
     gen_fsm:send_all_state_event(Uid, leave_scene).
 
@@ -158,8 +172,8 @@ leave_scene(Uid) ->
 %%--------------------------------------------------------------------
 -spec switch_lang(DispatcherPid, Uid, TargetLang) -> ok when
     DispatcherPid :: pid(),
-    Uid :: atom(),
-    TargetLang :: atom().
+    Uid :: uid(),
+    TargetLang :: nls_server:support_lang().
 switch_lang(DispatcherPid, Uid, TargetLang) ->
     gen_fsm:send_all_state_event(Uid, {switch_lang, DispatcherPid, TargetLang}).
 
@@ -171,7 +185,7 @@ switch_lang(DispatcherPid, Uid, TargetLang) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec logout(Uid) -> ok when
-    Uid :: atom().
+    Uid :: uid().
 logout(Uid) ->
     gen_fsm:send_all_state_event(Uid, logout).
 
@@ -196,9 +210,9 @@ logout(Uid) ->
     {stop, Reason} |
     ignore when
 
-    PlayerProfile :: command_dispatcher:uid_profile(),
-    StateName :: atom(),
-    StateData :: map(),
+    PlayerProfile :: player_profile(),
+    StateName :: state_name(),
+    StateData :: state(),
     Reason :: term().
 init(PlayerProfile) ->
     error_logger:info_msg("Player fsm initialized:~p~n", [PlayerProfile]),
@@ -219,11 +233,12 @@ init(PlayerProfile) ->
     {next_state, NextStateName, NextState} |
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
+
     Event :: term(),
-    State :: map(),
-    NextStateName :: atom(),
-    NextState :: map(),
-    NewState :: map(),
+    State :: state(),
+    NextStateName :: state_name(),
+    NextState :: State,
+    NewState :: State,
     Reason :: term().
 state_name(_Event, State) ->
     {next_state, state_name, State}.
@@ -246,14 +261,15 @@ state_name(_Event, State) ->
     {reply, Reply, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} |
     {stop, Reason, Reply, NewState} when
+
     Event :: term(),
     From :: {pid(), term()},
-    State :: map(),
-    NextStateName :: atom(),
-    NextState :: map(),
+    State :: state(),
+    NextStateName :: state_name(),
+    NextState :: State,
     Reason :: normal | term(),
     Reply :: term(),
-    NewState :: map().
+    NewState :: State.
 state_name(_Event, _From, State) ->
     Reply = ok,
     {reply, Reply, state_name, State}.
@@ -285,11 +301,11 @@ state_name(_Event, _From, State) ->
     ContentList :: [term()],
     DispatcherPid :: pid(),
     Direction :: direction:directions(),
-    StateName :: atom(),
-    StateData :: map(),
-    TargetLang :: atom(),
-    NextStateName :: atom(),
-    NewStateData :: map(),
+    StateName :: state_name(),
+    StateData :: state(),
+    TargetLang :: nls_server:support_lang(),
+    NextStateName :: StateName,
+    NewStateData :: StateData,
     Reason :: term(),
     LookArgs :: binary(),
     NotifyOkPid :: pid().
@@ -346,11 +362,11 @@ handle_event(logout, _StateName, #{self := #{scene := CurSceneName, uid := Uid} 
 
     Event :: get_lang,
     From :: {pid(), Tag :: term()},
-    StateName :: atom(),
-    StateData :: term(),
+    StateName :: state_name(),
+    StateData :: state(),
     Reply :: term(),
-    NextStateName :: atom(),
-    NewStateData :: term(),
+    NextStateName :: StateName,
+    NewStateData :: StateData,
     Reason :: term().
 handle_sync_event(get_lang, _From, StateName, #{self := #{lang := Lang}} = State) ->
     {reply, Lang, StateName, State}.
@@ -368,11 +384,12 @@ handle_sync_event(get_lang, _From, StateName, #{self := #{lang := Lang}} = State
     {next_state, NextStateName, NewStateData} |
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
+
     Info :: term(),
-    StateName :: atom(),
-    StateData :: term(),
-    NextStateName :: atom(),
-    NewStateData :: term(),
+    StateName :: state_name(),
+    StateData :: state(),
+    NextStateName :: StateName,
+    NewStateData :: StateData,
     Reason :: normal | term().
 handle_info(_Info, StateName, State) ->
     {next_state, StateName, State}.
@@ -390,8 +407,8 @@ handle_info(_Info, StateName, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(Reason, StateName, StateData) -> term() when
     Reason :: normal | shutdown | {shutdown, term()} | term(),
-    StateName :: atom(),
-    StateData :: term().
+    StateName :: state_name(),
+    StateData :: state().
 terminate(_Reason, _StateName, _StateData) ->
     ok.
 
@@ -404,11 +421,11 @@ terminate(_Reason, _StateName, _StateData) ->
 %%--------------------------------------------------------------------
 -spec code_change(OldVsn, StateName, StateData, Extra) -> {ok, NextStateName, NewStateData} when
     OldVsn :: term() | {down, term()},
-    StateName :: atom(),
-    StateData :: map(),
+    StateName :: state_name(),
+    StateData :: state(),
     Extra :: term(),
-    NextStateName :: atom(),
-    NewStateData :: map().
+    NextStateName :: StateName,
+    NewStateData :: StateData.
 code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
 

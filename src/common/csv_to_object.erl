@@ -22,6 +22,13 @@
 -define(FILE_EXTENSION, ".csv").
 -define(NAME_TYPE_SEPARATOR, ":").
 
+-type csv_row_data() :: #{ColumnKey :: atom() => Value :: term()}.
+-type csv_data() :: #{RowKey :: atom() => csv_row_data()}.
+-type field_info() :: {FieldName :: atom(), FieldType :: atom()}.
+-type keys_map() :: #{Pos :: non_neg_integer() => field_info()}.
+
+-export_type([csv_data/0]).
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -35,7 +42,7 @@
 -spec traverse_merge_files(FolderPath, RowFun) -> MapFromFiles when
     FolderPath :: file:name(),
     RowFun :: function(),
-    MapFromFiles :: map().
+    MapFromFiles :: csv_data().
 traverse_merge_files(FolderPath, RowFun) ->
     {ok, FileNameList} = file:list_dir(FolderPath),
     lists:foldl(
@@ -59,7 +66,7 @@ traverse_merge_files(FolderPath, RowFun) ->
 %%--------------------------------------------------------------------
 -spec traverse_files(FolderPath) -> MapFromFiles when
     FolderPath :: file:name(),
-    MapFromFiles :: map().
+    MapFromFiles :: csv_data().
 traverse_files(FolderPath) ->
     traverse_files(FolderPath, fun default_row_fun/1).
 
@@ -72,7 +79,7 @@ traverse_files(FolderPath) ->
 -spec traverse_files(FolderPath, RowFun) -> MapFromFiles when
     FolderPath :: file:name(),
     RowFun :: function(),
-    MapFromFiles :: map().
+    MapFromFiles :: csv_data().
 traverse_files(FolderPath, RowFun) ->
     {ok, FileNameList} = file:list_dir(FolderPath),
     lists:foldl(
@@ -98,7 +105,7 @@ traverse_files(FolderPath, RowFun) ->
 %%--------------------------------------------------------------------
 -spec parse_file(FilePath) -> MapFromFile when
     FilePath :: file:filename(),
-    MapFromFile :: map().
+    MapFromFile :: csv_data().
 parse_file(FilePath) ->
     {ok, File} = file:open(FilePath, [read]),
     {ok, MapFromFile} = ecsv:process_csv_file_with(File, fun traverse_rows/2, {0, fun default_row_fun/1}),
@@ -115,7 +122,7 @@ parse_file(FilePath) ->
 -spec parse_file(FilePath, RowFun) -> MapFromFile when
     FilePath :: file:filename(),
     RowFun :: function,
-    MapFromFile :: map().
+    MapFromFile :: csv_data().
 parse_file(FilePath, RowFun) ->
     {ok, File} = file:open(FilePath, [read]),
     {ok, MapFromFile} = ecsv:process_csv_file_with(File, fun traverse_rows/2, {0, RowFun}),
@@ -136,10 +143,10 @@ parse_file(FilePath, RowFun) ->
     NewRowData :: {newline, NewRow} | {eof},
     NewRow :: [term()],
     RowFun :: function(),
-    KeyValuesMap :: map(),
+    KeyValuesMap :: csv_row_data(),
     Counter :: non_neg_integer(),
-    KeysMap :: map(),
-    AccRowValuesMap :: map(),
+    KeysMap :: keys_map(),
+    AccRowValuesMap :: csv_row_data(),
     State :: {Counter, RowFun, KeysMap, AccRowValuesMap} | {0, RowFun} | {_, _, _, KeyValuesMap}.
 traverse_rows({newline, NewRow}, {Counter, RowFun, #{0 := {FieldName, _}} = KeysMap, AccRowValuesMap}) ->
     case traverse_column(NewRow, KeysMap, #{}, 0) of
@@ -164,9 +171,9 @@ traverse_rows({eof}, {_, _, _, RowValuesMap}) ->
 %%--------------------------------------------------------------------
 -spec gen_keysmap(NewRow, KeysMap, Pos) -> FinalKeysMap when
     NewRow :: [term()],
-    KeysMap :: map(),
+    KeysMap :: keys_map(),
     Pos :: non_neg_integer(),
-    FinalKeysMap :: map().
+    FinalKeysMap :: KeysMap.
 gen_keysmap([], KeysMap, _) ->
     KeysMap;
 gen_keysmap([RawKeyStr | Tail], KeysMap, Pos) ->
@@ -184,10 +191,10 @@ gen_keysmap([RawKeyStr | Tail], KeysMap, Pos) ->
 %%--------------------------------------------------------------------
 -spec traverse_column(RowData, KeysMap, ValuesMap, Pos) -> FinalValuesMap when
     RowData :: [term()],
-    KeysMap :: map(),
-    ValuesMap :: map(),
+    KeysMap :: keys_map(),
+    ValuesMap :: csv_row_data(),
     Pos :: non_neg_integer(),
-    FinalValuesMap :: map() | invalid_row.
+    FinalValuesMap :: ValuesMap | invalid_row.
 traverse_column([[] | _], _, _, 0) ->
     invalid_row;
 traverse_column([], _, ValuesMap, _) ->
@@ -239,10 +246,9 @@ default_row_fun(RowValuesMap) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_field_name_type(FieldNameInfoStr) -> {FieldName, FieldType} when
+-spec get_field_name_type(FieldNameInfoStr) -> FieldInfo when
     FieldNameInfoStr :: string(),
-    FieldName :: atom(),
-    FieldType :: atom().
+    FieldInfo :: field_info().
 get_field_name_type(FieldNameInfoStr) ->
     [FieldNameStr | TailFieldTypeStr] = string:tokens(FieldNameInfoStr, ?NAME_TYPE_SEPARATOR),
     FieldName = list_to_atom(FieldNameStr),

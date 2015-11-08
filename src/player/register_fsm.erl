@@ -41,6 +41,9 @@
 -define(STATE_NAMES, [{gender, gender_label}, {born_month, born_month_label}]).
 -define(BORN_SCENE, dream_board_nw).
 
+-type state() :: player_fsm:player_profile().
+-type state_name() :: select_lang | input_gender | input_born_month | input_confirmation | state_name.
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -58,7 +61,7 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec start_link(DispatcherPid, Uid) -> {ok, pid()} | ignore | {error, Reason} when
-    Uid :: atom(),
+    Uid :: player_fsm:uid(),
     DispatcherPid :: pid(),
     Reason :: term().
 start_link(DispatcherPid, Uid) ->
@@ -74,7 +77,7 @@ start_link(DispatcherPid, Uid) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec input(DispatcherPid, Uid, Input) -> ok when
-    Uid :: atom(),
+    Uid :: player_fsm:uid(),
     Input :: string(),
     DispatcherPid :: pid().
 input(DispatcherPid, Uid, Input) ->
@@ -87,7 +90,7 @@ input(DispatcherPid, Uid, Input) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec fsm_server_name(Uid) -> RegisterFsmName when
-    Uid :: atom(),
+    Uid :: player_fsm:uid(),
     RegisterFsmName :: atom().
 fsm_server_name(Uid) ->
     list_to_atom(atom_to_list(Uid) ++ "_register_fsm").
@@ -113,10 +116,10 @@ fsm_server_name(Uid) ->
     {stop, Reason} |
     ignore when
 
-    Uid :: atom(),
+    Uid :: player_fsm:uid(),
     Reason :: term(),
-    StateName :: atom(),
-    StateData :: map().
+    StateName :: state_name(),
+    StateData :: state().
 init(Uid) ->
     error_logger:info_msg("register fsm init~nUid:~p~n", [Uid]),
     {ok, select_lang, #{uid => Uid}}.
@@ -143,10 +146,10 @@ init(Uid) ->
     Request :: {Lang, DispatcherPid},
     Lang :: binary(),
     DispatcherPid :: pid(),
-    State :: map(),
-    NextStateName :: atom(),
-    NextState :: map(),
-    NewState :: map(),
+    State :: state(),
+    NextStateName :: state_name(),
+    NextState :: State,
+    NewState :: State,
     Reason :: term().
 select_lang({LangBin, DispatcherPid}, State) ->
     {NextState, NewState, ContentList, Lang} =
@@ -174,20 +177,21 @@ select_lang({LangBin, DispatcherPid}, State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec input_gender({Gender, DispatcherPid}, State) ->
+-spec input_gender({RawGender, DispatcherPid}, State) ->
     {next_state, NextStateName, NextState} |
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
-    Gender :: binary(),
+
+    RawGender :: binary(),
     DispatcherPid :: pid(),
-    State :: map(),
-    NextStateName :: atom(),
-    NextState :: map(),
-    NewState :: map(),
+    State :: state(),
+    NextStateName :: state_name(),
+    NextState :: State,
+    NewState :: State,
     Reason :: term().
-input_gender({Gender, DispatcherPid}, State) when Gender == <<"m">> orelse Gender == <<"M">> ->
+input_gender({RawGender, DispatcherPid}, State) when RawGender == <<"m">> orelse RawGender == <<"M">> ->
     input_gender(male, DispatcherPid, State);
-input_gender({Gender, DispatcherPid}, State) when Gender == <<"f">> orelse Gender == <<"F">> ->
+input_gender({RawGender, DispatcherPid}, State) when RawGender == <<"f">> orelse RawGender == <<"F">> ->
     input_gender(female, DispatcherPid, State);
 input_gender({Other, DispatcherPid}, #{lang := Lang} = State) ->
     ErrorMessageNlsContent =
@@ -218,10 +222,10 @@ input_gender(Gender, DispatcherPid, #{lang := Lang} = State) ->
     {stop, Reason, NewState} when
     MonthBin :: binary(),
     DispatcherPid :: pid(),
-    State :: map(),
+    State :: state(),
     NextStateName :: input_confirmation | input_born_month,
-    NextState :: map(),
-    NewState :: map(),
+    NextState :: State,
+    NewState :: State,
     Reason :: term().
 input_born_month({MonthBin, DispatcherPid}, #{lang := Lang} = State) ->
     {NewStateName, NewState, ContentList} =
@@ -258,11 +262,11 @@ input_born_month({MonthBin, DispatcherPid}, #{lang := Lang} = State) ->
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
     DispatcherPid :: pid(),
-    State :: map(),
+    State :: state(),
     Event :: binary(),
-    NextStateName :: atom(),
-    NextState :: map(),
-    NewState :: map(),
+    NextStateName :: state_name(),
+    NextState :: State,
+    NewState :: State,
     Reason :: term().
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"y">> orelse Answer == <<"Y">> ->
     State1 = State#{register_time => common_api:timestamp(), scene => ?BORN_SCENE},
@@ -300,10 +304,10 @@ input_confirmation({Other, DispatcherPid}, #{lang := Lang, summary_content := Su
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
     Event :: term(),
-    State :: map(),
-    NextStateName :: atom(),
-    NextState :: map(),
-    NewState :: map(),
+    State :: state(),
+    NextStateName :: state_name(),
+    NextState :: State,
+    NewState :: State,
     Reason :: term().
 state_name(_Event, State) ->
     {next_state, state_name, State}.
@@ -326,14 +330,15 @@ state_name(_Event, State) ->
     {reply, Reply, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} |
     {stop, Reason, Reply, NewState} when
+
     Event :: term(),
     From :: {pid(), term()},
-    State :: map(),
-    NextStateName :: atom(),
-    NextState :: map(),
+    State :: state(),
+    NextStateName :: state_name(),
+    NextState :: State,
     Reason :: normal | term(),
     Reply :: term(),
-    NewState :: map().
+    NewState :: State.
 state_name(_Event, _From, State) ->
     Reply = ok,
     {reply, Reply, state_name, State}.
@@ -351,11 +356,12 @@ state_name(_Event, _From, State) ->
     {next_state, NextStateName, NewStateData} |
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
+
     Event :: term(),
-    StateName :: atom(),
-    StateData :: map(),
-    NextStateName :: atom(),
-    NewStateData :: map(),
+    StateName :: state_name(),
+    StateData :: state(),
+    NextStateName :: StateName,
+    NewStateData :: StateData,
     Reason :: term().
 handle_event(_Event, StateName, State) ->
     {next_state, StateName, State}.
@@ -376,13 +382,14 @@ handle_event(_Event, StateName, State) ->
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, Reply, NewStateData} |
     {stop, Reason, NewStateData} when
+
     Event :: term(),
     From :: {pid(), Tag :: term()},
-    StateName :: atom(),
-    StateData :: term(),
+    StateName :: state_name(),
+    StateData :: state(),
     Reply :: term(),
-    NextStateName :: atom(),
-    NewStateData :: term(),
+    NextStateName :: StateName,
+    NewStateData :: StateData,
     Reason :: term().
 handle_sync_event(_Event, _From, StateName, State) ->
     Reply = ok,
@@ -401,11 +408,12 @@ handle_sync_event(_Event, _From, StateName, State) ->
     {next_state, NextStateName, NewStateData} |
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
+
     Info :: term(),
-    StateName :: atom(),
-    StateData :: term(),
-    NextStateName :: atom(),
-    NewStateData :: term(),
+    StateName :: state_name(),
+    StateData :: state(),
+    NextStateName :: StateName,
+    NewStateData :: StateData,
     Reason :: normal | term().
 handle_info(_Info, StateName, State) ->
     {next_state, StateName, State}.
@@ -423,8 +431,8 @@ handle_info(_Info, StateName, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(Reason, StateName, StateData) -> term() when
     Reason :: normal | done | shutdown | {shutdown, term()} | term(),
-    StateName :: atom(),
-    StateData :: term().
+    StateName :: state_name(),
+    StateData :: state().
 terminate(_Reason, _StateName, _StateData) ->
     ok.
 
@@ -437,11 +445,11 @@ terminate(_Reason, _StateName, _StateData) ->
 %%--------------------------------------------------------------------
 -spec code_change(OldVsn, StateName, StateData, Extra) -> {ok, NextStateName, NewStateData} when
     OldVsn :: term() | {down, term()},
-    StateName :: atom(),
-    StateData :: map(),
+    StateName :: state_name(),
+    StateData :: state(),
     Extra :: term(),
-    NextStateName :: atom(),
-    NewStateData :: map().
+    NextStateName :: state_name(),
+    NewStateData :: StateData.
 code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
 
@@ -476,7 +484,7 @@ format_status(Opt, StatusData) ->
 %%--------------------------------------------------------------------
 -spec validate_month(MonthBin) -> {ok, Month} | {false, MonthBin} when
     MonthBin :: binary(),
-    Month :: 1..12.
+    Month :: player_fsm:born_month().
 validate_month(MonthBin) ->
     try
         case binary_to_integer(MonthBin) of
@@ -501,7 +509,7 @@ validate_month(MonthBin) ->
     Key :: atom(),
     Desc :: atom(),
     AccContent :: [any()],
-    State :: map().
+    State :: state().
 gen_summary_content([], AccContent, _) ->
     [AccContent, <<"\n">>, {nls, is_confirmed}];
 gen_summary_content([{Key, Desc} | Tail], AccContent, State) ->

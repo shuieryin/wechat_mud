@@ -34,7 +34,7 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec exec(DispatcherPid, Uid) -> ok when
-    Uid :: atom(),
+    Uid :: player_fsm:uid(),
     DispatcherPid :: pid().
 exec(DispatcherPid, Uid) ->
     player_fsm:look_scene(Uid, DispatcherPid).
@@ -46,7 +46,7 @@ exec(DispatcherPid, Uid) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec exec(DispatcherPid, Uid, Args) -> ok when
-    Uid :: atom(),
+    Uid :: player_fsm:uid(),
     DispatcherPid :: pid(),
     Args :: binary().
 exec(DispatcherPid, Uid, Args) ->

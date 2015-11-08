@@ -34,7 +34,7 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec exec(DispatcherPid, Uid, Direction) -> ok when
-    Uid :: atom(),
+    Uid :: player_fsm:uid(),
     DispatcherPid :: pid(),
     Direction :: directions().
 exec(DispatcherPid, Uid, Direction) ->

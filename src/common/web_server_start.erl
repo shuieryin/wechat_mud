@@ -63,7 +63,7 @@ start_link(Port) ->
     Pid :: pid(),
     HttpReply :: {ok, Resp, list()},
     Resp :: cowboy_req:req(),
-    Env :: map().
+    Env :: map(). % generic map
 init(Req, Env) ->
 %%     error_logger:info_msg("Request raw:~p~n", [Req]),
     Resource = path(Req),

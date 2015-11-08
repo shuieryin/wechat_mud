@@ -34,6 +34,8 @@
 -define(DEFAULT_WECHAT_DEBUG_MODE, true).
 -define(RUNTIME_DATAS, runtime_datas).
 
+-type state() :: #{?R_COMMON_CONFIG => #{is_wechat_debug => boolean()}, ?RUNTIME_DATAS => csv_to_object:csv_to_object()}.
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -109,7 +111,7 @@ turn_off_wechat_debug() ->
 %%--------------------------------------------------------------------
 -spec get_runtime_data(Phases) -> RuntimeDataMap when
     Phases :: [atom()],
-    RuntimeDataMap :: map().
+    RuntimeDataMap :: map(). % generic map
 get_runtime_data(Phases) ->
     gen_server:call(?MODULE, {get_runtime_data, Phases}).
 
@@ -135,7 +137,7 @@ get_runtime_data(Phases) ->
     ignore when
 
     Args :: term(),
-    State :: map(),
+    State :: state(),
     Reason :: term().
 init([]) ->
     io:format("~p starting~n", [?MODULE]),
@@ -170,8 +172,8 @@ init([]) ->
     Request :: {is_wechat_debug} | {set_wechat_debug, IsOn :: boolean()} | {get_runtime_data, Phases :: [atom()]},
     From :: {pid(), Tag :: term()},
     Reply :: IsWechatDebug | IsOn | TargetRuntimeData,
-    State :: map(),
-    NewState :: map(),
+    State :: state(),
+    NewState :: State,
     Reason :: term(),
     IsWechatDebug :: boolean(),
     IsOn :: boolean(),
@@ -192,19 +194,19 @@ handle_call({get_runtime_data, Phases}, _From, #{?RUNTIME_DATAS := RuntimeDatasM
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_runtime_data(Phases, DatasMap) -> TargetRuntimeData when
+-spec get_runtime_data(Phases, RuntimeDatasMap) -> TargetRuntimeData when
     Phases :: [atom()],
-    DatasMap :: map(),
+    RuntimeDatasMap :: csv_to_object:csv_to_object(),
     TargetRuntimeData :: term().
-get_runtime_data([Phase | []], DatasMap) ->
-    case maps:get(Phase, DatasMap, undefined) of
+get_runtime_data([Phase | []], RuntimeDatasMap) ->
+    case maps:get(Phase, RuntimeDatasMap, undefined) of
         undefined ->
             undefined;
         TargetRuntimeData ->
             TargetRuntimeData
     end;
-get_runtime_data([Phase | Tail], DatasMap) ->
-    case maps:get(Phase, DatasMap, undefined) of
+get_runtime_data([Phase | Tail], RuntimeDatasMap) ->
+    case maps:get(Phase, RuntimeDatasMap, undefined) of
         undefined ->
             undefined;
         DeeperMap ->
@@ -224,8 +226,8 @@ get_runtime_data([Phase | Tail], DatasMap) ->
     {stop, Reason, NewState} when
 
     Request :: term(),
-    State :: map(),
-    NewState :: map(),
+    State :: state(),
+    NewState :: State,
     Reason :: term().
 handle_cast(_Request, State) ->
     {noreply, State}.
@@ -246,8 +248,8 @@ handle_cast(_Request, State) ->
     {stop, Reason, NewState} when
 
     Info :: timeout(),
-    State :: map(),
-    NewState :: map(),
+    State :: state(),
+    NewState :: State,
     Reason :: term().
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -265,7 +267,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(Reason, State) -> term() when
     Reason :: (normal | shutdown | {shutdown, term()} | term()),
-    State :: map().
+    State :: state().
 terminate(_Reason, _State) ->
     ok.
 
@@ -282,9 +284,9 @@ terminate(_Reason, _State) ->
     {error, Reason} when
 
     OldVsn :: term() | {down, term()},
-    State :: map(),
+    State :: state(),
     Extra :: term(),
-    NewState :: map(),
+    NewState :: State,
     Reason :: term().
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.

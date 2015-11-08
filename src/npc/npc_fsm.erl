@@ -27,6 +27,10 @@
     format_status/2]).
 
 -define(SERVER, ?MODULE).
+-define(NPC_PROFILE, npc_profile).
+
+-type state() :: #{?NPC_PROFILE => npc_fsm_manager:npc_born_info()}.
+-type state_name() :: state_name.
 
 %%%===================================================================
 %%% API
@@ -73,12 +77,13 @@ being_looked(TargetNpcFsmId, SrcUid) ->
     {ok, StateName, StateData, timeout() | hibernate} |
     {stop, Reason} |
     ignore when
-    StateName :: atom(),
-    StateData :: map(),
+
+    StateName :: state_name(),
+    StateData :: state(),
     Reason :: term(),
     NpcProfile :: npc_fsm_manager:npc_born_info().
 init(NpcProfile) ->
-    {ok, state_name, NpcProfile}.
+    {ok, state_name, #{?NPC_PROFILE => NpcProfile}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -95,11 +100,12 @@ init(NpcProfile) ->
     {next_state, NextStateName, NextState} |
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
+
     Event :: term(),
-    State :: map(),
-    NextStateName :: atom(),
-    NextState :: map(),
-    NewState :: map(),
+    State :: state(),
+    NextStateName :: state_name(),
+    NextState :: State,
+    NewState :: State,
     Reason :: term().
 state_name(_Event, State) ->
     {next_state, state_name, State}.
@@ -122,14 +128,15 @@ state_name(_Event, State) ->
     {reply, Reply, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} |
     {stop, Reason, Reply, NewState} when
+
     Event :: term(),
     From :: {pid(), term()},
-    State :: map(),
-    NextStateName :: atom(),
-    NextState :: map(),
+    State :: state(),
+    NextStateName :: state_name(),
+    NextState :: State,
     Reason :: normal | term(),
     Reply :: term(),
-    NewState :: map().
+    NewState :: State.
 state_name(_Event, _From, State) ->
     Reply = ok,
     {reply, Reply, state_name, State}.
@@ -147,11 +154,12 @@ state_name(_Event, _From, State) ->
     {next_state, NextStateName, NewStateData} |
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
+
     Event :: term(),
-    StateName :: atom(),
-    StateData :: map(),
-    NextStateName :: atom(),
-    NewStateData :: map(),
+    StateName :: state_name(),
+    StateData :: state(),
+    NextStateName :: StateName,
+    NewStateData :: StateData,
     Reason :: term().
 handle_event(_Event, StateName, State) ->
     {next_state, StateName, State}.
@@ -174,15 +182,15 @@ handle_event(_Event, StateName, State) ->
     {stop, Reason, NewStateData} when
 
     Event :: {being_looked, SrcUid},
-    SrcUid :: atom(),
+    SrcUid :: player_fsm:uid(),
     From :: {pid(), Tag :: term()},
-    StateName :: atom(),
-    StateData :: term(),
+    StateName :: state_name(),
+    StateData :: state(),
     Reply :: term(),
-    NextStateName :: atom(),
-    NewStateData :: term(),
+    NextStateName :: StateName,
+    NewStateData :: StateData,
     Reason :: term().
-handle_sync_event({being_looked, _SrcUid}, _From, StateName, #{description_nls_key := DescriptionNlsKey} = State) ->
+handle_sync_event({being_looked, _SrcUid}, _From, StateName, #{?NPC_PROFILE := #{description_nls_key := DescriptionNlsKey}} = State) ->
     Reply = [{nls, DescriptionNlsKey}, <<"\n">>],
     {reply, Reply, StateName, State}.
 
@@ -199,11 +207,12 @@ handle_sync_event({being_looked, _SrcUid}, _From, StateName, #{description_nls_k
     {next_state, NextStateName, NewStateData} |
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
+
     Info :: term(),
-    StateName :: atom(),
-    StateData :: term(),
-    NextStateName :: atom(),
-    NewStateData :: term(),
+    StateName :: state_name(),
+    StateData :: state(),
+    NextStateName :: StateName,
+    NewStateData :: StateData,
     Reason :: normal | term().
 handle_info(_Info, StateName, State) ->
     {next_state, StateName, State}.
@@ -220,8 +229,8 @@ handle_info(_Info, StateName, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(Reason, StateName, StateData) -> term() when
     Reason :: normal | shutdown | {shutdown, term()} | term(),
-    StateName :: atom(),
-    StateData :: term().
+    StateName :: state_name(),
+    StateData :: state().
 terminate(_Reason, _StateName, _State) ->
     ok.
 
@@ -234,11 +243,11 @@ terminate(_Reason, _StateName, _State) ->
 %%--------------------------------------------------------------------
 -spec code_change(OldVsn, StateName, StateData, Extra) -> {ok, NextStateName, NewStateData} when
     OldVsn :: term() | {down, term()},
-    StateName :: atom(),
-    StateData :: map(),
+    StateName :: state_name(),
+    StateData :: state(),
     Extra :: term(),
-    NextStateName :: atom(),
-    NewStateData :: map().
+    NextStateName :: StateName,
+    NewStateData :: StateData.
 code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
 
