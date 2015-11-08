@@ -3,7 +3,7 @@
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
-%%% Re-register player module
+%%% Re-register player module.
 %%%
 %%% @end
 %%% Created : 01. Sep 2015 11:28 PM
@@ -37,9 +37,9 @@ exec(DispatcherPid, Uid) ->
         undefined ->
             login_server:register_uid(DispatcherPid, Uid);
         _ ->
-            player_fsm:response_content(Uid, ?MODULE, [{nls, please_logout_first}], DispatcherPid)
+            player_fsm:response_content(Uid, commands, [{nls, please_logout_first}], DispatcherPid)
     end.
 
 %%%===================================================================
-%%% Internal functions
+%%% Internal functions (N/A)
 %%%===================================================================

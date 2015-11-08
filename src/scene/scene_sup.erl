@@ -90,7 +90,8 @@ gen_scene_child_list() ->
         populate_scene_child(SceneValuesMap, Restart, Shutdown, Type)
     end,
 
-    csv_to_object:traverse_files(?SCENE_PATH, ChildFun).
+    ScenesMap = csv_to_object:traverse_merge_files(?SCENE_NLS_PATH, ChildFun),
+    maps:values(ScenesMap).
 
 %%--------------------------------------------------------------------
 %% @doc

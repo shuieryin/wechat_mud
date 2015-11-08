@@ -26,8 +26,14 @@ init([]) ->
     [{AppName, _, _, _}] = release_handler:which_releases(permanent),
     erlang:set_cookie(node(), list_to_atom(AppName)),
 
+    RestartStrategy = one_for_one,
+    MaxRestarts = 1000,
+    MaxSecondsBetweenRestarts = 3600,
+
+    SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
+
     {ok, {
-        {one_for_one, 5, 10},
+        SupFlags,
         [
             {redis_client_server,
                 {redis_client_server, start_link, []},
@@ -59,6 +65,14 @@ init([]) ->
                 10000,
                 worker,
                 [login_server]
+            },
+
+            {npc_root_sup,
+                {npc_root_sup, start_link, []},
+                permanent,
+                10000,
+                supervisor,
+                [npc_root_sup]
             },
 
             {scene_sup,

@@ -35,5 +35,5 @@ exec(DispatcherPid, Uid) ->
     login_server:login(DispatcherPid, Uid).
 
 %%%===================================================================
-%%% Internal functions
+%%% Internal functions (N/A)
 %%%===================================================================

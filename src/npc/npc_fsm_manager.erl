@@ -1,24 +1,22 @@
 %%%-------------------------------------------------------------------
-%%% @author Shuieryin
+%%% @author shuieryin
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
-%%% Common gen_server. This server maintains systemic states or variables.
+%%% This is npc fsm manager, it manages npcs all over the server.
+%%% all over the server.
 %%%
 %%% @end
-%%% Created : 03. Sep 2015 3:50 PM
+%%% Created : 06. Nov 2015 4:47 PM
 %%%-------------------------------------------------------------------
--module(common_server).
--author("Shuieryin").
+-module(npc_fsm_manager).
+-author("shuieryin").
 
 -behaviour(gen_server).
 
 %% API
 -export([start_link/0,
-    is_wechat_debug/0,
-    turn_on_wechat_debug/0,
-    turn_off_wechat_debug/0,
-    get_runtime_data/1]).
+    new_npcs/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -30,9 +28,15 @@
     format_status/2]).
 
 -define(SERVER, ?MODULE).
--define(R_COMMON_CONFIG, common_config).
--define(DEFAULT_WECHAT_DEBUG_MODE, true).
--define(RUNTIME_DATAS, runtime_datas).
+-define(NPC_FSM_IDS_MAP, nps_fsm_ids).
+
+-type npc_type() :: dog | little_boy.
+-type npc_spec() :: {npc_type(), Amount :: pos_integer()}.
+-type npc_born_info() :: #{npc_id => atom(), name_nls_key => atom(), description_nls_key => atom(), attack => integer(), defence => integer(), hp => integer(), dexterity => integer()}.
+
+-export_type([npc_type/0,
+    npc_spec/0,
+    npc_born_info/0]).
 
 %%%===================================================================
 %%% API
@@ -40,7 +44,7 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Starts server by setting module name as server name.
+%% Starts the server
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -56,62 +60,19 @@ start_link() ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Checks if wechat debug mode is on.
-%%
-%% If wechat debug mode is on, the signature validation will be skipped
-%% by requests sent from wechat debug tool (http://mp.weixin.qq.com/debug).
+%% Starts npc fsm as requirements of NpcSpecs.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec is_wechat_debug() -> boolean().
-is_wechat_debug() ->
-    gen_server:call(?MODULE, {is_wechat_debug}).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Turns on wechat debug mode.
-%%
-%% If wechat debug mode is on, the signature validation will be skipped
-%% by requests sent from wechat debug tool (http://mp.weixin.qq.com/debug).
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec turn_on_wechat_debug() -> boolean().
-turn_on_wechat_debug() ->
-    gen_server:call(?MODULE, {set_wechat_debug, true}).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Turns off wechat debug mode.
-%%
-%% If wechat debug mode is on, the signature validation will be skipped
-%% by requests sent from wechat debug tool (http://mp.weixin.qq.com/debug).
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec turn_off_wechat_debug() -> boolean().
-turn_off_wechat_debug() ->
-    gen_server:call(?MODULE, {set_wechat_debug, false}).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Retrieves runtime data by phase list.
-%% For example retriving specific:
-%%      csv file:                   [csv_file_name]
-%%      row of csv file:            [csv_file_name | row_id]
-%%      field of row of csv file:   [csv_file_name | row_id | field_name]
-%%
-%% The element types of each phase has to be map type except csv_file_name
-%% and the last phase name. It returns undefined once field not found when
-%% traversing phase list.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec get_runtime_data(Phases) -> RuntimeDataMap when
-    Phases :: [atom()],
-    RuntimeDataMap :: map().
-get_runtime_data(Phases) ->
-    gen_server:call(?MODULE, {get_runtime_data, Phases}).
+-spec new_npcs(NpcsSpec) -> SceneNpcFsmList when
+    NpcsSpec :: [npc_spec()],
+    SceneNpcFsmList :: [scene_fsm:npc_fsm()].
+new_npcs([]) ->
+    [];
+new_npcs(NpcsSpec) ->
+    {SceneNpcFsmList, NpcFsmMap} = traverse_npcspec(NpcsSpec),
+    gen_server:cast(?MODULE, {new_npcs, NpcFsmMap}),
+    SceneNpcFsmList.
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -120,7 +81,7 @@ get_runtime_data(Phases) ->
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% Initializes the server
+%% Initializes the server by setting npc fsm ids to emtpy list.
 %%
 %% @spec init(Args) -> {ok, State} |
 %%                     {ok, State, Timeout} |
@@ -138,19 +99,7 @@ get_runtime_data(Phases) ->
     State :: map(),
     Reason :: term().
 init([]) ->
-    io:format("~p starting~n", [?MODULE]),
-    CommonConfig =
-        case redis_client_server:get(?R_COMMON_CONFIG) of
-            undefined ->
-                NewConfig = #{},
-                redis_client_server:set(?R_COMMON_CONFIG, NewConfig, true),
-                NewConfig;
-            ReturnValue ->
-                ReturnValue
-        end,
-
-    RuntimeDatas = csv_to_object:traverse_files("priv/runtime"),
-    {ok, #{?R_COMMON_CONFIG => CommonConfig, ?RUNTIME_DATAS => RuntimeDatas}}.
+    {ok, #{?NPC_FSM_IDS_MAP => #{}}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -167,49 +116,14 @@ init([]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: {is_wechat_debug} | {set_wechat_debug, IsOn :: boolean()} | {get_runtime_data, Phases :: [atom()]},
+    Request :: term(),
     From :: {pid(), Tag :: term()},
-    Reply :: IsWechatDebug | IsOn | TargetRuntimeData,
+    Reply :: term(),
     State :: map(),
     NewState :: map(),
-    Reason :: term(),
-    IsWechatDebug :: boolean(),
-    IsOn :: boolean(),
-    TargetRuntimeData :: term().
-handle_call({is_wechat_debug}, _From, #{?R_COMMON_CONFIG := CommonConfigs} = State) ->
-    IsWechatDebug = maps:get(is_wechat_debug, CommonConfigs, ?DEFAULT_WECHAT_DEBUG_MODE),
-    {reply, IsWechatDebug, State};
-handle_call({set_wechat_debug, IsOn}, _From, #{?R_COMMON_CONFIG := CommonConfigs} = State) ->
-    {reply, IsOn, State#{?R_COMMON_CONFIG := CommonConfigs#{is_wechat_debug => IsOn}}};
-handle_call({get_runtime_data, Phases}, _From, #{?RUNTIME_DATAS := RuntimeDatasMap} = State) ->
-    TargetRuntimeData = get_runtime_data(Phases, RuntimeDatasMap),
-    {reply, TargetRuntimeData, State}.
-
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Get runtime data by phases, for details see get_runtime_data/1
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec get_runtime_data(Phases, DatasMap) -> TargetRuntimeData when
-    Phases :: [atom()],
-    DatasMap :: map(),
-    TargetRuntimeData :: term().
-get_runtime_data([Phase | []], DatasMap) ->
-    case maps:get(Phase, DatasMap, undefined) of
-        undefined ->
-            undefined;
-        TargetRuntimeData ->
-            TargetRuntimeData
-    end;
-get_runtime_data([Phase | Tail], DatasMap) ->
-    case maps:get(Phase, DatasMap, undefined) of
-        undefined ->
-            undefined;
-        DeeperMap ->
-            get_runtime_data(Tail, DeeperMap)
-    end.
+    Reason :: term().
+handle_call(_Request, _From, State) ->
+    {reply, ok, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -223,12 +137,15 @@ get_runtime_data([Phase | Tail], DatasMap) ->
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: term(),
+    Request :: {new_npcs, NewNpcFsmIdsMap},
+    NewNpcFsmIdsMap :: #{uuid:uuid() => uuid:uuid()},
     State :: map(),
     NewState :: map(),
     Reason :: term().
-handle_cast(_Request, State) ->
-    {noreply, State}.
+handle_cast({new_npcs, NewNpcFsmIdsMap}, #{?NPC_FSM_IDS_MAP := NpcFsmIdsMap} = State) ->
+    UpdatedNpcFsmIdsMap = maps:merge(NpcFsmIdsMap, NewNpcFsmIdsMap),
+    {noreply, State#{?NPC_FSM_IDS_MAP := UpdatedNpcFsmIdsMap}}.
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -310,3 +227,58 @@ format_status(Opt, StatusData) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Traverses Npcs spec and starts certain amounts of npc fsms by
+%% specific npc types.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec traverse_npcspec(NpcsSpec) -> {SceneNpcFsmList, NpcFsmMap} when
+    NpcsSpec :: [npc_spec()],
+    SceneNpcFsmList :: [scene_fsm:npc_fsm()],
+    NpcFsmMap :: #{uuid:uuid() => uuid:uuid()}.
+traverse_npcspec(NpcsSpec) ->
+    traverse_npcspec(NpcsSpec, [], #{}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Traverses Npcs spec and starts certain amounts of npc fsms by
+%% specific npc types.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec traverse_npcspec(NpcsSpec, AccNpcFsmList, AccNpcFsmMap) -> {NpcFsmList, NpcFsmMap} when
+    NpcsSpec :: [npc_spec()],
+    AccNpcFsmList :: [scene_fsm:npc_fsm()],
+    AccNpcFsmMap :: #{uuid:uuid() => uuid:uuid()},
+    NpcFsmList :: AccNpcFsmList,
+    NpcFsmMap :: AccNpcFsmMap.
+traverse_npcspec([], AccNpcFsmList, AccNpcFsmMap) ->
+    {AccNpcFsmList, AccNpcFsmMap};
+traverse_npcspec([{NpcType, Amount} | Tail], AccNpcFsmList, AccNpcFsmMap) ->
+    NpcBornProfile = common_server:get_runtime_data([npcs, NpcType]),
+    {UpdatedAccNpcFsmList, UpdatedAccNpcFsmMap} = new_npc(Amount, NpcBornProfile, AccNpcFsmList, AccNpcFsmMap),
+    traverse_npcspec(Tail, UpdatedAccNpcFsmList, UpdatedAccNpcFsmMap).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Starts certain amounts of npc fsm with the same npc type.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec new_npc(Amount, NpcBornProfile, AccNpcFsmList, AccOverallNpcFsmMap) -> {NpcFsmList, OverallNpcFsmMap} when
+    Amount :: pos_integer(),
+    NpcBornProfile :: npc_born_info(),
+    AccNpcFsmList :: [scene_fsm:npc_fsm()],
+    AccOverallNpcFsmMap :: #{uuid:uuid() => uuid:uuid()},
+    NpcFsmList :: AccNpcFsmList,
+    OverallNpcFsmMap :: AccOverallNpcFsmMap.
+new_npc(0, _, AccNpcFsmList, AccOverallNpcFsmMap) ->
+    {AccNpcFsmList, AccOverallNpcFsmMap};
+new_npc(Amount, #{npc_id := NpcType, name_nls_key := NameNlsKey} = NpcBornProfile, AccNpcFsmList, AccOverallNpcFsmMap) ->
+    NpcUuid = uuid:get_v4(),
+    NpcProfile = NpcBornProfile#{npc_uuid => NpcUuid},
+    npc_fsm_sup:add_child(NpcProfile),
+    new_npc(Amount - 1, NpcBornProfile, [{npc, NpcUuid, NpcType, NameNlsKey} | AccNpcFsmList], AccOverallNpcFsmMap#{NpcUuid => NpcUuid}).

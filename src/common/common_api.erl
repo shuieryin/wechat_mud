@@ -21,7 +21,8 @@
     gen_doc/0,
     increase_vsn/3,
     hot_code_upgrade/0,
-    quit/0]).
+    quit/0,
+    first_to_lower/1]).
 
 -type valid_type() :: atom | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple.
 
@@ -193,9 +194,24 @@ hot_code_upgrade() ->
 %% @end
 %%--------------------------------------------------------------------
 -spec quit() -> no_return().
-quit()->
+quit() ->
     os:cmd("redis-cli shutdown"),
     init:stop().
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Lowercases the first letter of give string.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec first_to_lower(SrcString) -> FirstLoweredString when
+    SrcString :: string() | term(),
+    FirstLoweredString :: SrcString.
+first_to_lower([First | Rest] = SrcString) when is_list(SrcString) ->
+    FirstLowered = string:to_lower([First]),
+    FirstLowered ++ Rest;
+first_to_lower(Other) ->
+    Other.
 
 %%%===================================================================
 %%% Internal functions

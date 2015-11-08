@@ -11,7 +11,7 @@
 -author("shuieryin").
 
 %% Nls files root path
--define(SCENE_PATH, "priv/scene").
+-define(SCENE_NLS_PATH, "priv/scene").
 
 %% Unique scene file extension
 -define(FILE_EXTENSION, ".csv").

@@ -20,11 +20,12 @@
 
 %% API
 -export([start_link/1,
-    read_line/2,
     is_valid_lang/2,
     response_content/4,
     get_nls_content/3,
-    show_langs/2]).
+    show_langs/2,
+    read_nls_file/2,
+    do_response_content/4]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -47,17 +48,18 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link(ServerName) ->
+-spec start_link(NlsFilePath) ->
     {ok, Pid} |
     ignore |
     {error, Reason} when
 
-    ServerName :: atom(),
+    NlsFilePath :: file:filename_all(),
     Pid :: pid(),
     Reason :: term().
-start_link(NlsFileName) ->
-    ServerName = list_to_atom(filename:rootname(filename:basename(NlsFileName))),
-    gen_server:start_link({local, ServerName}, ?MODULE, [NlsFileName], []).
+start_link(NlsFilePath) ->
+    ServerNamesStr = filename:rootname(filename:basename(NlsFilePath)),
+    [ServerNameStr | ExtraNlsFileNames] = string:tokens(ServerNamesStr, "."),
+    gen_server:start_link({local, list_to_atom(ServerNameStr)}, ?MODULE, {ExtraNlsFileNames, NlsFilePath}, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -115,30 +117,40 @@ is_valid_lang(ServerName, Lang) ->
     DispatcherPid :: pid(),
     Lang :: atom().
 show_langs(DispatcherPid, Lang) ->
-    gen_server:cast(lang, {show_langs, DispatcherPid, Lang}).
+    gen_server:cast(commands, {show_langs, DispatcherPid, Lang}).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Reads a line from csv file. Each line contains an nls key with its
-%% supported language contents.
+%% Reads nls values from csv file and return nls map.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec read_line(NewLineData, State) -> FinalValuesMap when
-    NewLineData :: {newline, NewLine} | {eof},
-    NewLine :: [term()],
-    State :: {Counter, KeysMap, ValuesMap},
-    Counter :: non_neg_integer(),
-    KeysMap :: map(),
-    ValuesMap :: map(),
-    FinalValuesMap :: map().
-read_line({newline, NewLine}, {Counter, KeysMap, ValuesMap}) ->
-    {Counter + 1, KeysMap, gen_valuesmap(NewLine, KeysMap, ValuesMap, 0)};
-read_line({newline, NewLine}, {0, ValuesMap}) ->
-    {KeysMap, NewValuesMap} = gen_keysmap(NewLine, #{}, 0, ValuesMap),
-    {1, KeysMap, NewValuesMap};
-read_line({eof}, {_, _, FinalValuesMap}) ->
-    FinalValuesMap.
+-spec read_nls_file(NlsFileName, AccNlsMap) -> NlsMap when
+    NlsFileName :: file:name_all(),
+    AccNlsMap :: map(),
+    NlsMap :: map().
+read_nls_file(NlsFileName, AccNlsMap) ->
+    {ok, NlsFile} = file:open(NlsFileName, [read]),
+    {ok, NlsMap} = ecsv:process_csv_file_with(NlsFile, fun read_line/2, {0, AccNlsMap}),
+    ok = file:close(NlsFile),
+    NlsMap.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Implementation function for response_content/4.
+%% @see response_content/4.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec do_response_content(Lang, State, ContentList, DispatcherPid) -> ok when
+    Lang :: atom(),
+    State :: map(),
+    ContentList :: [term()],
+    DispatcherPid :: pid().
+do_response_content(Lang, State, ContentList, DispatcherPid) ->
+    LangMap = maps:get(Lang, State),
+    ReturnContent = fill_in_nls(ContentList, LangMap, []),
+    command_dispatcher:return_content(DispatcherPid, ReturnContent).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -158,18 +170,36 @@ read_line({eof}, {_, _, FinalValuesMap}) ->
     {stop, Reason} |
     ignore when
 
-    Args :: [atom()],
+    Args :: {ExtraNlsFileNames, NlsFilePath},
+    ExtraNlsFileNames :: [string()],
+    NlsFilePath :: file:filename_all(),
     State :: map(),
     Reason :: term().
-init([NlsFilePath]) ->
+init({ExtraNlsFileNames, NlsFilePath}) ->
     CommonNlsFilePath = filename:append(?NLS_PATH, ?COMMON_NLS),
 
-    NlsMap = read_nls_file(NlsFilePath, #{}),
-    FinalNlsMap = read_nls_file(CommonNlsFilePath, NlsMap),
+    CommonNlsFilePath = filename:append(?NLS_PATH, ?COMMON_NLS),
+    CommonNlsMap = nls_server:read_nls_file(CommonNlsFilePath, #{}),
+    NlsMap = read_nls_file(NlsFilePath, CommonNlsMap),
+    FinalNlsMap = lists:foldl(fun load_nls_file/2, NlsMap, ExtraNlsFileNames),
 
     FinalMap = FinalNlsMap#{nls_file_path => NlsFilePath, common_nls_file_path => CommonNlsFilePath},
-    error_logger:info_msg("FinalMap:~tp~n", [FinalMap]),
+    error_logger:info_msg("FilePath:~p~nFinalMap:~tp~n", [NlsFilePath, FinalMap]),
     {ok, FinalMap}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Loads nls file. This function is called by lists:foldl/3 or lists:foldr/3.
+%% @see lists:foldl/3, lists:foldr/3.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec load_nls_file(NlsFileName, AccNlsMap) -> NlsMap when
+    NlsFileName :: file:filename_all(),
+    AccNlsMap :: map(),
+    NlsMap :: AccNlsMap.
+load_nls_file(NlsFileName, AccNlsMap) ->
+    read_nls_file(filename:join(?NLS_PATH, NlsFileName) ++ ?NLS_EXTENSION, AccNlsMap).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -315,6 +345,29 @@ format_status(Opt, StatusData) ->
 
 %%--------------------------------------------------------------------
 %% @doc
+%% Reads a line from csv file. Each line contains an nls key with its
+%% supported language contents.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec read_line(NewLineData, State) -> FinalValuesMap when
+    NewLineData :: {newline, NewLine} | {eof},
+    NewLine :: [term()],
+    State :: {Counter, KeysMap, ValuesMap},
+    Counter :: non_neg_integer(),
+    KeysMap :: map(),
+    ValuesMap :: map(),
+    FinalValuesMap :: map().
+read_line({newline, NewLine}, {Counter, KeysMap, ValuesMap}) ->
+    {Counter + 1, KeysMap, gen_valuesmap(NewLine, KeysMap, ValuesMap, 0)};
+read_line({newline, NewLine}, {0, ValuesMap}) ->
+    {KeysMap, NewValuesMap} = gen_keysmap(NewLine, #{}, 0, ValuesMap),
+    {1, KeysMap, NewValuesMap};
+read_line({eof}, {_, _, FinalValuesMap}) ->
+    FinalValuesMap.
+
+%%--------------------------------------------------------------------
+%% @doc
 %% Generate keys map from first line from csv file.
 %%
 %% @end
@@ -372,39 +425,6 @@ gen_valuesmap([Value | Tail], KeysMap, ValuesMap, Pos) ->
                 {KeysMap, ValuesMap#{Lang := LangMap#{Id => FinalValue}}}
         end,
     gen_valuesmap(Tail, NewKeysMap, NewValueMap, Pos + 1).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Reads nls values from csv file and return nls map.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec read_nls_file(NlsFileName, AccNlsMap) -> NlsMap when
-    NlsFileName :: file:name_all(),
-    AccNlsMap :: map(),
-    NlsMap :: map().
-read_nls_file(NlsFileName, AccNlsMap) ->
-    {ok, NlsFile} = file:open(NlsFileName, [read]),
-    {ok, NlsMap} = ecsv:process_csv_file_with(NlsFile, fun read_line/2, {0, AccNlsMap}),
-    ok = file:close(NlsFile),
-    NlsMap.
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Actual function for response_content/4. For details see
-%% response_content/4 spec.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec do_response_content(Lang, State, ContentList, DispatcherPid) -> ok when
-    Lang :: atom(),
-    State :: map(),
-    ContentList :: [term()],
-    DispatcherPid :: pid().
-do_response_content(Lang, State, ContentList, DispatcherPid) ->
-    LangMap = maps:get(Lang, State),
-    ReturnContent = fill_in_nls(ContentList, LangMap, []),
-    command_dispatcher:return_content(DispatcherPid, ReturnContent).
 
 %%--------------------------------------------------------------------
 %% @doc

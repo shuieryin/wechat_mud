@@ -15,7 +15,8 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([start_link/0,
+    add_child/1]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -36,6 +37,17 @@
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Starts the supervisor
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec add_child(PlayerProfile) -> supervisor:startchild_ret() when
+    PlayerProfile :: map().
+add_child(PlayerProfile) ->
+    supervisor:start_child(?MODULE, [PlayerProfile]).
 
 %%%===================================================================
 %%% Supervisor callbacks

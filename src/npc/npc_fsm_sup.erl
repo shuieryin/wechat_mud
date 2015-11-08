@@ -3,20 +3,20 @@
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
-%%% Register_fsm supervisor. This is a simple one for one supervisor
-%%% which register_fsm children dynamically are added to or removed from it.
+%%% Npc_fsm supervisor. This is a simple one for one supervisor which
+%%% npc_fsm children dynamically are added to or removed from it.
 %%%
 %%% @end
 %%% Created : 01. Nov 2015 6:12 PM
 %%%-------------------------------------------------------------------
--module(register_fsm_sup).
+-module(npc_fsm_sup).
 -author("shuieryin").
 
 -behaviour(supervisor).
 
 %% API
 -export([start_link/0,
-    add_child/2]).
+    add_child/1]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -40,15 +40,14 @@ start_link() ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Adds register_fsm
+%% Starts the supervisor
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec add_child(DispatcherPid, Uid) -> supervisor:startchild_ret() when
-    DispatcherPid :: pid(),
-    Uid :: atom().
-add_child(DispatcherPid, Uid) ->
-    supervisor:start_child(?MODULE, [DispatcherPid, Uid]).
+-spec add_child(NpcProfile) -> supervisor:startchild_ret() when
+    NpcProfile :: map().
+add_child(NpcProfile) ->
+    supervisor:start_child(?MODULE, [NpcProfile]).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -77,10 +76,10 @@ init([]) ->
     Shutdown = 2000,
     Type = worker,
 
-    ChildSpec = {register_fsm, {register_fsm, start_link, []}, Restart, Shutdown, Type, [register_fsm]},
+    ChildSpec = {npc_fsm, {npc_fsm, start_link, []}, Restart, Shutdown, Type, [npc_fsm]},
 
     {ok, {SupFlags, [ChildSpec]}}.
 
 %%%===================================================================
-%%% Internal functions
+%%% Internal functions (N/A)
 %%%===================================================================

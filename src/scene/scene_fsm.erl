@@ -21,10 +21,11 @@
 %% API
 -export([start_link/1,
     stop/0,
-    enter/3,
+    enter/4,
     leave/2,
-    go_direction/3,
-    look/3]).
+    go_direction/5,
+    look_scene/4,
+    look_target/6]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -37,7 +38,18 @@
     code_change/4,
     format_status/2]).
 
--define(PLAYERS_MAP, players_map).
+-include("../nls/nls.hrl").
+
+-define(SCENE_NLS_PATH, "priv/scene_nls").
+-define(SCENE_INFO, scene_info).
+-define(SCENE_OBJECT_LIST, scene_object_list).
+-define(NLS_MAP, nls_map).
+
+-type player() :: {player, Uid :: atom()}.
+-type npc_fsm() :: {npc, NpcFsmUuid :: uuid:uuid(), npc_fsm_manager:npc_type(), NpcNameNlsKey :: atom()}.
+-type scene_object() :: player() | npc_fsm().
+
+-export_type([npc_fsm/0]).
 
 %%%===================================================================
 %%% API
@@ -54,10 +66,10 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec start_link(Request) -> {ok, pid()} | ignore | {error, Reason :: term()} when
-    Request :: {init, ValuesMap},
-    ValuesMap :: map().
-start_link({init, #{id := SceneName} = ValuesMap}) ->
-    gen_fsm:start_link({local, SceneName}, ?MODULE, [{init, ValuesMap}], []).
+    Request :: {init, SceneInfo},
+    SceneInfo :: map().
+start_link({init, #{id := SceneName} = SceneInfo}) ->
+    gen_fsm:start_link({local, SceneName}, ?MODULE, {init, SceneInfo}, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -67,12 +79,13 @@ start_link({init, #{id := SceneName} = ValuesMap}) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec enter(SceneName, SimplePlayerProfile, DispatcherPid) -> ok when
+-spec enter(SceneName, Uid, Lang, DispatcherPid) -> ok when
     SceneName :: atom(),
-    SimplePlayerProfile :: map(),
+    Uid :: atom(),
+    Lang :: atom(),
     DispatcherPid :: pid().
-enter(SceneName, SimplePlayerProfile, DispatcherPid) ->
-    gen_fsm:send_all_state_event(SceneName, {enter, SimplePlayerProfile, DispatcherPid}).
+enter(SceneName, Uid, Lang, DispatcherPid) ->
+    gen_fsm:send_all_state_event(SceneName, {enter, Uid, Lang, DispatcherPid}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -83,15 +96,17 @@ enter(SceneName, SimplePlayerProfile, DispatcherPid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec go_direction(SceneName, Uid, TargetDirection) -> Result when
+-spec go_direction(SceneName, Uid, Lang, DispatcherPid, TargetDirection) -> Result when
     SceneName :: atom(),
     Uid :: atom(),
+    Lang :: atom(),
+    DispatcherPid :: pid(),
     TargetDirection :: direction:directions(),
     Result :: TargetSceneName | {undefined, SceneNlsServerName},
     TargetSceneName :: atom(),
     SceneNlsServerName :: atom().
-go_direction(SceneName, Uid, TargetDirection) ->
-    gen_fsm:sync_send_all_state_event(SceneName, {go_direction, Uid, TargetDirection}).
+go_direction(SceneName, Uid, Lang, DispatcherPid, TargetDirection) ->
+    gen_fsm:sync_send_all_state_event(SceneName, {go_direction, Uid, Lang, DispatcherPid, TargetDirection}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -108,16 +123,33 @@ leave(SceneName, Uid) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Looks current scene by response current scene info to player.
+%% Looks at current scene by response current scene info to player.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec look(CurSceneName, DispatcherPid, SimplePlayerProfile) -> ok when
+-spec look_scene(CurSceneName, Uid, Lang, DispatcherPid) -> ok when
     CurSceneName :: atom(),
     DispatcherPid :: pid(),
-    SimplePlayerProfile :: map().
-look(CurSceneName, DispatcherPid, SimplePlayerProfile) ->
-    gen_fsm:send_all_state_event(CurSceneName, {look, DispatcherPid, SimplePlayerProfile}).
+    Uid :: atom(),
+    Lang :: atom().
+look_scene(CurSceneName, Uid, Lang, DispatcherPid) ->
+    gen_fsm:send_all_state_event(CurSceneName, {look_scene, Uid, Lang, DispatcherPid}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Looks at current scene by response current scene info to player.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec look_target(CurSceneName, Uid, Lang, DispatcherPid, Target, Sequence) -> ok when
+    CurSceneName :: atom(),
+    DispatcherPid :: pid(),
+    Uid :: atom(),
+    Lang :: atom(),
+    Target :: look:target(),
+    Sequence :: look:sequence().
+look_target(CurSceneName, Uid, Lang, DispatcherPid, Target, Sequence) ->
+    gen_fsm:send_all_state_event(CurSceneName, {look_target, Uid, Lang, DispatcherPid, Target, Sequence}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -151,9 +183,15 @@ stop() ->
     StateName :: atom(),
     StateData :: map(),
     Reason :: term().
-init([{init, SceneInfo}]) ->
+init({init, #{npcs := NpcsSpec, nls_files := NlsFileNames} = SceneInfo}) ->
     error_logger:info_msg("Starting scene:~p~n", [SceneInfo]),
-    {ok, state_name, #{scene_info => SceneInfo, ?PLAYERS_MAP => #{}}}.
+
+    CommonNlsFilePath = filename:append(?NLS_PATH, ?COMMON_NLS),
+    CommonNlsMap = nls_server:read_nls_file(CommonNlsFilePath, #{}),
+    NlsMap = lists:foldl(fun load_nls_file/2, CommonNlsMap, string:tokens(NlsFileNames, ",")),
+
+    SceneNpcFsmList = npc_fsm_manager:new_npcs(NpcsSpec),
+    {ok, state_name, #{?SCENE_INFO => SceneInfo, ?SCENE_OBJECT_LIST => SceneNpcFsmList, ?NLS_MAP => NlsMap}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -223,23 +261,91 @@ state_name(_Event, _From, State) ->
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
 
-    Event :: {enter, SimplePlayerProfile, DispatcherPid} | {leave, Uid} | {look, DispatcherPid},
-    SimplePlayerProfile :: map(),
+    Event ::
+    {enter, Uid, Lang, DispatcherPid} |
+    {leave, Uid} |
+    {look_scene, Uid, Lang, DispatcherPid} |
+    {look_target, Uid, Lang, DispatcherPid, Target, Sequence},
+
     DispatcherPid :: pid(),
     Uid :: atom(),
+    Lang :: atom(),
     StateName :: atom(),
     StateData :: map(),
     NextStateName :: atom(),
     NewStateData :: map(),
-    Reason :: term().
-handle_event({enter, #{uid := Uid} = SimplePlayerProfile, DispatcherPid}, StateName, #{?PLAYERS_MAP := PlayersMap} = State) ->
-    show_scene(DispatcherPid, State, SimplePlayerProfile),
-    {next_state, StateName, State#{?PLAYERS_MAP := PlayersMap#{Uid => SimplePlayerProfile}}};
-handle_event({leave, Uid}, StateName, #{?PLAYERS_MAP := PlayersMap} = State) ->
-    {next_state, StateName, State#{?PLAYERS_MAP := maps:remove(Uid, PlayersMap)}};
-handle_event({look, DispatcherPid, SimplePlayerProfile}, StateName, State) ->
-    show_scene(DispatcherPid, State, SimplePlayerProfile),
+    Reason :: term(),
+    Target :: look:target(),
+    Sequence :: look:sequence().
+handle_event({enter, Uid, Lang, DispatcherPid}, StateName, #{?SCENE_OBJECT_LIST := SceneObjectList} = State) ->
+    ok = show_scene(State, Uid, Lang, DispatcherPid),
+    {next_state, StateName, State#{?SCENE_OBJECT_LIST := [{player, Uid} | SceneObjectList]}};
+handle_event({leave, Uid}, StateName, State) ->
+    {next_state, StateName, remove_scene_object({player, Uid}, State)};
+handle_event({look_scene, Uid, Lang, DispatcherPid}, StateName, State) ->
+    ok = show_scene(State, Uid, Lang, DispatcherPid),
+    {next_state, StateName, State};
+handle_event({look_target, Uid, Lang, DispatcherPid, Target, Sequence}, StateName, #{?SCENE_OBJECT_LIST := SceneObjectList, ?NLS_MAP := NlsMap} = State) ->
+    TargetSceneObject = grab_target_scene_objects(SceneObjectList, Target, Sequence),
+    ok = case TargetSceneObject of
+             undefined ->
+                 nls_server:do_response_content(Lang, NlsMap, [{nls, no_such_target}, <<"\n">>], DispatcherPid);
+             {npc, TargetNpcFsmId, _, _} ->
+                 ContentList = npc_fsm:being_looked(TargetNpcFsmId, Uid),
+                 nls_server:do_response_content(Lang, NlsMap, ContentList, DispatcherPid);
+             {player, _TargetPlayerFsmId} ->
+                 % player_fsm:get_description(TargetPlayerFsmId, PlayerProfile, NlsServerName, Lang, DispatcherPid)
+                 ok % TODO: implement above function after player nickname and id features are done.
+         end,
     {next_state, StateName, State}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Filters scene objects by given target name.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec grab_target_scene_objects(SceneObjectList, TargetName, Sequence) -> TargetSceneObject when
+    SceneObjectList :: [scene_object()],
+    TargetName :: atom(),
+    Sequence :: look:sequence(),
+    TargetSceneObject :: scene_object() | undefined.
+grab_target_scene_objects(SceneObjectList, TargetName, Sequence) ->
+    grab_target_scene_objects(SceneObjectList, TargetName, Sequence, 1).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% See parent function grab_target_scene_objects/3.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec grab_target_scene_objects(SceneObjectList, TargetName, Sequence, Counter) -> TargetSceneObject when
+    SceneObjectList :: [scene_object()],
+    TargetName :: atom(),
+    Sequence :: look:sequence(),
+    Counter :: pos_integer(),
+    TargetSceneObject :: scene_object() | undefined.
+grab_target_scene_objects([{npc, _, TargetName, _} = SceneObject | _], TargetName, Sequence, Sequence) ->
+    SceneObject;
+grab_target_scene_objects([{player, TargetName} = SceneObject | _], TargetName, Sequence, Sequence) ->
+    SceneObject;
+grab_target_scene_objects([_ | Tail], TargetName, Sequence, Counter) ->
+    grab_target_scene_objects(Tail, TargetName, Sequence, Counter + 1);
+grab_target_scene_objects([], _, _, _) ->
+    undefined.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Removes character info from state
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec remove_scene_object(SceneObject, State) -> UpdatedState when
+    SceneObject :: scene_object(),
+    State :: map(),
+    UpdatedState :: map().
+remove_scene_object(SceneObject, #{?SCENE_OBJECT_LIST := SceneObjectList} = State) ->
+    State#{?SCENE_OBJECT_LIST := lists:delete(SceneObject, SceneObjectList)}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -258,8 +364,10 @@ handle_event({look, DispatcherPid, SimplePlayerProfile}, StateName, State) ->
     {stop, Reason, Reply, NewStateData} |
     {stop, Reason, NewStateData} when
 
-    Event :: {go_direction, Uid, TargetDirection},
+    Event :: {go_direction, Uid, Lang, DispatcherPid, TargetDirection},
     Uid :: atom(),
+    Lang :: atom(),
+    DispatcherPid :: pid(),
     TargetDirection :: direction:directions(),
     From :: {pid(), Tag :: term()},
     StateName :: atom(),
@@ -268,13 +376,14 @@ handle_event({look, DispatcherPid, SimplePlayerProfile}, StateName, State) ->
     NextStateName :: atom(),
     NewStateData :: term(),
     Reason :: term().
-handle_sync_event({go_direction, Uid, TargetDirection}, _From, StateName, #{scene_info := #{exits := ExitsMap, nls_server := SceneNlsServerName}, ?PLAYERS_MAP := PlayersMap} = State) ->
+handle_sync_event({go_direction, Uid, Lang, DispatcherPid, TargetDirection}, _From, StateName, #{?SCENE_INFO := #{exits := ExitsMap}, ?NLS_MAP := NlsMap} = State) ->
     {TargetSceneName, UpdatedState} =
         case maps:get(TargetDirection, ExitsMap, undefined) of
             undefined ->
-                {{undefined, SceneNlsServerName}, State};
+                nls_server:do_response_content(Lang, NlsMap, [{nls, invalid_exit}], DispatcherPid),
+                {undefined, State};
             SceneName ->
-                {SceneName, State#{?PLAYERS_MAP := maps:remove(Uid, PlayersMap)}}
+                {SceneName, remove_scene_object({player, Uid}, State)}
         end,
 
     {reply, TargetSceneName, StateName, UpdatedState}.
@@ -371,20 +480,40 @@ gen_exits_desc(ExitsMap) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Prepares scene player name list.
+%% Prepares scene player and npc name list without the caller player.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec gen_players_name_list(PlayersMap) -> [term()] when
-    PlayersMap :: map().
-gen_players_name_list(PlayersMap) ->
-    UidList = maps:keys(PlayersMap),
-    case length(UidList) of
+-spec gen_characters_name_list(SceneObjectList, CallerUid) -> [term()] when
+    SceneObjectList :: [scene_object()],
+    CallerUid :: atom().
+gen_characters_name_list(SceneObjectList, CallerUid) ->
+    case length(SceneObjectList) of
         0 ->
             [];
         _ ->
-            [[[atom_to_binary(Uid, utf8), <<"\n">>] || Uid <- maps:keys(PlayersMap)], <<"\n">>]
+            gen_character_name(SceneObjectList, CallerUid, [<<"\n">>])
     end.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Parent function see gen_characters_name_list/2.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec gen_character_name(SceneObjectList, CallerUid, AccSceneObjectNameList) -> SceneObjectNameList when
+    SceneObjectList :: [scene_object()],
+    CallerUid :: atom(),
+    AccSceneObjectNameList :: [term()],
+    SceneObjectNameList :: AccSceneObjectNameList.
+gen_character_name([], _, AccList) ->
+    AccList;
+gen_character_name([{npc, _, NpcType, NpcNameNlsKey} | Tail], CallerUid, AccSceneObjectNameList) ->
+    gen_character_name(Tail, CallerUid, [{nls, NpcNameNlsKey}, <<" (">>, atom_to_binary(NpcType, utf8), <<")">>, <<"\n">>] ++ AccSceneObjectNameList);
+gen_character_name([{player, CallerUid} | Tail], CallerUid, AccCharactersNameList) ->
+    gen_character_name(Tail, CallerUid, AccCharactersNameList);
+gen_character_name([{player, Uid} | Tail], CallerUid, AccSceneObjectNameList) ->
+    gen_character_name(Tail, CallerUid, [atom_to_binary(Uid, utf8), <<"\n">>] ++ AccSceneObjectNameList).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -393,21 +522,35 @@ gen_players_name_list(PlayersMap) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec show_scene(DispatcherPid, State, SimplePlayerProfile) -> ok when
+-spec show_scene(State, Uid, Lang, DispatcherPid) -> ok when
     DispatcherPid :: pid(),
     State :: map(),
-    SimplePlayerProfile :: map().
-show_scene(DispatcherPid, #{scene_info := #{exits := ExitsMap, title := SceneTitle, desc := SceneDesc, nls_server := NlsServerName}, ?PLAYERS_MAP := PlayersMap}, #{uid := Uid, lang := Lang}) ->
-    WithoutUidPlayersMap = maps:remove(Uid, PlayersMap),
-    nls_server:response_content(NlsServerName,
+    Uid :: atom(),
+    Lang :: atom().
+show_scene(#{?SCENE_INFO := #{exits := ExitsMap, title := SceneTitle, desc := SceneDesc}, ?NLS_MAP := NlsMap, ?SCENE_OBJECT_LIST :=  SceneObjectList}, Uid, Lang, DispatcherPid) ->
+    nls_server:do_response_content(Lang, NlsMap,
         lists:flatten([
             {nls, SceneTitle},
             <<"\n\n">>,
             {nls, SceneDesc},
             <<"\n\n">>,
-            gen_players_name_list(WithoutUidPlayersMap),
+            gen_characters_name_list(SceneObjectList, Uid),
             {nls, obvious_exits},
             <<"\n">>,
             gen_exits_desc(ExitsMap)
         ]),
-        Lang, DispatcherPid).
+        DispatcherPid).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Loads nls file. This function is called by lists:foldl/3 or lists:foldr/3.
+%% @see lists:foldl/3, lists:foldr/3.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec load_nls_file(NlsFileName, AccNlsMap) -> NlsMap when
+    NlsFileName :: file:filename_all(),
+    AccNlsMap :: map(),
+    NlsMap :: AccNlsMap.
+load_nls_file(NlsFileName, AccNlsMap) ->
+    nls_server:read_nls_file(filename:join(?SCENE_NLS_PATH, NlsFileName) ++ ?NLS_EXTENSION, AccNlsMap).

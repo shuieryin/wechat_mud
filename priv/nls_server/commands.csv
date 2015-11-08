@@ -1,0 +1,15 @@
+id,zh,en
+welcome_back,欢迎回来!,Welcome back!
+message_type_not_support,暂不支持该类型信息,"This message type, is currently not supported"
+lang_help,指令:lang [语言缩写 | all]~n描述:更换语言~n例子:~n设置语言:lang en~n语言缩写:lang all,COMMAND:lang [language abbreviation | all]~nDESCRIPTION:change language~nSAMPLE:~nChange language:lang zh~nList language abbreviation:lang all
+invalid_lang,无效语言: ,Invalid language: 
+lang_switched,语言已更换,Language switched
+possible_lang,可用语言: ,Possible language: 
+login_help,指令:login~n描述:登陆人物~n例子:login,COMMAND:login~nDESCRIPTION:Login character~nExample:login
+already_login,您已登陆,You have already logged in
+please_login,你还没登陆~n请输入“login”,You have not logged in yet~nPlease input “login”
+logout_help,指令:logout~n描述:登出人物~n例子:logout,COMMAND:logout~nDESCRIPTION:Logout character~nExample:logout
+already_logout,您已登出,You have logged out
+rereg_help,指令:rereg~n描述:重新注册人物~n例子:rereg,COMMAND:rereg~nDESCRIPTION:Register character~nExample:rereg
+please_logout_first,请先登出,Please logout first
+look_help,指令:look [目标名称] [目标序号]~n描述:观察当前场景或场景里的人物或物件~n~n例子:~n观察场景: look / l / 5~n观察当前场景第一个人物或物件:~nlook dog / look dog 1~n观察当前场景非第一个人物或物件:~nlook dog n (n > 1),"COMMAND:look [target name] [target sequence]~nDESCRIPTION:Observe current scene, or target character or item in current scene~n~nEXAMPLE:~nObserve scene: look / l / 5~nObserve the first character or item in current scene:~nlook dog / look dog 1~nObserve non-first character or item in current scene:~nlook dog n (n > 1)"

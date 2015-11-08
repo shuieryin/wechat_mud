@@ -3,20 +3,18 @@
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
-%%% Register_fsm supervisor. This is a simple one for one supervisor
-%%% which register_fsm children dynamically are added to or removed from it.
+%%% This is npc root supervisor which starts up npc_fsm_manager and npc_fsm_sup.
 %%%
 %%% @end
-%%% Created : 01. Nov 2015 6:12 PM
+%%% Created : 06. Nov 2015 4:38 PM
 %%%-------------------------------------------------------------------
--module(register_fsm_sup).
+-module(npc_root_sup).
 -author("shuieryin").
 
 -behaviour(supervisor).
 
 %% API
--export([start_link/0,
-    add_child/2]).
+-export([start_link/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -38,18 +36,6 @@
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
-%%--------------------------------------------------------------------
-%% @doc
-%% Adds register_fsm
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec add_child(DispatcherPid, Uid) -> supervisor:startchild_ret() when
-    DispatcherPid :: pid(),
-    Uid :: atom().
-add_child(DispatcherPid, Uid) ->
-    supervisor:start_child(?MODULE, [DispatcherPid, Uid]).
-
 %%%===================================================================
 %%% Supervisor callbacks
 %%%===================================================================
@@ -67,20 +53,33 @@ add_child(DispatcherPid, Uid) ->
 -spec init(Args :: term()) ->
     {ok, {SupFlags :: supervisor:sup_flags(), [ChildSpec :: supervisor:child_spec()]}} | ignore.
 init([]) ->
-    RestartStrategy = simple_one_for_one,
+    RestartStrategy = one_for_one,
     MaxRestarts = 1000,
     MaxSecondsBetweenRestarts = 3600,
 
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
 
-    Restart = transient,
-    Shutdown = 2000,
-    Type = worker,
+    {ok, {
+        SupFlags,
+        [
+            {npc_fsm_manager,
+                {npc_fsm_manager, start_link, []},
+                permanent,
+                10000,
+                worker,
+                [npc_fsm_manager]
+            },
 
-    ChildSpec = {register_fsm, {register_fsm, start_link, []}, Restart, Shutdown, Type, [register_fsm]},
-
-    {ok, {SupFlags, [ChildSpec]}}.
+            {npc_fsm_sup,
+                {npc_fsm_sup, start_link, []},
+                permanent,
+                10000,
+                supervisor,
+                [npc_fsm_sup]
+            }
+        ]
+    }}.
 
 %%%===================================================================
-%%% Internal functions
+%%% Internal functions (N/A)
 %%%===================================================================

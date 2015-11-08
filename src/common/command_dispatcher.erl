@@ -25,6 +25,7 @@
 -export_type([uid_profile/0]).
 
 -type uid_profile() :: #{uid => atom(), gender => male | female, born_month => 1..12, scene => atom(), lang => atom(), register_time => pos_integer()}.
+-type command() :: '5' | l.
 
 %%%===================================================================
 %%% API
@@ -192,7 +193,7 @@ generate_signature(OriginParamList) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec process_request(Req) -> FormattedResponseContent when
-    Req :: cowboy_req:req(),	
+    Req :: cowboy_req:req(),
     FormattedResponseContent :: binary().
 process_request(Req) ->
     case parse_xml_request(Req) of
@@ -213,15 +214,11 @@ process_request(Req) ->
                                     false ->
                                         pending_content(login_server, register_uid, [Uid]);
                                     _ ->
-                                        case RawInput of
-                                            <<"login">> ->
+                                        if
+                                            <<"login">> == RawInput orelse <<"rereg">> == RawInput orelse subscribe == RawInput ->
                                                 FuncForRegsiteredUser(Uid);
-                                            <<"rereg">> ->
-                                                FuncForRegsiteredUser(Uid);
-                                            subscribe ->
-                                                FuncForRegsiteredUser(Uid);
-                                            _ ->
-                                                nls_server:get_nls_content(login, [{nls, please_login}], zh)
+                                            true ->
+                                                nls_server:get_nls_content(commands, [{nls, please_login}], zh)
                                         end
                                 end;
                             _ ->
@@ -273,7 +270,7 @@ gen_action_from_message_type(MsgType, ReqParamsMap) ->
             case Event of
                 subscribe ->
                     {subscribe, fun(_Uid) ->
-                        nls_server:get_nls_content(?MODULE, [{nls, welcome_back}], zh)
+                        nls_server:get_nls_content(commands, [{nls, welcome_back}], zh)
                     end};
                 unsubscribe ->
                     {unsubscribe, fun(Uid) ->
@@ -287,13 +284,13 @@ gen_action_from_message_type(MsgType, ReqParamsMap) ->
         text ->
             % _MsgId = maps:get('MsgId', ReqParamsMap),
             RawInput = maps:get('Content', ReqParamsMap),
-            [ModuleNameStr | RawCommandArgs] = binary:split(RawInput, <<" ">>),
+            [ModuleNameBin | RawCommandArgs] = binary:split(RawInput, <<" ">>),
             {RawInput, fun(Uid) ->
-                handle_input(Uid, ModuleNameStr, RawCommandArgs)
+                handle_input(Uid, ModuleNameBin, RawCommandArgs)
             end};
         _ ->
             {<<>>, fun(Uid) ->
-                nls_server:get_nls_content(?MODULE, [{nls, message_type_not_support}], player_fsm:get_lang(Uid))
+                nls_server:get_nls_content(commands, [{nls, message_type_not_support}], player_fsm:get_lang(Uid))
             end}
     end.
 
@@ -315,14 +312,14 @@ gen_action_from_message_type(MsgType, ReqParamsMap) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec handle_input(Uid, ModuleNameStr, RawCommandArgs) -> ReturnContent when
+-spec handle_input(Uid, ModuleNameBin, RawCommandArgs) -> ReturnContent when
     Uid :: atom(),
-    ModuleNameStr :: binary(),
+    ModuleNameBin :: binary(),
     RawCommandArgs :: [binary()],
     ReturnContent :: [term()].
-handle_input(Uid, ModuleNameStr, RawCommandArgs) ->
+handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
     try
-        RawModuleName = binary_to_atom(ModuleNameStr, utf8),
+        RawModuleName = parse_raw_command(list_to_atom(string:to_lower(binary_to_list(ModuleNameBin)))),
         {ModuleName, CommandArgs} =
             case common_api:is_module_exists(RawModuleName) of
                 true ->
@@ -344,12 +341,12 @@ handle_input(Uid, ModuleNameStr, RawCommandArgs) ->
             true ->
                 pending_content(ModuleName, exec, Args);
             _ ->
-                nls_server:get_nls_content(ModuleName, [{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, info}], player_fsm:get_lang(Uid))
+                nls_server:get_nls_content(commands, [{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(binary_to_list(ModuleNameBin) ++ "_help")}], player_fsm:get_lang(Uid))
         end
     catch
         Type:Reason ->
             error_logger:error_msg("Command error:d~nType:~p~nReason:~p~n", [Type, Reason]),
-            nls_server:get_nls_content(?MODULE, [{nls, invalid_command}, ModuleNameStr], player_fsm:get_lang(Uid))
+            nls_server:get_nls_content(commands, [{nls, invalid_command}, ModuleNameBin], player_fsm:get_lang(Uid))
     end.
 
 %%--------------------------------------------------------------------
@@ -472,3 +469,16 @@ gen_req_param_value($=, ValueBinList, Pos, _) ->
     {list_to_binary(ValueBinList), Pos};
 gen_req_param_value(CurByte, ValueBinList, Pos, SrcBin) ->
     gen_req_param_value(binary:at(SrcBin, Pos), [CurByte | ValueBinList], Pos - 1, SrcBin).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Parse the raw command from user input to original command module name.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec parse_raw_command(RawCommand) -> command() | atom() when
+    RawCommand :: atom().
+parse_raw_command('5') -> look;
+parse_raw_command(l) -> look;
+
+parse_raw_command(Other) -> Other.

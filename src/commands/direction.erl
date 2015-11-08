@@ -38,18 +38,13 @@
     DispatcherPid :: pid(),
     Direction :: directions().
 exec(DispatcherPid, Uid, Direction) ->
-    case Direction of
-        look ->
-            player_fsm:look_scene(Uid, DispatcherPid);
-        _ ->
-            player_fsm:go_direction(Uid, DispatcherPid, Direction)
-    end.
+    player_fsm:go_direction(Uid, DispatcherPid, Direction).
 
 %%--------------------------------------------------------------------
 %% @doc
 %% Parse the direction atom from user input. This function has to be
-%% called from command_dispactcher module is because the direction input
-%% is does not has a fixed command prefix and so it has be pre-determined
+%% called from command_dispactcher module because of the direction input
+%% does not has a fixed command prefix and so it has to be pre-determined
 %% at the very last when no other commands matched.
 %%
 %% @end
@@ -86,18 +81,8 @@ parse_direction(southwest) -> southwest;
 parse_direction(northwest) -> northwest;
 parse_direction(look) -> look;
 
-parse_direction('East') -> east;
-parse_direction('South') -> south;
-parse_direction('West') -> west;
-parse_direction('North') -> north;
-parse_direction('Northeast') -> northeast;
-parse_direction('Southeast') -> southeast;
-parse_direction('Southwest') -> southwest;
-parse_direction('Northwest') -> northwest;
-parse_direction('Look') -> look;
-
 parse_direction(_) -> undefined.
 
 %%%===================================================================
-%%% Internal functions
+%%% Internal functions (N/A)
 %%%===================================================================

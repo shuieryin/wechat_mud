@@ -28,6 +28,7 @@
 -define(R_REGISTERED_UIDS_SET, registered_uids_set).
 -define(REGISTERING_UIDS_SET, registration_uids_set).
 -define(LOGGED_IN_UIDS_SET, logged_in_uids_set).
+-define(BORN_TYPES, born_types).
 
 %% gen_server callbacks
 -export([init/1,
@@ -189,7 +190,10 @@ init([]) ->
                 error_logger:info_msg("Registered uid list:~p~n", [UidList]),
                 UidList
         end,
-    {ok, #{?REGISTERING_UIDS_SET => gb_sets:new(), ?R_REGISTERED_UIDS_SET => RegisteredUidsSet, ?LOGGED_IN_UIDS_SET => gb_sets:new()}}.
+
+    BornTypesMap = common_server:get_runtime_data([born_types]),
+
+    {ok, #{?REGISTERING_UIDS_SET => gb_sets:new(), ?R_REGISTERED_UIDS_SET => RegisteredUidsSet, ?LOGGED_IN_UIDS_SET => gb_sets:new(), ?BORN_TYPES => BornTypesMap}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -249,11 +253,12 @@ handle_call({is_uid_logged_in, Uid}, _From, #{?LOGGED_IN_UIDS_SET := LoggedUidsS
     State :: map(),
     NewState :: map(),
     Reason :: term().
-handle_cast({registration_done, #{uid := Uid} = PlayerProfile, DispatcherPid}, #{?REGISTERING_UIDS_SET := RegisteringUidsSet, ?R_REGISTERED_UIDS_SET := RegisteredUidsSet} = State) ->
+handle_cast({registration_done, #{uid := Uid, born_month := BornMonth} = PlayerProfile, DispatcherPid}, #{?REGISTERING_UIDS_SET := RegisteringUidsSet, ?R_REGISTERED_UIDS_SET := RegisteredUidsSet, ?BORN_TYPES := BornTypesMap} = State) ->
     UpdatedRegisteredUidsSet = gb_sets:add(Uid, RegisteredUidsSet),
 
-    redis_client_server:async_set(Uid, PlayerProfile, false),
-    redis_client_server:async_set(?R_REGISTERED_UIDS_SET, UpdatedRegisteredUidsSet, true),
+    redis_client_server:async_set(?R_REGISTERED_UIDS_SET, UpdatedRegisteredUidsSet, false),
+    BornType = maps:get(BornMonth, BornTypesMap),
+    redis_client_server:set(Uid, PlayerProfile#{born_type => BornType}, true),
 
     UpdatedState = State#{?R_REGISTERED_UIDS_SET := UpdatedRegisteredUidsSet, ?REGISTERING_UIDS_SET => gb_sets:del_element(Uid, RegisteringUidsSet)},
 
@@ -261,12 +266,12 @@ handle_cast({registration_done, #{uid := Uid} = PlayerProfile, DispatcherPid}, #
     {noreply, UpdatedState};
 handle_cast({register_uid, DispatcherPid, Uid}, State) ->
     UpdatedState =
-        case supervisor:start_child(register_fsm_sup, [DispatcherPid, Uid]) of
+        case register_fsm_sup:add_child(DispatcherPid, Uid) of
             {ok, _} ->
                 error_logger:info_msg("Started register fsm successfully.~nUid:~p~n", [Uid]),
                 RegisteringUidsSet = maps:get(?REGISTERING_UIDS_SET, State),
                 State#{?REGISTERING_UIDS_SET := gb_sets:add(Uid, RegisteringUidsSet)};
-            {'error', Reason} ->
+            {error, Reason} ->
                 error_logger:error_msg("Failed to start register fsm.~nUid:~p~nReason:~p~n", [Uid, Reason]),
                 State
         end,
@@ -275,19 +280,19 @@ handle_cast({login, DispatcherPid, Uid}, #{?LOGGED_IN_UIDS_SET := LoggedInUidsSe
     UpdatedLoggedInUidsSet =
         case gb_sets:is_element(Uid, LoggedInUidsSet) of
             false ->
-                #{scene := CurSceneName} = PlayerProfile = redis_client_server:get(Uid),
-                supervisor:start_child(player_fsm_sup, [PlayerProfile]),
-                scene_fsm:enter(CurSceneName, PlayerProfile, DispatcherPid),
+                #{scene := CurSceneName, lang := Lang} = PlayerProfile = redis_client_server:get(Uid),
+                player_fsm_sup:add_child(PlayerProfile),
+                scene_fsm:enter(CurSceneName, Uid, Lang, DispatcherPid),
                 gb_sets:add(Uid, LoggedInUidsSet);
             _ ->
-                player_fsm:response_content(Uid, login, [{nls, already_login}], DispatcherPid),
+                player_fsm:response_content(Uid, commands, [{nls, already_login}], DispatcherPid),
                 LoggedInUidsSet
         end,
 
     {noreply, State#{?LOGGED_IN_UIDS_SET := UpdatedLoggedInUidsSet}};
 handle_cast({logout, DispatcherPid, Uid}, State) ->
     UpdatedState = logout(internal, Uid, State),
-    player_fsm:response_content(Uid, logout, [{nls, already_logout}], DispatcherPid),
+    player_fsm:response_content(Uid, commands, [{nls, already_logout}], DispatcherPid),
     {noreply, UpdatedState}.
 
 %%--------------------------------------------------------------------
