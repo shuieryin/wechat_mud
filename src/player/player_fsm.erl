@@ -97,11 +97,11 @@ look_scene(Uid, DispatcherPid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec look_target(Uid, DispatcherPid, Target, Sequence) -> ok when
+-spec look_target(Uid, DispatcherPid, RawTarget, Sequence) -> ok when
     Uid :: atom(),
     DispatcherPid :: pid(),
-    Target :: look:target(),
-    Sequence :: pos_integer().
+    RawTarget :: look:target(),
+    Sequence :: look:sequence().
 look_target(Uid, DispatcherPid, Target, Sequence) ->
     gen_fsm:send_all_state_event(Uid, {look_target, DispatcherPid, binary_to_atom(Target, utf8), Sequence}).
 
@@ -293,7 +293,7 @@ state_name(_Event, _From, State) ->
     NewStateData :: map(),
     Reason :: term(),
     Target :: look:target(),
-    Sequence :: pos_integer(),
+    Sequence :: look:sequence(),
     NotifyOkPid :: pid().
 handle_event({go_direction, DispatcherPid, Direction}, StateName, #{self := #{scene := CurSceneName, uid := Uid, lang := Lang} = PlayerProfile} = State) ->
     TargetSceneName =

@@ -19,9 +19,10 @@
     exec/4]).
 
 -type sequence() :: pos_integer().
--type target() :: {npc_fsm_manager:npc_type(), sequence()} | atom().
+-type target() :: atom() | binary().
 
--export_type([target/0]).
+-export_type([sequence/0,
+    target/0]).
 
 %%%===================================================================
 %%% API
@@ -45,10 +46,10 @@ exec(DispatcherPid, Uid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispatcherPid, Uid, Target) -> ok when
+-spec exec(DispatcherPid, Uid, RawTarget) -> ok when
     Uid :: atom(),
     DispatcherPid :: pid(),
-    Target :: target().
+    RawTarget :: target().
 exec(DispatcherPid, Uid, Target) ->
     player_fsm:look_target(Uid, DispatcherPid, Target, 1).
 
@@ -58,13 +59,13 @@ exec(DispatcherPid, Uid, Target) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispatcherPid, Uid, Target, Sequence) -> ok when
+-spec exec(DispatcherPid, Uid, RawTarget, Sequence) -> ok when
     Uid :: atom(),
     DispatcherPid :: pid(),
-    Target :: target(),
+    RawTarget :: target(),
     Sequence :: sequence().
-exec(DispatcherPid, Uid, Target, Sequence) ->
-    player_fsm:look_target(Uid, DispatcherPid, Target, Sequence).
+exec(DispatcherPid, Uid, RawTarget, Sequence) ->
+    player_fsm:look_target(Uid, DispatcherPid, RawTarget, Sequence).
 
 %%%===================================================================
 %%% Internal functions (N/A)
