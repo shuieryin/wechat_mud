@@ -290,7 +290,14 @@ handle_event({look_target, Uid, Lang, DispatcherPid, Target, Sequence}, StateNam
     ok = case TargetSceneObject of
              undefined ->
                  TargetForDisplay = re:replace(atom_to_list(Target), "_", " ", [global, {return, binary}]),
-                 nls_server:do_response_content(Lang, NlsMap, [{nls, no_such_target}, TargetForDisplay, <<"\n">>], DispatcherPid);
+                 SequenceForDisplay =
+                     case Sequence of
+                         1 ->
+                             <<>>;
+                         _ ->
+                             list_to_binary([<<" ">>, integer_to_binary(Sequence)])
+                     end,
+                 nls_server:do_response_content(Lang, NlsMap, [{nls, no_such_target}, TargetForDisplay, SequenceForDisplay, <<"\n">>], DispatcherPid);
              {npc, TargetNpcFsmId, _, _} ->
                  ContentList = npc_fsm:being_looked(TargetNpcFsmId, Uid),
                  nls_server:do_response_content(Lang, NlsMap, ContentList, DispatcherPid);
