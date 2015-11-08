@@ -231,8 +231,18 @@ process_request(Req) ->
                         FuncForRegsiteredUser(Uid)
                 end,
 
-            error_logger:info_msg("ReplyContent:~tp~n", [list_to_binary(lists:flatten(ReturnContent))]),
-            Response = compose_xml_response(UidBin, PlatformId, ReturnContent),
+            Response =
+                try
+                    ReturnContentBinary = list_to_binary(lists:flatten(common_api:remove_last_newline(ReturnContent))),
+                    error_logger:info_msg("ReplyContent:~tp~n", [ReturnContentBinary]),
+                    compose_xml_response(UidBin, PlatformId, ReturnContentBinary)
+                catch
+                    Type:Reason ->
+                        error_logger:error_msg("Invalid Content:~p~n", [ReturnContent]),
+                        error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
+                        <<>>
+                end,
+
 %%             error_logger:info_msg("Response:~ts~n", [binary_to_list(Response)]),
             Response
     end.
@@ -348,7 +358,7 @@ handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
         end
     catch
         Type:Reason ->
-            error_logger:error_msg("Command error:d~nType:~p~nReason:~p~n", [Type, Reason]),
+            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
             nls_server:get_nls_content(commands, [{nls, invalid_command}, ModuleNameBin], player_fsm:get_lang(Uid))
     end.
 
@@ -359,23 +369,23 @@ handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec compose_xml_response(Uid, PlatformId, Content) -> XmlContent when
+-spec compose_xml_response(Uid, PlatformId, ContentBinary) -> XmlContent when
     Uid :: term(),
     PlatformId :: term(),
-    Content :: [term()],
+    ContentBinary :: binary(),
     XmlContent :: binary().
-compose_xml_response(Uid, PlatformId, Content) ->
-    ContentList = lists:flatten([<<"<xml><Content><![CDATA[">>,
-        common_api:remove_last_newline(Content),
+compose_xml_response(Uid, PlatformId, ContentBinary) ->
+    XmlContentList = [<<"<xml><Content><![CDATA[">>,
+        ContentBinary,
         <<"]]></Content><ToUserName><![CDATA[">>,
         Uid,
         <<"]]></ToUserName><FromUserName><![CDATA[">>,
         PlatformId,
         <<"]]></FromUserName><CreateTime>">>,
         integer_to_binary(common_api:timestamp()),
-        <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>]),
+        <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>],
 
-    list_to_binary(ContentList).
+    list_to_binary(XmlContentList).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -490,8 +500,7 @@ execute_command(Module, Function, [DispatcherPid, Uid | CommandArgs] = FunctionA
     catch
         Type:Reason ->
             nls_server:response_content(commands, [{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(atom_to_list(Module) ++ "_help")}], player_fsm:get_lang(Uid), DispatcherPid),
-            error_logger:error_report(Type, Reason),
-            erlang:display(erlang:get_stacktrace()),
+            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
             throw(Reason)
     end.
 
