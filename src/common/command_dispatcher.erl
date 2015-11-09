@@ -358,6 +358,7 @@ handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
         Arity = length(CommandArgs),
         Args = [Uid | CommandArgs],
 
+        ModuleName:module_info(),
         case erlang:function_exported(ModuleName, exec, Arity + 2) of
             true ->
                 pending_content(ModuleName, exec, Args);
@@ -517,8 +518,8 @@ execute_command(Module, Function, [DispatcherPid, Uid | CommandArgs] = FunctionA
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec parse_raw_command(RawCommand) -> short_command() | atom() when
-    RawCommand :: atom().
+-spec parse_raw_command(RawCommand) -> command() when
+    RawCommand :: short_command().
 parse_raw_command('5') -> look;
 parse_raw_command(l) -> look;
 parse_raw_command(Other) -> Other.
