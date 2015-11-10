@@ -5,8 +5,7 @@
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/0,
-    stop/0]).
+-export([start_link/0]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -36,18 +35,9 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link() -> {ok, pid()} | ignore | {error, Reason :: term()}.
+-spec start_link() -> gen:start_ret().
 start_link() ->
     gen_fsm:start_link({local, ?SERVER}, ?MODULE, [], []).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Terminate this fsm
-%%
-%% @end
-%%--------------------------------------------------------------------
-stop() ->
-    gen_fsm:send_all_state_event(?MODULE, stop).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -69,7 +59,7 @@ stop() ->
     ignore when
     StateName :: state_name(),
     StateData :: state(),
-    Reason :: term().
+    Reason :: term(). % generic term
 init([]) ->
     {ok, state_name, #{}}.
 
@@ -88,12 +78,12 @@ init([]) ->
     {next_state, NextStateName, NextState} |
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
-    Event :: term(),
+    Event :: term(), % generic term
     State :: state(),
     NextStateName :: state_name(),
     NextState :: State,
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 state_name(_Event, State) ->
     {next_state, state_name, State}.
 
@@ -115,13 +105,15 @@ state_name(_Event, State) ->
     {reply, Reply, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} |
     {stop, Reason, Reply, NewState} when
-    Event :: term(),
+    
+    Event :: term(), % generic term
+    Reply :: ok,
+    
     From :: {pid(), term()},
     State :: state(),
     NextStateName :: state_name(),
     NextState :: State,
-    Reason :: normal | term(),
-    Reply :: term(),
+    Reason :: normal | term(), % generic term
     NewState :: State.
 state_name(_Event, _From, State) ->
     Reply = ok,
@@ -140,12 +132,12 @@ state_name(_Event, _From, State) ->
     {next_state, NextStateName, NewStateData} |
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
-    Event :: term(),
+    Event :: term(), % generic term
     StateName :: state_name(),
     StateData :: state(),
     NextStateName :: StateName,
     NewStateData :: StateData,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_event(_Event, StateName, State) ->
     {next_state, StateName, State}.
 
@@ -165,14 +157,16 @@ handle_event(_Event, StateName, State) ->
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, Reply, NewStateData} |
     {stop, Reason, NewStateData} when
-    Event :: term(),
-    From :: {pid(), Tag :: term()},
+    
+    Event :: term(), % generic term
+    Reply :: ok,
+    
+    From :: {pid(), Tag :: term()}, % generic term
     StateName :: state_name(),
     StateData :: term(),
-    Reply :: term(),
     NextStateName :: StateName,
     NewStateData :: StateData,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_sync_event(_Event, _From, StateName, State) ->
     Reply = ok,
     {reply, Reply, StateName, State}.
@@ -190,12 +184,12 @@ handle_sync_event(_Event, _From, StateName, State) ->
     {next_state, NextStateName, NewStateData} |
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
-    Info :: term(),
+    Info :: term(), % generic term
     StateName :: state_name(),
     StateData :: term(),
     NextStateName :: StateName,
     NewStateData :: StateData,
-    Reason :: normal | term().
+    Reason :: normal | term(). % generic term
 handle_info(_Info, StateName, State) ->
     {next_state, StateName, State}.
 
@@ -209,8 +203,8 @@ handle_info(_Info, StateName, State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec terminate(Reason, StateName, StateData) -> term() when
-    Reason :: normal | shutdown | {shutdown, term()} | term(),
+-spec terminate(Reason, StateName, StateData) -> ok when
+    Reason :: normal | shutdown | {shutdown, term()} | term(), % generic term
     StateName :: state_name(),
     StateData :: term().
 terminate(_Reason, _StateName, _State) ->
@@ -224,10 +218,10 @@ terminate(_Reason, _StateName, _State) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec code_change(OldVsn, StateName, StateData, Extra) -> {ok, NextStateName, NewStateData} when
-    OldVsn :: term() | {down, term()},
+    OldVsn :: term() | {down, term()}, % generic term
     StateName :: state_name(),
     StateData :: state(),
-    Extra :: term(),
+    Extra :: term(), % generic term
     NextStateName :: StateName,
     NewStateData :: StateData.
 code_change(_OldVsn, StateName, State, _Extra) ->
@@ -245,9 +239,9 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 -spec format_status(Opt, StatusData) -> Status when
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
-    PDict :: [{Key :: term(), Value :: term()}],
-    State :: term(),
-    Status :: term().
+    PDict :: [{Key :: term(), Value :: term()}], % generic term
+    State :: state(),
+    Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_fsm:format_status(Opt, StatusData).
 

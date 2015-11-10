@@ -30,13 +30,7 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link() ->
-    {ok, Pid} |
-    ignore |
-    {error, Reason} when
-
-    Pid :: pid(),
-    Reason :: term().
+-spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
@@ -63,7 +57,7 @@ start_link() ->
 
     Args :: term(),
     State :: state(),
-    Reason :: term().
+    Reason :: term(). % generic term
 init([]) ->
     {ok, #{}}.
 
@@ -82,12 +76,13 @@ init([]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: term(),
-    From :: {pid(), Tag :: term()},
-    Reply :: term(),
+    Request :: term(),  % generic term
+    Reply :: ok,
+    
+    From :: {pid(), Tag :: term()}, % generic term
     State :: state(),
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
@@ -103,10 +98,10 @@ handle_call(_Request, _From, State) ->
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: term(),
+    Request :: term(), % generic term
     State :: state(),
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_cast(_Request, State) ->
     {noreply, State}.
 
@@ -120,15 +115,15 @@ handle_cast(_Request, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
--spec handle_info(Info | term(), State) ->
+-spec handle_info(Info | timeout(), State) ->
     {noreply, NewState} |
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Info :: timeout(),
+    Info :: term(), % generic term
     State :: state(),
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -143,8 +138,8 @@ handle_info(_Info, State) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
--spec terminate(Reason, State) -> term() when
-    Reason :: (normal | shutdown | {shutdown, term()} | term()),
+-spec terminate(Reason, State) -> ok when
+    Reason :: (normal | shutdown | {shutdown, term()} | term()), % generic term
     State :: state().
 terminate(_Reason, _State) ->
     ok.
@@ -161,11 +156,11 @@ terminate(_Reason, _State) ->
     {ok, NewState} |
     {error, Reason} when
 
-    OldVsn :: term() | {down, term()},
+    OldVsn :: term() | {down, term()}, % generic term
     State :: state(),
-    Extra :: term(),
+    Extra :: term(), % generic term
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -181,9 +176,9 @@ code_change(_OldVsn, State, _Extra) ->
 -spec format_status(Opt, StatusData) -> Status when
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
-    PDict :: [{Key :: term(), Value :: term()}],
-    State :: term(),
-    Status :: term().
+    PDict :: [{Key :: term(), Value :: term()}], % generic term
+    State :: state(),
+    Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_server:format_status(Opt, StatusData).
 

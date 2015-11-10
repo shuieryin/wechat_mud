@@ -31,8 +31,7 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link() ->
-    {ok, pid()} | {error, {already_started, pid()}}.
+-spec start_link() -> gen:start_ret().
 start_link() ->
     gen_event:start_link({local, ?SERVER}).
 
@@ -47,7 +46,7 @@ start_link() ->
     {'EXIT', Reason} |
     term() when
 
-    Reason :: term().
+    Reason :: term(). % generic term
 add_handler() ->
     gen_event:add_handler(?SERVER, ?MODULE, []).
 
@@ -70,7 +69,7 @@ add_handler() ->
 
     InitArgs :: term(),
     State :: state(),
-    Reason :: term().
+    Reason :: term(). % generic term
 init([]) ->
     {ok, #{}}.
 
@@ -89,7 +88,7 @@ init([]) ->
     {swap_handler, Args1, NewState, Handler2, Args2} |
     remove_handler when
 
-    Event :: term(),
+    Event :: term(), % generic term
     State :: state(),
     NewState :: State,
     Args1 :: term(),
@@ -114,10 +113,11 @@ handle_event(_Event, State) ->
     {swap_handler, Reply, Args1, NewState, Handler2, Args2} |
     {remove_handler, Reply} when
 
-    Request :: term(),
+    Request :: term(), % generic term
+    Reply :: ok,
+    
     State :: state(),
     NewState :: State,
-    Reply :: term(),
     Args1 :: term(),
     Args2 :: term(),
     Id :: term(),
@@ -141,7 +141,7 @@ handle_call(_Request, State) ->
     {swap_handler, Args1, NewState, Handler2, Args2} |
     remove_handler when
 
-    Info :: term(),
+    Info :: term(), % generic term
     State :: state(),
     NewState :: State,
     Args1 :: term(),
@@ -161,8 +161,8 @@ handle_info(_Info, State) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
--spec terminate(Args, State) -> term() when
-    Reason :: term(),
+-spec terminate(Args, State) -> ok when
+    Reason :: term(), % generic term
     State :: term(),
     Args :: (term() | {stop, Reason} | stop | remove_handler | {error, {'EXIT', Reason}} | {error, term()}).
 terminate(_Arg, _State) ->
@@ -176,10 +176,10 @@ terminate(_Arg, _State) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec code_change(OldVsn, State, Extra) -> {ok, NewState} when
-    OldVsn :: term() | {down, term()},
+    OldVsn :: term() | {down, term()}, % generic term
     State :: state(),
     NewState :: State,
-    Extra :: term().
+    Extra :: term(). % generic term
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -195,9 +195,9 @@ code_change(_OldVsn, State, _Extra) ->
 -spec format_status(Opt, StatusData) -> Status when
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
-    PDict :: [{Key :: term(), Value :: term()}],
-    State :: term(),
-    Status :: term().
+    PDict :: [{Key :: term(), Value :: term()}], % generic term
+    State :: state(),
+    Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_event:format_status(Opt, StatusData).
 
