@@ -20,7 +20,6 @@
 
 %% API
 -export([start_link/1,
-    stop/0,
     enter/4,
     leave/2,
     go_direction/5,
@@ -141,7 +140,7 @@ look_scene(CurSceneName, Uid, Lang, DispatcherPid) ->
 %% @doc
 %% Looks at current scene by response current scene info to player.
 %% LookArgs is converted from
-%%        <<"little boy 2">> to "Target=little_boy" and "Sequence=2".
+%%        binary "little boy 2" to "Target=little_boy" and "Sequence=2".
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -153,15 +152,6 @@ look_scene(CurSceneName, Uid, Lang, DispatcherPid) ->
     LookArgs :: binary().
 look_target(CurSceneName, Uid, Lang, DispatcherPid, LookArgs) ->
     gen_fsm:send_all_state_event(CurSceneName, {look_target, Uid, Lang, DispatcherPid, LookArgs}).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Terminate this scene fsm.
-%%
-%% @end
-%%--------------------------------------------------------------------
-stop() ->
-    gen_fsm:send_all_state_event(?MODULE, stop).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -568,7 +558,8 @@ show_scene(#{?SCENE_INFO := #{exits := ExitsMap, title := SceneTitle, desc := Sc
 %%--------------------------------------------------------------------
 %% @doc
 %% Loads nls file. This function is called by lists:foldl/3 or lists:foldr/3.
-%% @see lists:foldl/3, lists:foldr/3.
+%% @see lists:foldl/3.
+%% @see lists:foldr/3.
 %%
 %% @end
 %%--------------------------------------------------------------------

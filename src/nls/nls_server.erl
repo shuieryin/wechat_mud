@@ -226,7 +226,8 @@ init({ServerName, ExtraNlsFileNames, NlsFilePath}) ->
 %%--------------------------------------------------------------------
 %% @doc
 %% Loads nls file. This function is called by lists:foldl/3 or lists:foldr/3.
-%% @see lists:foldl/3, lists:foldr/3.
+%% @see lists:foldl/3.
+%% @see lists:foldr/3.
 %%
 %% @end
 %%--------------------------------------------------------------------

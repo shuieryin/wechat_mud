@@ -214,7 +214,7 @@ first_to_lower([First | Rest] = SrcString) when is_list(SrcString) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Removes last <<"\n">> in List.
+%% Removes last new line binary in List.
 %%
 %% @end
 %%--------------------------------------------------------------------
