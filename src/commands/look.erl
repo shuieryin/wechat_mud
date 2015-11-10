@@ -17,8 +17,8 @@
 -export([exec/2,
     exec/3]).
 
--type sequence() :: pos_integer().
--type target() :: atom().
+-type sequence() :: pos_integer(). % generic integer
+-type target() :: atom(). % generic atom
 
 -export_type([sequence/0,
     target/0]).
@@ -45,10 +45,10 @@ exec(DispatcherPid, Uid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispatcherPid, Uid, Args) -> ok when
+-spec exec(DispatcherPid, Uid, RestArgsBin) -> ok when
     Uid :: player_fsm:uid(),
     DispatcherPid :: pid(),
-    Args :: binary().
+    RestArgsBin :: binary().
 exec(DispatcherPid, Uid, Args) ->
     player_fsm:look_target(Uid, DispatcherPid, Args).
 

@@ -44,7 +44,7 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link(NpcProfile) -> {ok, pid()} | ignore | {error, Reason :: term()} when
+-spec start_link(NpcProfile) -> gen:start_ret() when
     NpcProfile :: npc_fsm_manager:npc_born_info().
 start_link(#{npc_uuid := Uuid} = NpcProfile) ->
     gen_fsm:start_link({local, Uuid}, ?MODULE, NpcProfile, []).
@@ -80,7 +80,7 @@ being_looked(TargetNpcFsmId, SrcUid) ->
 
     StateName :: state_name(),
     StateData :: state(),
-    Reason :: term(),
+    Reason :: term(), % generic term
     NpcProfile :: npc_fsm_manager:npc_born_info().
 init(NpcProfile) ->
     {ok, state_name, #{?NPC_PROFILE => NpcProfile}}.
@@ -101,12 +101,12 @@ init(NpcProfile) ->
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Event :: term(),
+    Event :: term(), % generic term
     State :: state(),
     NextStateName :: state_name(),
     NextState :: State,
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 state_name(_Event, State) ->
     {next_state, state_name, State}.
 
@@ -129,13 +129,14 @@ state_name(_Event, State) ->
     {stop, Reason, NewState} |
     {stop, Reason, Reply, NewState} when
 
-    Event :: term(),
-    From :: {pid(), term()},
+    Event :: term(), % generic term
+    Reply :: ok,
+
+    From :: {pid(), term()}, % generic term
     State :: state(),
     NextStateName :: state_name(),
     NextState :: State,
-    Reason :: normal | term(),
-    Reply :: term(),
+    Reason :: normal | term(), % generic term
     NewState :: State.
 state_name(_Event, _From, State) ->
     Reply = ok,
@@ -155,12 +156,12 @@ state_name(_Event, _From, State) ->
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
 
-    Event :: term(),
+    Event :: term(), % generic term
     StateName :: state_name(),
     StateData :: state(),
     NextStateName :: StateName,
     NewStateData :: StateData,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_event(_Event, StateName, State) ->
     {next_state, StateName, State}.
 
@@ -182,14 +183,17 @@ handle_event(_Event, StateName, State) ->
     {stop, Reason, NewStateData} when
 
     Event :: {being_looked, SrcUid},
+    Reply :: NlsObjectList,
+
     SrcUid :: player_fsm:uid(),
-    From :: {pid(), Tag :: term()},
+    NlsObjectList :: [nls_server:nls_object()],
+
+    From :: {pid(), Tag :: term()}, % generic term
     StateName :: state_name(),
     StateData :: state(),
-    Reply :: term(),
     NextStateName :: StateName,
     NewStateData :: StateData,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_sync_event({being_looked, _SrcUid}, _From, StateName, #{?NPC_PROFILE := #{description_nls_key := DescriptionNlsKey}} = State) ->
     Reply = [{nls, DescriptionNlsKey}, <<"\n">>],
     {reply, Reply, StateName, State}.
@@ -208,12 +212,12 @@ handle_sync_event({being_looked, _SrcUid}, _From, StateName, #{?NPC_PROFILE := #
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
 
-    Info :: term(),
+    Info :: term(), % generic term
     StateName :: state_name(),
     StateData :: state(),
     NextStateName :: StateName,
     NewStateData :: StateData,
-    Reason :: normal | term().
+    Reason :: normal | term(). % generic term
 handle_info(_Info, StateName, State) ->
     {next_state, StateName, State}.
 
@@ -227,8 +231,8 @@ handle_info(_Info, StateName, State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec terminate(Reason, StateName, StateData) -> term() when
-    Reason :: normal | shutdown | {shutdown, term()} | term(),
+-spec terminate(Reason, StateName, StateData) -> ok when
+    Reason :: normal | shutdown | {shutdown, term()} | term(), % generic term
     StateName :: state_name(),
     StateData :: state().
 terminate(_Reason, _StateName, _State) ->
@@ -242,10 +246,10 @@ terminate(_Reason, _StateName, _State) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec code_change(OldVsn, StateName, StateData, Extra) -> {ok, NextStateName, NewStateData} when
-    OldVsn :: term() | {down, term()},
+    OldVsn :: term() | {down, term()}, % generic term
     StateName :: state_name(),
     StateData :: state(),
-    Extra :: term(),
+    Extra :: term(), % generic term
     NextStateName :: StateName,
     NewStateData :: StateData.
 code_change(_OldVsn, StateName, State, _Extra) ->
@@ -263,9 +267,9 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 -spec format_status(Opt, StatusData) -> Status when
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
-    PDict :: [{Key :: term(), Value :: term()}],
-    State :: term(),
-    Status :: term().
+    PDict :: [{Key :: term(), Value :: term()}], % generic term
+    State :: state(),
+    Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_fsm:format_status(Opt, StatusData).
 

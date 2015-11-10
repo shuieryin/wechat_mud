@@ -60,10 +60,9 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link(DispatcherPid, Uid) -> {ok, pid()} | ignore | {error, Reason} when
+-spec start_link(DispatcherPid, Uid) -> gen:start_ret() when
     Uid :: player_fsm:uid(),
-    DispatcherPid :: pid(),
-    Reason :: term().
+    DispatcherPid :: pid().
 start_link(DispatcherPid, Uid) ->
     nls_server:response_content(?MODULE, [{nls, select_lang}], zh, DispatcherPid),
     gen_fsm:start({local, fsm_server_name(Uid)}, ?MODULE, Uid, []).
@@ -78,7 +77,7 @@ start_link(DispatcherPid, Uid) ->
 %%--------------------------------------------------------------------
 -spec input(DispatcherPid, Uid, Input) -> ok when
     Uid :: player_fsm:uid(),
-    Input :: string(),
+    Input :: binary(),
     DispatcherPid :: pid().
 input(DispatcherPid, Uid, Input) ->
     gen_fsm:send_event(fsm_server_name(Uid), {Input, DispatcherPid}).
@@ -91,7 +90,7 @@ input(DispatcherPid, Uid, Input) ->
 %%--------------------------------------------------------------------
 -spec fsm_server_name(Uid) -> RegisterFsmName when
     Uid :: player_fsm:uid(),
-    RegisterFsmName :: atom().
+    RegisterFsmName :: erlang:registered_name().
 fsm_server_name(Uid) ->
     list_to_atom(atom_to_list(Uid) ++ "_register_fsm").
 
@@ -117,7 +116,7 @@ fsm_server_name(Uid) ->
     ignore when
 
     Uid :: player_fsm:uid(),
-    Reason :: term(),
+    Reason :: term(), % generic term
     StateName :: state_name(),
     StateData :: state().
 init(Uid) ->
@@ -150,7 +149,7 @@ init(Uid) ->
     NextStateName :: state_name(),
     NextState :: State,
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 select_lang({LangBin, DispatcherPid}, State) ->
     {NextState, NewState, ContentList, Lang} =
         try
@@ -188,7 +187,7 @@ select_lang({LangBin, DispatcherPid}, State) ->
     NextStateName :: state_name(),
     NextState :: State,
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 input_gender({RawGender, DispatcherPid}, State) when RawGender == <<"m">> orelse RawGender == <<"M">> ->
     input_gender(male, DispatcherPid, State);
 input_gender({RawGender, DispatcherPid}, State) when RawGender == <<"f">> orelse RawGender == <<"F">> ->
@@ -226,7 +225,7 @@ input_gender(Gender, DispatcherPid, #{lang := Lang} = State) ->
     NextStateName :: state_name(),
     NextState :: State,
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 input_born_month({MonthBin, DispatcherPid}, #{lang := Lang} = State) ->
     {NewStateName, NewState, ContentList} =
         case validate_month(MonthBin) of
@@ -267,7 +266,7 @@ input_born_month({MonthBin, DispatcherPid}, #{lang := Lang} = State) ->
     NextStateName :: state_name(),
     NextState :: State,
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"y">> orelse Answer == <<"Y">> ->
     State1 = State#{register_time => common_api:timestamp(), scene => ?BORN_SCENE},
     State2 = maps:remove(summary_content, State1),
@@ -303,12 +302,13 @@ input_confirmation({Other, DispatcherPid}, #{lang := Lang, summary_content := Su
     {next_state, NextStateName, NextState} |
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
-    Event :: term(),
+
+    Event :: term(), % generic term
     State :: state(),
     NextStateName :: state_name(),
     NextState :: State,
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 state_name(_Event, State) ->
     {next_state, state_name, State}.
 
@@ -331,13 +331,14 @@ state_name(_Event, State) ->
     {stop, Reason, NewState} |
     {stop, Reason, Reply, NewState} when
 
-    Event :: term(),
-    From :: {pid(), term()},
+    Event :: term(), % generic term
+    Reply :: ok,
+
+    From :: {pid(), term()}, % generic term
     State :: state(),
     NextStateName :: state_name(),
     NextState :: State,
-    Reason :: normal | term(),
-    Reply :: term(),
+    Reason :: normal | term(), % generic term
     NewState :: State.
 state_name(_Event, _From, State) ->
     Reply = ok,
@@ -357,12 +358,12 @@ state_name(_Event, _From, State) ->
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
 
-    Event :: term(),
+    Event :: term(), % generic term
     StateName :: state_name(),
     StateData :: state(),
     NextStateName :: StateName,
     NewStateData :: StateData,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_event(_Event, StateName, State) ->
     {next_state, StateName, State}.
 
@@ -383,14 +384,15 @@ handle_event(_Event, StateName, State) ->
     {stop, Reason, Reply, NewStateData} |
     {stop, Reason, NewStateData} when
 
-    Event :: term(),
-    From :: {pid(), Tag :: term()},
+    Event :: term(), % generic term
+    Reply :: ok,
+
+    From :: {pid(), Tag :: term()}, % generic term
     StateName :: state_name(),
     StateData :: state(),
-    Reply :: term(),
     NextStateName :: StateName,
     NewStateData :: StateData,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_sync_event(_Event, _From, StateName, State) ->
     Reply = ok,
     {reply, Reply, StateName, State}.
@@ -409,12 +411,12 @@ handle_sync_event(_Event, _From, StateName, State) ->
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
 
-    Info :: term(),
+    Info :: term(), % generic term
     StateName :: state_name(),
     StateData :: state(),
     NextStateName :: StateName,
     NewStateData :: StateData,
-    Reason :: normal | term().
+    Reason :: normal | term(). % generic term
 handle_info(_Info, StateName, State) ->
     {next_state, StateName, State}.
 
@@ -429,8 +431,8 @@ handle_info(_Info, StateName, State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec terminate(Reason, StateName, StateData) -> term() when
-    Reason :: normal | done | shutdown | {shutdown, term()} | term(),
+-spec terminate(Reason, StateName, StateData) -> ok when
+    Reason :: normal | done | shutdown | {shutdown, term()} | term(), % generic term
     StateName :: state_name(),
     StateData :: state().
 terminate(_Reason, _StateName, _StateData) ->
@@ -444,10 +446,10 @@ terminate(_Reason, _StateName, _StateData) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec code_change(OldVsn, StateName, StateData, Extra) -> {ok, NextStateName, NewStateData} when
-    OldVsn :: term() | {down, term()},
+    OldVsn :: term() | {down, term()}, % generic term
     StateName :: state_name(),
     StateData :: state(),
-    Extra :: term(),
+    Extra :: term(), % generic term
     NextStateName :: state_name(),
     NewStateData :: StateData.
 code_change(_OldVsn, StateName, State, _Extra) ->
@@ -465,9 +467,9 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 -spec format_status(Opt, StatusData) -> Status when
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
-    PDict :: [{Key :: term(), Value :: term()}],
-    State :: term(),
-    Status :: term().
+    PDict :: [{Key :: term(), Value :: term()}], % generic term
+    State :: state(),
+    Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_fsm:format_status(Opt, StatusData).
 
@@ -504,17 +506,18 @@ validate_month(MonthBin) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec gen_summary_content(StateNames, AccContent, State) -> [binary()] when
-    StateNames :: [{Key, Desc}],
-    Key :: atom(),
-    Desc :: atom(),
-    AccContent :: [any()],
-    State :: state().
+-spec gen_summary_content(StateNames, AccContent, State) -> Content when
+    StateNames :: [{Key, DescNlsKey}],
+    Key :: atom(), % generic atom
+    DescNlsKey :: nls_server:key(),
+    AccContent :: [nls_server:value()],
+    State :: state(),
+    Content :: AccContent.
 gen_summary_content([], AccContent, _) ->
     [AccContent, <<"\n">>, {nls, is_confirmed}];
-gen_summary_content([{Key, Desc} | Tail], AccContent, State) ->
+gen_summary_content([{Key, DescNlsKey} | Tail], AccContent, State) ->
     Value = gen_summary_convert_value(maps:get(Key, State)),
-    gen_summary_content(Tail, [AccContent, {nls, Desc}, Value, <<"\n">>], State).
+    gen_summary_content(Tail, [AccContent, {nls, DescNlsKey}, Value, <<"\n">>], State).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -525,7 +528,7 @@ gen_summary_content([{Key, Desc} | Tail], AccContent, State) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec gen_summary_convert_value(RawValue) -> ConvertedValue when
-    RawValue :: integer() | atom() | any(),
+    RawValue :: term(), % generic term
     ConvertedValue :: RawValue.
 gen_summary_convert_value(Value) when is_integer(Value) ->
     integer_to_binary(Value);

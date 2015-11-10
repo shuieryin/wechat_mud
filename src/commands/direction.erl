@@ -50,7 +50,7 @@ exec(DispatcherPid, Uid, Direction) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec parse_direction(RawDirectionInput) -> directions() | undefined when
-    RawDirectionInput :: atom().
+    RawDirectionInput :: atom(). % generic atom
 parse_direction('6') -> east;
 parse_direction('8') -> south;
 parse_direction('4') -> west;

@@ -33,8 +33,7 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link() ->
-    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
+-spec start_link() -> supervisor:startchild_ret().
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
@@ -63,7 +62,7 @@ add_child(PlayerProfile) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec init(Args :: term()) ->
+-spec init([]) ->
     {ok, {SupFlags :: supervisor:sup_flags(), [ChildSpec :: supervisor:child_spec()]}} | ignore.
 init([]) ->
     RestartStrategy = simple_one_for_one,

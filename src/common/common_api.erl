@@ -38,7 +38,7 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec is_module_exist(Module) -> boolean() when
-    Module :: atom().
+    Module :: module().
 is_module_exist(Module) ->
     case is_atom(Module) of
         true ->
@@ -84,7 +84,7 @@ type_of(_X) -> unknown.
 %% @end
 %%--------------------------------------------------------------------
 -spec timestamp() -> Timestamp when
-    Timestamp :: pos_integer().
+    Timestamp :: pos_integer(). % generic integer
 timestamp() ->
     {Hour, Minute, _} = os:timestamp(),
     Hour * 1000000 + Minute.
@@ -96,9 +96,9 @@ timestamp() ->
 %% @end
 %%--------------------------------------------------------------------
 -spec hot_code_replace(ModuleNameList) -> Result when
-    ModuleName :: atom(),
+    ModuleName :: module(),
     ModuleNameList :: [ModuleName],
-    Result :: [{module, ModuleName} | {error, term()}].
+    Result :: [code:load_ret()].
 hot_code_replace(ModuleNameList) ->
     [begin code:purge(ModuleName), code:load_file(ModuleName) end || ModuleName <- ModuleNameList].
 
@@ -109,9 +109,9 @@ hot_code_replace(ModuleNameList) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec index_of(Item, List) -> Pos when
-    List :: [term()],
-    Item :: term(),
-    Pos :: -1 | pos_integer().
+    List :: [term()], % generic term
+    Item :: term(), % generic term
+    Pos :: -1 | pos_integer(). % generic integer
 index_of(Item, List) ->
     index_of(Item, List, 1).
 index_of(_, [], _) ->
@@ -131,8 +131,8 @@ index_of(Item, [_ | Tail], Pos) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec until_process_terminated(PidOrName, DetectPeriodInMilli) -> ok when
-    PidOrName :: pid() | atom(),
-    DetectPeriodInMilli :: pos_integer().
+    PidOrName :: pid() | erlang:registered_name(),
+    DetectPeriodInMilli :: pos_integer(). % generic integer
 until_process_terminated(PidOrName, DetectPeriodInMilli) ->
     IsTerminatedFun = case is_pid(PidOrName) of
                           true ->
@@ -166,9 +166,9 @@ gen_doc() ->
 %%--------------------------------------------------------------------
 -spec increase_vsn(SourceVersion, VersionDepth, Increment) -> UpgradedVersion when
     SourceVersion :: string(),
-    VersionDepth :: pos_integer(),
-    Increment :: pos_integer(),
-    UpgradedVersion :: string().
+    VersionDepth :: pos_integer(), % generic integer
+    Increment :: pos_integer(), % generic integer
+    UpgradedVersion :: SourceVersion.
 increase_vsn(SourceVersion, VersionDepth, Increment) ->
     string:join(increase_vsn(string:tokens(SourceVersion, "."), VersionDepth, Increment, 1, []), ".").
 
@@ -206,13 +206,11 @@ quit() ->
 %% @end
 %%--------------------------------------------------------------------
 -spec first_to_lower(SrcString) -> FirstLoweredString when
-    SrcString :: string() | term(),
+    SrcString :: string(),
     FirstLoweredString :: SrcString.
 first_to_lower([First | Rest] = SrcString) when is_list(SrcString) ->
     FirstLowered = string:to_lower([First]),
-    FirstLowered ++ Rest;
-first_to_lower(Other) ->
-    Other.
+    FirstLowered ++ Rest.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -221,7 +219,7 @@ first_to_lower(Other) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec remove_last_newline(SrcList) -> RetList when
-    SrcList :: [term()],
+    SrcList :: [nls_server:value()],
     RetList :: SrcList.
 remove_last_newline(SrcList) ->
     case lists:reverse(SrcList) of
@@ -243,11 +241,11 @@ remove_last_newline(SrcList) ->
 %%--------------------------------------------------------------------
 -spec increase_vsn(SourceVersion, VersionDepth, Increment, CurDepth, AccVersion) -> UpgradedVersion when
     SourceVersion :: [string()],
-    VersionDepth :: pos_integer(),
-    Increment :: pos_integer(),
-    CurDepth :: pos_integer(),
-    AccVersion :: [string()],
-    UpgradedVersion :: [string()].
+    VersionDepth :: pos_integer(), % generic integer
+    Increment :: pos_integer(), % generic integer
+    CurDepth :: VersionDepth,
+    AccVersion :: SourceVersion,
+    UpgradedVersion :: SourceVersion.
 increase_vsn([], _, _, _, AccVersion) ->
     lists:reverse(AccVersion);
 increase_vsn([CurDepthVersionNumStr | Tail], VersionDepth, Increment, CurDepth, AccVersion) ->

@@ -22,8 +22,8 @@
 -define(EMPTY_CONTENT, <<>>).
 -define(WECHAT_TOKEN, <<"collinguo">>).
 
--type validation_params() :: #{signature => string() | binary(), timestamp => string() | binary(), nonce => string() | binary(), echostr => string() | binary()}.
--type req_params() :: #{'Content' => binary(), 'CreateTime' => binary(), 'FromUserName' => binary(), 'MsgId' => binary(), 'MsgType' => binary(), 'ToUserName' => binary()}.
+-type wechat_get_params() :: #{signature => string() | binary(), timestamp => string() | binary(), nonce => string() | binary(), echostr => string() | binary()}.
+-type wechat_post_params() :: #{'Content' => binary(), 'CreateTime' => binary(), 'FromUserName' => binary(), 'MsgId' => binary(), 'MsgType' => binary(), 'ToUserName' => binary()}.
 -type short_command() :: '5' | l.
 -type command() :: lang | login | logout | look | rereg.
 
@@ -50,7 +50,7 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start(Req) -> string() when
+-spec start(Req) -> iodata() when
     Req :: cowboy_req:req().
 start(Req) ->
     case cowboy_req:qs(Req) of
@@ -64,7 +64,7 @@ start(Req) ->
                     ?EMPTY_CONTENT
             end;
         HeaderParams ->
-            ParamsMap = gen_req_params_map(size(HeaderParams) - 1, HeaderParams, #{}),
+            ParamsMap = gen_get_params_map(size(HeaderParams) - 1, HeaderParams, #{}),
 %%             error_logger:info_msg("ParamsMap:~p~n", [ParamsMap]),
             ValidationParamsMap = maps:with([signature, timestamp, nonce], ParamsMap),
             case validate_signature(ValidationParamsMap) of
@@ -91,10 +91,10 @@ start(Req) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec pending_content(Module, Function, Args) -> ReturnContent when
-    Module :: atom(),
-    Function :: atom(),
-    Args :: [term()],
-    ReturnContent :: [binary()] | no_response.
+    Module :: module(),
+    Function :: atom(), % generic atom
+    Args :: [term()], % generic term
+    ReturnContent :: [nls_server:value()] | no_response.
 pending_content(Module, Function, Args) ->
     Self = self(),
     FunctionArgs = [Self | Args],
@@ -138,10 +138,10 @@ return_content(DispatcherPid, ReturnContent) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec validate_signature(OriginalParamMap) -> IsValidSignature when
-    OriginalParamMap :: validation_params(),
+    OriginalParamMap :: wechat_get_params(),
     IsValidSignature :: boolean().
 validate_signature(#{signature := OriginalSignatureStr} = OriginalParamMap) ->
-    ParamList = maps:to_list(maps:without([signature], OriginalParamMap)),
+    ParamList = maps:values(maps:without([signature], OriginalParamMap)),
     GeneratedSignature = generate_signature(ParamList),
     Signature = binary_to_list(OriginalSignatureStr),
     case GeneratedSignature == Signature of
@@ -160,10 +160,10 @@ validate_signature(#{signature := OriginalSignatureStr} = OriginalParamMap) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec generate_signature(OriginParamList) -> SignatureStr when
-    OriginParamList :: list(),
+    OriginParamList :: [string()],
     SignatureStr :: string().
 generate_signature(OriginParamList) ->
-    ConcatedParamContent = [?WECHAT_TOKEN | [Param || {_, Param} <- OriginParamList]],
+    ConcatedParamContent = [?WECHAT_TOKEN | OriginParamList],
     SortedParamContent = lists:sort(ConcatedParamContent),
     string:to_lower(sha1:hexstring(SortedParamContent)).
 
@@ -281,7 +281,7 @@ process_request(Req) ->
 %%--------------------------------------------------------------------
 -spec gen_action_from_message_type(MsgType, ReqParamsMap) -> {InputForUnregister, FuncForRegsiter} when
     MsgType :: binary(),
-    ReqParamsMap :: req_params(),
+    ReqParamsMap :: wechat_post_params(),
     InputForUnregister :: binary() | no_reply | subscribe | unsubscribe,
     FuncForRegsiter :: function().
 gen_action_from_message_type(MsgType, ReqParamsMap) ->
@@ -337,7 +337,7 @@ gen_action_from_message_type(MsgType, ReqParamsMap) ->
     Uid :: player_fsm:uid(),
     ModuleNameBin :: binary(),
     RawCommandArgs :: [binary()],
-    ReturnContent :: [term()].
+    ReturnContent :: [nls_server:value()].
 handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
     try
         RawModuleName = parse_raw_command(list_to_atom(string:to_lower(binary_to_list(ModuleNameBin)))),
@@ -358,7 +358,7 @@ handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
         Arity = length(CommandArgs),
         Args = [Uid | CommandArgs],
 
-        ModuleName:module_info(),
+        ModuleName:module_info(), % call module_info in order to make function_exported works
         case erlang:function_exported(ModuleName, exec, Arity + 2) of
             true ->
                 pending_content(ModuleName, exec, Args);
@@ -404,7 +404,7 @@ compose_xml_response(UidBin, PlatformIdBin, ContentBin) ->
 %%--------------------------------------------------------------------
 -spec parse_xml_request(Req) -> ReqParamsMap when
     Req :: cowboy_req:req(),
-    ReqParamsMap :: req_params() | parse_failed.
+    ReqParamsMap :: wechat_post_params() | parse_failed.
 parse_xml_request(Req) ->
     {ok, Message, _} = cowboy_req:body(Req),
     case Message of
@@ -433,8 +433,8 @@ parse_xml_request(Req) ->
     SrcList :: [{ParamKey, [], [ParamValue]}],
     ParamKey :: string(),
     ParamValue :: string(),
-    ParamsMap :: req_params(),
-    FinalParamsMap :: req_params().
+    ParamsMap :: wechat_post_params(),
+    FinalParamsMap :: ParamsMap.
 unmarshall_params([], ParamsMap) ->
     ParamsMap;
 unmarshall_params([{ParamKey, [], [ParamValue]} | Tail], ParamsMap) ->
@@ -446,16 +446,17 @@ unmarshall_params([{ParamKey, [], [ParamValue]} | Tail], ParamsMap) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec gen_req_params_map(Pos, Bin, ParamsMap) -> map() when
-    Pos :: integer(),
+-spec gen_get_params_map(Pos, Bin, AccParamsMap) -> ParamsMap when
+    Pos :: integer(), % generic integer
     Bin :: binary(),
-    ParamsMap :: validation_params().
-gen_req_params_map(-1, _, ParamsMap) ->
+    AccParamsMap :: wechat_get_params(),
+    ParamsMap :: AccParamsMap.
+gen_get_params_map(-1, _, ParamsMap) ->
     ParamsMap;
-gen_req_params_map(Pos, Bin, ParamsMap) ->
-    {ValueBin, CurPosByValue} = gen_req_param_value(binary:at(Bin, Pos), [], Pos - 1, Bin),
+gen_get_params_map(Pos, Bin, ParamsMap) ->
+    {ValueBin, CurPosByValue} = gen_get_param_value(binary:at(Bin, Pos), [], Pos - 1, Bin),
     {KeyBin, CurPosByKey} = gen_req_param_key(binary:at(Bin, CurPosByValue), [], CurPosByValue - 1, Bin),
-    gen_req_params_map(CurPosByKey, Bin, maps:put(binary_to_atom(KeyBin, unicode), ValueBin, ParamsMap)).
+    gen_get_params_map(CurPosByKey, Bin, maps:put(binary_to_atom(KeyBin, unicode), ValueBin, ParamsMap)).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -463,11 +464,13 @@ gen_req_params_map(Pos, Bin, ParamsMap) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec gen_req_param_key(CurByte, KeyBinList, Pos, SrcBin) -> {binary(), integer()} when
+-spec gen_req_param_key(CurByte, KeyBinList, Pos, SrcBin) -> {KeyBin, CurPos} when
     CurByte :: byte(),
-    KeyBinList :: [byte()],
-    Pos :: integer(),
-    SrcBin :: binary().
+    KeyBinList :: [CurByte],
+    Pos :: integer(), % generic integer
+    SrcBin :: binary(),
+    KeyBin :: SrcBin,
+    CurPos :: Pos.
 gen_req_param_key($&, KeyBinList, Pos, _) ->
     {list_to_binary(KeyBinList), Pos};
 gen_req_param_key(CurByte, KeyBinList, -1, _) ->
@@ -481,15 +484,17 @@ gen_req_param_key(CurByte, KeyBinList, Pos, SrcBin) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec gen_req_param_value(CurByte, ValueBinList, Pos, SrcBin) -> {binary(), integer()} when
+-spec gen_get_param_value(CurByte, ValueBinList, Pos, SrcBin) -> {ValueBin, CurPos} when
     CurByte :: byte(),
-    ValueBinList :: [byte()],
-    Pos :: integer(),
-    SrcBin :: binary().
-gen_req_param_value($=, ValueBinList, Pos, _) ->
+    ValueBinList :: [CurByte],
+    Pos :: integer(), % generic integer
+    SrcBin :: binary(),
+    ValueBin :: SrcBin,
+    CurPos :: Pos.
+gen_get_param_value($=, ValueBinList, Pos, _) ->
     {list_to_binary(ValueBinList), Pos};
-gen_req_param_value(CurByte, ValueBinList, Pos, SrcBin) ->
-    gen_req_param_value(binary:at(SrcBin, Pos), [CurByte | ValueBinList], Pos - 1, SrcBin).
+gen_get_param_value(CurByte, ValueBinList, Pos, SrcBin) ->
+    gen_get_param_value(binary:at(SrcBin, Pos), [CurByte | ValueBinList], Pos - 1, SrcBin).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -499,9 +504,9 @@ gen_req_param_value(CurByte, ValueBinList, Pos, SrcBin) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec execute_command(Module, Function, FunctionArgs) -> ok when
-    Module :: atom(),
-    Function :: atom(),
-    FunctionArgs :: [term()].
+    Module :: module(),
+    Function :: atom(), % generic atom
+    FunctionArgs :: [term()]. % generic term
 execute_command(Module, Function, [DispatcherPid, Uid | CommandArgs] = FunctionArgs) ->
     try
         apply(Module, Function, FunctionArgs)
@@ -518,8 +523,9 @@ execute_command(Module, Function, [DispatcherPid, Uid | CommandArgs] = FunctionA
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec parse_raw_command(RawCommand) -> command() when
-    RawCommand :: short_command().
+-spec parse_raw_command(RawCommand) -> Command when
+    RawCommand :: short_command() | atom(), % generic atom
+    Command :: RawCommand.
 parse_raw_command('5') -> look;
 parse_raw_command(l) -> look;
 parse_raw_command(Other) -> Other.
@@ -531,7 +537,7 @@ parse_raw_command(Other) -> Other.
 %% @end
 %%--------------------------------------------------------------------
 -spec is_command_exist(Command) -> boolean() when
-    Command :: command().
+    Command :: command() | atom(). % generic atom
 is_command_exist(look) -> true;
 is_command_exist(lang) -> true;
 is_command_exist(login) -> true;

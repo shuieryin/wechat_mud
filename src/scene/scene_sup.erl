@@ -24,7 +24,7 @@
 -define(SERVER, ?MODULE).
 -include("scene.hrl").
 
--type scene_child() :: {atom(), {scene_fsm, start_link, [{init, map()}]}, supervisor:restart(), supervisor:shutdown(), supervisor:worker(), [scene_fsm]}.
+-type scene_child() :: {scene_fsm:scene_name(), {scene_fsm, start_link, [scene_fsm:scene_info()]}, supervisor:restart(), supervisor:shutdown(), supervisor:worker(), [scene_fsm]}.
 
 %%%===================================================================
 %%% API functions
@@ -36,8 +36,7 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link() ->
-    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
+-spec start_link() -> supervisor:startlink_ret().
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
@@ -55,7 +54,7 @@ start_link() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec init(Args :: term()) ->
+-spec init([]) ->
     {ok, {SupFlags :: supervisor:sup_flags(), [ChildSpec :: supervisor:child_spec()]}} | ignore.
 init([]) ->
     RestartStrategy = one_for_one,
@@ -106,4 +105,4 @@ gen_scene_child_list() ->
     Type :: supervisor:worker(),
     SceneChild :: scene_child().
 populate_scene_child(#{id := Id} = SceneInfo, Restart, Shutdown, Type) ->
-    {Id, {scene_fsm, start_link, [{init, SceneInfo}]}, Restart, Shutdown, Type, [scene_fsm]}.
+    {Id, {scene_fsm, start_link, [SceneInfo]}, Restart, Shutdown, Type, [scene_fsm]}.

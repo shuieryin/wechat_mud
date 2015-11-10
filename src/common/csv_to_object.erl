@@ -22,10 +22,14 @@
 -define(FILE_EXTENSION, ".csv").
 -define(NAME_TYPE_SEPARATOR, ":").
 
--type csv_row_data() :: #{ColumnKey :: atom() => Value :: term()}.
--type csv_data() :: #{RowKey :: atom() => csv_row_data()}.
--type field_info() :: {FieldName :: atom(), FieldType :: atom()}.
--type keys_map() :: #{Pos :: non_neg_integer() => field_info()}.
+-type key() :: atom(). % generic atom
+-type value() :: term(). % generic term
+-type field_type() :: atom(). % generic atom
+-type csv_line() :: string().
+-type csv_row_data() :: #{key() => value()}.
+-type csv_data() :: #{key() => csv_row_data()}.
+-type field_info() :: {key(), field_type()}.
+-type keys_map() :: #{Pos :: non_neg_integer() => field_info()}. % generic integer
 
 -export_type([csv_data/0]).
 
@@ -140,11 +144,10 @@ parse_file(FilePath, RowFun) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec traverse_rows(NewRowData, State) -> KeyValuesMap when
-    NewRowData :: {newline, NewRow} | {eof},
-    NewRow :: [term()],
+    NewRowData :: {newline, [csv_line()]} | {eof},
     RowFun :: function(),
     KeyValuesMap :: csv_row_data(),
-    Counter :: non_neg_integer(),
+    Counter :: non_neg_integer(), % generic integer
     KeysMap :: keys_map(),
     AccRowValuesMap :: csv_row_data(),
     State :: {Counter, RowFun, KeysMap, AccRowValuesMap} | {0, RowFun} | {_, _, _, KeyValuesMap}.
@@ -170,9 +173,9 @@ traverse_rows({eof}, {_, _, _, RowValuesMap}) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec gen_keysmap(NewRow, KeysMap, Pos) -> FinalKeysMap when
-    NewRow :: [term()],
+    NewRow :: [csv_line()],
     KeysMap :: keys_map(),
-    Pos :: non_neg_integer(),
+    Pos :: non_neg_integer(), % generic integer
     FinalKeysMap :: KeysMap.
 gen_keysmap([], KeysMap, _) ->
     KeysMap;
@@ -190,10 +193,10 @@ gen_keysmap([RawKeyStr | Tail], KeysMap, Pos) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec traverse_column(RowData, KeysMap, ValuesMap, Pos) -> FinalValuesMap when
-    RowData :: [term()],
+    RowData :: [csv_line()],
     KeysMap :: keys_map(),
     ValuesMap :: csv_row_data(),
-    Pos :: non_neg_integer(),
+    Pos :: non_neg_integer(), % generic integer
     FinalValuesMap :: ValuesMap | invalid_row.
 traverse_column([[] | _], _, _, 0) ->
     invalid_row;
@@ -247,7 +250,7 @@ default_row_fun(RowValuesMap) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec get_field_name_type(FieldNameInfoStr) -> FieldInfo when
-    FieldNameInfoStr :: string(),
+    FieldNameInfoStr :: csv_line(),
     FieldInfo :: field_info().
 get_field_name_type(FieldNameInfoStr) ->
     [FieldNameStr | TailFieldTypeStr] = string:tokens(FieldNameInfoStr, ?NAME_TYPE_SEPARATOR),

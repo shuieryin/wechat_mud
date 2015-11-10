@@ -41,6 +41,8 @@
 -define(PORT, 6379).
 
 -type redis_client() :: pid().
+-type key() :: term(). % generic term
+-type value() :: term(). % generic term
 -type state() :: #{redis_client_pid => redis_client()}.
 
 %%%===================================================================
@@ -53,13 +55,7 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link() ->
-    {ok, Pid} |
-    ignore |
-    {error, Reason} when
-
-    Pid :: pid(),
-    Reason :: term().
+-spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
@@ -79,8 +75,8 @@ reconnect_redis() ->
 %% @end
 %%--------------------------------------------------------------------
 -spec get(Key) -> ReturnValue when
-    Key :: atom(),
-    ReturnValue :: term() | undefined.
+    Key :: key(),
+    ReturnValue :: value() | undefined.
 get(Key) ->
     gen_server:call(?MODULE, {get, Key}).
 
@@ -91,11 +87,11 @@ get(Key) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec set(Key, Value, IsSave) -> Result when
-    Key :: term(),
-    Value :: term(),
+-spec set(Key, Value, IsSave) -> IsValueSet when
+    Key :: key(),
+    Value :: value(),
     IsSave :: boolean(),
-    Result :: boolean().
+    IsValueSet :: boolean().
 set(Key, Value, IsSave) ->
     gen_server:call(?MODULE, {set, Key, Value, IsSave}).
 
@@ -106,8 +102,8 @@ set(Key, Value, IsSave) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec async_set(Key, Value, IsSave) -> ok when
-    Key :: term(),
-    Value :: any(),
+    Key :: key(),
+    Value :: value(),
     IsSave :: boolean().
 async_set(Key, Value, IsSave) ->
     gen_server:cast(?MODULE, {set, Key, Value, IsSave}).
@@ -141,7 +137,7 @@ async_save() ->
 %% @end
 %%--------------------------------------------------------------------
 -spec del(Keys, IsSave) -> Result when
-    Keys :: [term()],
+    Keys :: [key()],
     IsSave :: boolean(),
     Result :: boolean().
 del(Keys, IsSave) ->
@@ -154,7 +150,7 @@ del(Keys, IsSave) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec async_del(Keys, IsSave) -> ok when
-    Keys :: [term()],
+    Keys :: [key()],
     IsSave :: boolean().
 async_del(Keys, IsSave) ->
     gen_server:cast(?MODULE, {del, Keys, IsSave}).
@@ -185,15 +181,14 @@ clear_all() ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
--spec init(Args) ->
+-spec init([]) ->
     {ok, State} |
     {ok, State, timeout() | hibernate} |
     {stop, Reason} |
     ignore when
 
-    Args :: term(),
     State :: state(),
-    Reason :: term().
+    Reason :: term(). % generic term
 init([]) ->
     io:format("~p starting...", [?MODULE]),
 
@@ -217,15 +212,22 @@ init([]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: {get, Key} | {set, Key, Value, IsSave} | {del, Keys, IsSave} | connect_redis | save,
-    Key :: term(),
-    Keys :: [term()],
-    Value :: term(),
-    From :: {pid(), Tag :: term()},
-    Reply :: term(),
+    Request ::
+    {get, Key} |
+    {set, Key, Value, IsSave} |
+    {del, Keys, IsSave} |
+    connect_redis |
+    save,
+    Reply :: Value | ok,
+
+    Key :: key(),
+    Keys :: [Key],
+    Value :: value(),
+
+    From :: {pid(), Tag :: term()}, % generic term
     State :: state(),
-    NewState :: state(),
-    Reason :: term().
+    NewState :: State,
+    Reason :: term(). % generic term
 handle_call({get, Key}, _From, #{redis_client_pid := RedisClientPid} = State) ->
     Value = case eredis:q(RedisClientPid, ["GET", Key]) of
                 {ok, undefined} ->
@@ -264,13 +266,13 @@ handle_call({del, Keys, IsSave}, _From, State) ->
     {stop, Reason, NewState} when
 
     Request :: {set, Key, Value, IsSave} | {del, Keys, IsSave} | save,
-    Key :: term(),
-    Keys :: [term()],
-    Value :: term(),
+    Key :: key(),
+    Keys :: [Key],
+    Value :: value(),
     IsSave :: boolean(),
     State :: state(),
-    NewState :: state(),
-    Reason :: term().
+    NewState :: State,
+    Reason :: term(). % generic term
 handle_cast({set, Key, Value, IsSave}, State) ->
     set(Key, Value, IsSave, State),
     {noreply, State};
@@ -291,15 +293,15 @@ handle_cast({del, Keys, IsSave}, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
--spec handle_info(Info | term(), State) ->
+-spec handle_info(Info | timeout(), State) ->
     {noreply, NewState} |
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Info :: timeout(),
+    Info :: term(), % generic term
     State :: state(),
-    NewState :: state(),
-    Reason :: term().
+    NewState :: State,
+    Reason :: term(). % generic term
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -314,8 +316,8 @@ handle_info(_Info, State) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
--spec terminate(Reason, State) -> term() when
-    Reason :: (normal | shutdown | {shutdown, term()} | term()),
+-spec terminate(Reason, State) -> ok when
+    Reason :: (normal | shutdown | {shutdown, term()} | term()), % generic term
     State :: state().
 terminate(_Reason, _State) ->
     ok.
@@ -332,11 +334,11 @@ terminate(_Reason, _State) ->
     {ok, NewState} |
     {error, Reason} when
 
-    OldVsn :: term() | {down, term()},
+    OldVsn :: term() | {down, term()}, % generic term
     State :: state(),
-    Extra :: term(),
-    NewState :: state(),
-    Reason :: term().
+    Extra :: term(), % generic term
+    NewState :: State,
+    Reason :: term(). % generic term
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -352,9 +354,9 @@ code_change(_OldVsn, State, _Extra) ->
 -spec format_status(Opt, StatusData) -> Status when
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
-    PDict :: [{Key :: term(), Value :: term()}],
-    State :: term(),
-    Status :: term().
+    PDict :: [{Key :: term(), Value :: term()}], % generic term
+    State :: state(),
+    Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_server:format_status(Opt, StatusData).
 
@@ -369,8 +371,9 @@ format_status(Opt, StatusData) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec connect_reids(State) -> map() when
-    State :: state().
+-spec connect_reids(State) -> UpdatedState when
+    State :: state(),
+    UpdatedState :: State.
 connect_reids(State) ->
     RedisClientPid = connect_redis_loop(),
     State#{redis_client_pid => RedisClientPid}.
@@ -442,8 +445,8 @@ save(#{redis_client_pid := RedisClientPid}) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec set(Key, Value, IsSave, State) -> IsValueSet when
-    Key :: term(),
-    Value :: term(),
+    Key :: key(),
+    Value :: value(),
     IsSave :: boolean(),
     State :: state(),
     IsValueSet :: boolean().
@@ -472,7 +475,7 @@ set(Key, Value, IsSave, #{redis_client_pid := RedisClientPid} = State) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec del(Keys, IsSave, State) -> boolean() when
-    Keys :: [term()],
+    Keys :: [key()],
     IsSave :: boolean(),
     State :: state().
 del(Keys, IsSave, #{redis_client_pid := RedisClientPid} = State) ->

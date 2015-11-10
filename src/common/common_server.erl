@@ -46,13 +46,7 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link() ->
-    {ok, Pid} |
-    ignore |
-    {error, Reason} when
-
-    Pid :: pid(),
-    Reason :: term().
+-spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
@@ -110,8 +104,8 @@ turn_off_wechat_debug() ->
 %% @end
 %%--------------------------------------------------------------------
 -spec get_runtime_data(Phases) -> RuntimeDataMap when
-    Phases :: [atom()],
-    RuntimeDataMap :: map(). % generic map
+    Phases :: [csv_to_object:key()],
+    RuntimeDataMap :: csv_to_object:csv_data().
 get_runtime_data(Phases) ->
     gen_server:call(?MODULE, {get_runtime_data, Phases}).
 
@@ -130,15 +124,14 @@ get_runtime_data(Phases) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
--spec init(Args) ->
+-spec init([]) ->
     {ok, State} |
     {ok, State, timeout() | hibernate} |
     {stop, Reason} |
     ignore when
 
-    Args :: term(),
     State :: state(),
-    Reason :: term().
+    Reason :: term(). % generic term
 init([]) ->
     io:format("~p starting...", [?MODULE]),
 
@@ -173,15 +166,20 @@ init([]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: {is_wechat_debug} | {set_wechat_debug, IsOn :: boolean()} | {get_runtime_data, Phases :: [atom()]},
-    From :: {pid(), Tag :: term()},
+    Request ::
+    {is_wechat_debug} |
+    {set_wechat_debug, IsOn :: boolean()} |
+    {get_runtime_data, Phases :: [csv_to_object:key()]},
     Reply :: IsWechatDebug | IsOn | TargetRuntimeData,
-    State :: state(),
-    NewState :: State,
-    Reason :: term(),
+
     IsWechatDebug :: boolean(),
     IsOn :: boolean(),
-    TargetRuntimeData :: term().
+    TargetRuntimeData :: csv_to_object:csv_data(),
+
+    From :: {pid(), Tag :: term()}, % generic term
+    State :: state(),
+    NewState :: State,
+    Reason :: term(). % generic term
 handle_call({is_wechat_debug}, _From, #{?R_COMMON_CONFIG := CommonConfigs} = State) ->
     IsWechatDebug = maps:get(is_wechat_debug, CommonConfigs, ?DEFAULT_WECHAT_DEBUG_MODE),
     {reply, IsWechatDebug, State};
@@ -199,9 +197,9 @@ handle_call({get_runtime_data, Phases}, _From, #{?RUNTIME_DATAS := RuntimeDatasM
 %% @end
 %%--------------------------------------------------------------------
 -spec get_runtime_data(Phases, RuntimeDatasMap) -> TargetRuntimeData when
-    Phases :: [atom()],
+    Phases :: [csv_to_object:key()],
     RuntimeDatasMap :: csv_to_object:csv_to_object(),
-    TargetRuntimeData :: term().
+    TargetRuntimeData :: term(). % generic term
 get_runtime_data([Phase | []], RuntimeDatasMap) ->
     case maps:get(Phase, RuntimeDatasMap, undefined) of
         undefined ->
@@ -229,10 +227,10 @@ get_runtime_data([Phase | Tail], RuntimeDatasMap) ->
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: term(),
+    Request :: term(), % generic term
     State :: state(),
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_cast(_Request, State) ->
     {noreply, State}.
 
@@ -246,15 +244,15 @@ handle_cast(_Request, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
--spec handle_info(Info | term(), State) ->
+-spec handle_info(Info | timeout(), State) ->
     {noreply, NewState} |
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Info :: timeout(),
+    Info :: term(), % generic term
     State :: state(),
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -269,8 +267,8 @@ handle_info(_Info, State) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
--spec terminate(Reason, State) -> term() when
-    Reason :: (normal | shutdown | {shutdown, term()} | term()),
+-spec terminate(Reason, State) -> ok when
+    Reason :: (normal | shutdown | {shutdown, term()} | term()), % generic term
     State :: state().
 terminate(_Reason, _State) ->
     ok.
@@ -287,11 +285,11 @@ terminate(_Reason, _State) ->
     {ok, NewState} |
     {error, Reason} when
 
-    OldVsn :: term() | {down, term()},
+    OldVsn :: term() | {down, term()}, % generic term
     State :: state(),
-    Extra :: term(),
+    Extra :: term(), % generic term
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -307,9 +305,9 @@ code_change(_OldVsn, State, _Extra) ->
 -spec format_status(Opt, StatusData) -> Status when
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
-    PDict :: [{Key :: term(), Value :: term()}],
-    State :: term(),
-    Status :: term().
+    PDict :: [{Key :: term(), Value :: term()}], % generic term
+    State :: state(),
+    Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_server:format_status(Opt, StatusData).
 

@@ -22,6 +22,8 @@
 
 -import(ezwebframe_mochijson2, [encode/1, decode/1]).
 
+-type port_int() :: 1024 .. 65535.
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -33,7 +35,7 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec start_link(Port) -> ok when
-    Port :: pos_integer().
+    Port :: port_int().
 start_link(Port) ->
     io:format("Starting:~p~n", [file:get_cwd()]),
     %% server is the name of this module
@@ -61,7 +63,7 @@ start_link(Port) ->
     SocketInfo :: {cowboy_websocket, Req, Pid},
     Req :: cowboy_req:req(),
     Pid :: pid(),
-    HttpReply :: {ok, Resp, list()},
+    HttpReply :: {ok, Resp, cowboy_middleware:env()},
     Resp :: cowboy_req:req(),
     Env :: map(). % generic map
 init(Req, Env) ->
@@ -87,7 +89,7 @@ init(Req, Env) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec websocket_handle({text, Msg}, Req, Pid) -> {ok, Req, Pid} when
-    Msg :: list(),
+    Msg :: iolist(),
     Req :: cowboy_req:req(),
     Pid :: pid().
 websocket_handle({text, Msg}, Req, Pid) ->
@@ -110,15 +112,15 @@ websocket_handle({text, Msg}, Req, Pid) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec websocket_info(Action, Req, Pid) -> Result when
-    Action :: {send, string()} | [{cmd, _} | _] | term(),
+    Action :: {send, string()} | [{cmd, _} | _] | term(), % generic term
     Req :: cowboy_req:req(),
     Pid :: pid(),
     Result :: {reply, {text, string() | binary()}, Req, Pid, hibernate} | {ok, Req, Pid, hibernate}.
 websocket_info({send, Str}, Req, Pid) ->
     {reply, {text, Str}, Req, Pid, hibernate};
 websocket_info([{cmd, _} | _] = L, Req, Pid) ->
-    B = list_to_binary(encode([{struct, L}])),
-    {reply, {text, B}, Req, Pid, hibernate};
+    Bin = list_to_binary(encode([{struct, L}])),
+    {reply, {text, Bin}, Req, Pid, hibernate};
 websocket_info(Info, Req, Pid) ->
     io:format("Handle_info Info:~p Pid:~p~n", [Info, Pid]),
     {ok, Req, Pid, hibernate}.
@@ -130,7 +132,7 @@ websocket_info(Info, Req, Pid) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec websocket_terminate(_Reason, _Req, Pid) -> ok when
-    _Reason :: any(),
+    _Reason :: term(), % generic term
     _Req :: cowboy_req:req(),
     Pid :: pid().
 websocket_terminate(_Reason, _Req, Pid) ->
@@ -162,7 +164,9 @@ path(Req) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec binary_to_atom(binary()) -> atom().
+-spec binary_to_atom(Bin) -> Result when
+    Bin :: binary(),
+    Result :: atom(). % generic atom
 binary_to_atom(B) ->
     list_to_atom(binary_to_list(B)).
 
@@ -173,8 +177,8 @@ binary_to_atom(B) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec atomize(Source) -> Result when
-    Source :: {struct, [{binary(), list() | term()}]} | list() | term(),
-    Result :: {struct, [{atom(), list() | term()}]} | list() | term().
+    Source :: {struct, [{binary(), list() | term()}]} | list() | term(), % generic term % generic list
+    Result :: {struct, [{atom(), list() | term()}]} | list() | term(). % generic term % generic atom % generic list
 atomize({struct, L}) ->
     {struct, [{binary_to_atom(I), atomize(J)} || {I, J} <- L]};
 atomize(L) when is_list(L) ->

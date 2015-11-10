@@ -43,7 +43,7 @@
 -type born_month() :: 1..12.
 -type gender() :: male | female.
 -type born_type_info() :: #{born_type => born_month(), attack => integer(), defence => integer(), hp => integer(), dexterity => integer()}.
--type player_profile() :: #{uid => uid(), born_month => born_month, born_type => born_type_info, gender => gender(), lang => nls_server:support_lang(), register_time => pos_integer(), scene => scene_fsm:scene_name()}.
+-type player_profile() :: #{uid => uid(), born_month => born_month(), born_type => born_type_info(), gender => gender(), lang => nls_server:support_lang(), register_time => pos_integer(), scene => scene_fsm:scene_name()}.
 -type simple_player() :: {player, Uid :: uid()}.
 -type state() :: #{self => player_profile()}.
 -type state_name() :: state_name | non_battle.
@@ -67,9 +67,8 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link(PlayerProfile) -> {ok, pid()} | ignore | {error, Reason} when
-    PlayerProfile :: player_profile(),
-    Reason :: term().
+-spec start_link(PlayerProfile) -> gen:start_ret() when
+    PlayerProfile :: player_profile().
 start_link(#{uid := Uid} = PlayerProfile) ->
     gen_fsm:start({local, Uid}, ?MODULE, PlayerProfile, []).
 
@@ -144,8 +143,8 @@ get_lang(Uid) ->
 %%--------------------------------------------------------------------
 -spec response_content(Uid, NlsServer, ContentList, DispatcherPid) -> ok when
     Uid :: uid(),
-    NlsServer :: atom(),
-    ContentList :: [term()],
+    NlsServer :: erlang:registered_name(),
+    ContentList :: [term()], % generic term
     DispatcherPid :: pid().
 response_content(Uid, NlsServer, ContentList, DispatcherPid) ->
     gen_fsm:send_all_state_event(Uid, {response_content, NlsServer, ContentList, DispatcherPid}).
@@ -213,7 +212,7 @@ logout(Uid) ->
     PlayerProfile :: player_profile(),
     StateName :: state_name(),
     StateData :: state(),
-    Reason :: term().
+    Reason :: term(). % generic term
 init(PlayerProfile) ->
     error_logger:info_msg("Player fsm initialized:~p~n", [PlayerProfile]),
     {ok, non_battle, #{self => PlayerProfile}}.
@@ -234,12 +233,12 @@ init(PlayerProfile) ->
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Event :: term(),
+    Event :: term(), % generic term
     State :: state(),
     NextStateName :: state_name(),
     NextState :: State,
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 state_name(_Event, State) ->
     {next_state, state_name, State}.
 
@@ -262,13 +261,14 @@ state_name(_Event, State) ->
     {stop, Reason, NewState} |
     {stop, Reason, Reply, NewState} when
 
-    Event :: term(),
-    From :: {pid(), term()},
+    Event :: term(), % generic term
+    Reply :: ok,
+
+    From :: {pid(), term()}, % generic term
     State :: state(),
     NextStateName :: state_name(),
     NextState :: State,
-    Reason :: normal | term(),
-    Reply :: term(),
+    Reason :: normal | term(), % generic term
     NewState :: State.
 state_name(_Event, _From, State) ->
     Reply = ok,
@@ -292,23 +292,24 @@ state_name(_Event, _From, State) ->
     {go_direction, DispatcherPid, Direction} |
     {look_scene, DispatcherPid} |
     {look_target, DispatcherPid, LookArgs} |
-    {response_content, NlsServer, ContentList, DispatcherPid} |
+    {response_content, NlsServer, NlsObjectList, DispatcherPid} |
     leave_scene |
     {switch_lang, DispatcherPid, TargetLang} |
     {logout, NotifyOkPid},
 
-    NlsServer :: atom(),
-    ContentList :: [term()],
+    NlsServer :: erlang:registered_name(),
+    NlsObjectList :: [nls_server:nls_object()],
     DispatcherPid :: pid(),
     Direction :: direction:directions(),
+    LookArgs :: binary(),
+    NotifyOkPid :: pid(),
+    TargetLang :: nls_server:support_lang(),
+
     StateName :: state_name(),
     StateData :: state(),
-    TargetLang :: nls_server:support_lang(),
     NextStateName :: StateName,
     NewStateData :: StateData,
-    Reason :: term(),
-    LookArgs :: binary(),
-    NotifyOkPid :: pid().
+    Reason :: term(). % generic term
 handle_event({go_direction, DispatcherPid, Direction}, StateName, #{self := #{scene := CurSceneName, uid := Uid, lang := Lang} = PlayerProfile} = State) ->
     TargetSceneName =
         case scene_fsm:go_direction(CurSceneName, Uid, Lang, DispatcherPid, Direction) of
@@ -326,8 +327,8 @@ handle_event({look_scene, DispatcherPid}, StateName, #{self := #{scene := CurSce
 handle_event({look_target, DispatcherPid, LookArgs}, StateName, #{self := #{scene := CurSceneName, uid := Uid, lang := Lang}} = State) ->
     scene_fsm:look_target(CurSceneName, Uid, Lang, DispatcherPid, LookArgs),
     {next_state, StateName, State};
-handle_event({response_content, NlsServer, ContentList, DispatcherPid}, StateName, #{self := #{lang := Lang}} = State) ->
-    nls_server:response_content(NlsServer, ContentList, Lang, DispatcherPid),
+handle_event({response_content, NlsServer, NlsObjectList, DispatcherPid}, StateName, #{self := #{lang := Lang}} = State) ->
+    nls_server:response_content(NlsServer, NlsObjectList, Lang, DispatcherPid),
     {next_state, StateName, State};
 handle_event(leave_scene, StateName, #{self := #{scene := CurSceneName, uid := Uid}} = State) ->
     scene_fsm:leave(CurSceneName, Uid),
@@ -361,13 +362,16 @@ handle_event(logout, _StateName, #{self := #{scene := CurSceneName, uid := Uid} 
     {stop, Reason, NewStateData} when
 
     Event :: get_lang,
-    From :: {pid(), Tag :: term()},
+    Reply :: Lang,
+
+    Lang :: nls_server:support_lang(),
+
+    From :: {pid(), Tag :: term()}, % generic term
     StateName :: state_name(),
     StateData :: state(),
-    Reply :: term(),
     NextStateName :: StateName,
     NewStateData :: StateData,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_sync_event(get_lang, _From, StateName, #{self := #{lang := Lang}} = State) ->
     {reply, Lang, StateName, State}.
 
@@ -385,12 +389,12 @@ handle_sync_event(get_lang, _From, StateName, #{self := #{lang := Lang}} = State
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
 
-    Info :: term(),
+    Info :: term(), % generic term
     StateName :: state_name(),
     StateData :: state(),
     NextStateName :: StateName,
     NewStateData :: StateData,
-    Reason :: normal | term().
+    Reason :: normal | term(). % generic term
 handle_info(_Info, StateName, State) ->
     {next_state, StateName, State}.
 
@@ -405,8 +409,8 @@ handle_info(_Info, StateName, State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec terminate(Reason, StateName, StateData) -> term() when
-    Reason :: normal | shutdown | {shutdown, term()} | term(),
+-spec terminate(Reason, StateName, StateData) -> ok when
+    Reason :: normal | shutdown | {shutdown, term()} | term(), % generic term
     StateName :: state_name(),
     StateData :: state().
 terminate(_Reason, _StateName, _StateData) ->
@@ -420,10 +424,10 @@ terminate(_Reason, _StateName, _StateData) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec code_change(OldVsn, StateName, StateData, Extra) -> {ok, NextStateName, NewStateData} when
-    OldVsn :: term() | {down, term()},
+    OldVsn :: term() | {down, term()}, % generic term
     StateName :: state_name(),
     StateData :: state(),
-    Extra :: term(),
+    Extra :: term(), % generic term
     NextStateName :: StateName,
     NewStateData :: StateData.
 code_change(_OldVsn, StateName, State, _Extra) ->
@@ -441,9 +445,9 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 -spec format_status(Opt, StatusData) -> Status when
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
-    PDict :: [{Key :: term(), Value :: term()}],
-    State :: term(),
-    Status :: term().
+    PDict :: [{Key :: term(), Value :: term()}], % generic term
+    State :: state(),
+    Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_fsm:format_status(Opt, StatusData).
 

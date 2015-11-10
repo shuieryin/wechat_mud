@@ -36,8 +36,7 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link() ->
-    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
+-spec start_link() -> supervisor:startlink_ret().
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
@@ -55,7 +54,7 @@ start_link() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec init(Args :: term()) ->
+-spec init([]) ->
     {ok, {SupFlags :: supervisor:sup_flags(), [ChildSpec :: supervisor:child_spec()]}} | ignore.
 init([]) ->
     RestartStrategy = one_for_one,
@@ -82,7 +81,7 @@ init([]) ->
     Restart :: supervisor:restart(),
     Shutdown :: supervisor:shutdown(),
     Type :: supervisor:worker(),
-    WorkerName :: atom().
+    WorkerName :: atom(). % generic atom
 gen_child_list() ->
     Restart = permanent,
     Shutdown = 2000,

@@ -30,12 +30,13 @@
 -define(SERVER, ?MODULE).
 -define(NPC_FSMS_MAP, nps_fsms_map).
 
--type uuid() :: atom().
+-type uuid() :: atom(). % generic atom
 -type npc_type() :: dog | little_boy.
--type npc_spec() :: {npc_type(), Amount :: pos_integer()}.
+-type npc_amount() :: pos_integer(). % generic integer
+-type npc_spec() :: {npc_type(), npc_amount()}.
 -type npc_born_info() :: #{npc_id => atom(), name_nls_key => atom(), description_nls_key => atom(), attack => integer(), defence => integer(), hp => integer(), dexterity => integer()}.
 -type npc_fsm() :: #{uuid() => uuid()}.
--type simple_npc_fsm() :: {npc, NpcFsmUuid :: npc_fsm_manager:uuid(), npc_fsm_manager:npc_type(), NpcNameNlsKey :: atom()}.
+-type simple_npc_fsm() :: {npc, NpcFsmUuid :: npc_fsm_manager:uuid(), npc_fsm_manager:npc_type(), nls_server:key()}.
 -type state() :: #{?NPC_FSMS_MAP => npc_fsm()}.
 
 -export_type([npc_type/0,
@@ -53,13 +54,7 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link() ->
-    {ok, Pid} |
-    ignore |
-    {error, Reason} when
-
-    Pid :: pid(),
-    Reason :: term().
+-spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
@@ -94,15 +89,14 @@ new_npcs(NpcsSpec) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
--spec init(Args) ->
+-spec init([]) ->
     {ok, State} |
     {ok, State, timeout() | hibernate} |
     {stop, Reason} |
     ignore when
 
-    Args :: term(),
     State :: state(),
-    Reason :: term().
+    Reason :: term(). % generic term
 init([]) ->
     {ok, #{?NPC_FSMS_MAP => #{}}}.
 
@@ -121,12 +115,13 @@ init([]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: term(),
-    From :: {pid(), Tag :: term()},
-    Reply :: term(),
+    Request :: term(), % generic term
+    Reply :: ok,
+
+    From :: {pid(), Tag :: term()}, % generic term
     State :: state(),
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
@@ -146,7 +141,7 @@ handle_call(_Request, _From, State) ->
     NewNpcFsmsMap :: npc_fsm(),
     State :: state(),
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_cast({new_npcs, NewNpcFsmsMap}, #{?NPC_FSMS_MAP := NpcFsmsMap} = State) ->
     UpdatedNpcFsmsMap = maps:merge(NpcFsmsMap, NewNpcFsmsMap),
     {noreply, State#{?NPC_FSMS_MAP := UpdatedNpcFsmsMap}}.
@@ -162,15 +157,15 @@ handle_cast({new_npcs, NewNpcFsmsMap}, #{?NPC_FSMS_MAP := NpcFsmsMap} = State) -
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
--spec handle_info(Info | term(), State) ->
+-spec handle_info(Info | timeout(), State) ->
     {noreply, NewState} |
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Info :: timeout(),
+    Info :: term(), % generic term
     State :: state(),
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -185,8 +180,8 @@ handle_info(_Info, State) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
--spec terminate(Reason, State) -> term() when
-    Reason :: (normal | shutdown | {shutdown, term()} | term()),
+-spec terminate(Reason, State) -> ok when
+    Reason :: (normal | shutdown | {shutdown, term()} | term()), % generic term
     State :: state().
 terminate(_Reason, _State) ->
     ok.
@@ -203,11 +198,11 @@ terminate(_Reason, _State) ->
     {ok, NewState} |
     {error, Reason} when
 
-    OldVsn :: term() | {down, term()},
+    OldVsn :: term() | {down, term()}, % generic term
     State :: state(),
-    Extra :: term(),
+    Extra :: term(), % generic term
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -223,9 +218,9 @@ code_change(_OldVsn, State, _Extra) ->
 -spec format_status(Opt, StatusData) -> Status when
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
-    PDict :: [{Key :: term(), Value :: term()}],
-    State :: term(),
-    Status :: term().
+    PDict :: [{Key :: term(), Value :: term()}], % generic term
+    State :: state(),
+    Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_server:format_status(Opt, StatusData).
 
@@ -274,7 +269,7 @@ traverse_npcspec([{NpcType, Amount} | Tail], AccNpcFsmList, AccNpcFsmMap) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec new_npc(Amount, NpcBornProfile, AccNpcFsmList, AccOverallNpcFsmMap) -> {NpcFsmList, OverallNpcFsmMap} when
-    Amount :: pos_integer(),
+    Amount :: npc_amount(),
     NpcBornProfile :: npc_born_info(),
     AccNpcFsmList :: [simple_npc_fsm()],
     AccOverallNpcFsmMap :: #{uuid() => uuid()},

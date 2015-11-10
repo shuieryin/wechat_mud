@@ -41,11 +41,19 @@
 -include("nls.hrl").
 
 -type support_lang() :: zh | en.
--type lang_map() :: #{NlsKey :: atom() => NlsValue :: binary()}.
+-type key() :: atom(). % generic atom
+-type value() :: binary().
+-type field_name() :: atom(). % generic atom
+-type lang_map() :: #{key() => value()}.
 -type state() :: #{support_lang() => lang_map()}.
--type keys_map() :: #{Pos :: non_neg_integer() => FieldName :: atom()}.
+-type key_pos() :: non_neg_integer(). % generic integer
+-type keys_map() :: #{key_pos() => field_name()}.
+-type nls_object() :: {nls, key()} | value().
 
--export_type([support_lang/0]).
+-export_type([support_lang/0,
+    nls_object/0,
+    key/0,
+    value/0]).
 
 %%%===================================================================
 %%% API
@@ -57,14 +65,8 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link(NlsFilePath) ->
-    {ok, Pid} |
-    ignore |
-    {error, Reason} when
-
-    NlsFilePath :: file:filename_all(),
-    Pid :: pid(),
-    Reason :: term().
+-spec start_link(NlsFilePath) -> gen:start_ret() when
+    NlsFilePath :: file:filename_all().
 start_link(NlsFilePath) ->
     ServerNamesStr = filename:rootname(filename:basename(NlsFilePath)),
     [ServerNameStr | ExtraNlsFileNames] = string:tokens(ServerNamesStr, "."),
@@ -73,36 +75,35 @@ start_link(NlsFilePath) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Given "ContentList" contains items {nls, NlsKey} with direct return
+%% Given "NlsObjectList" contains items {nls, NlsKey} with direct return
 %% content values, the function is to replace {nls, NlsKey} with the actual
 %% nls content, and then immediately return the result to user.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec response_content(ServerName, ContentList, Lang, DispatcherPid) -> ok when
-    ServerName :: atom(),
-    ContentList :: [{nls, NlsKey} | term()],
-    NlsKey :: atom(),
+-spec response_content(ServerName, NlsObjectList, Lang, DispatcherPid) -> ok when
+    ServerName :: erlang:registered_name(),
+    NlsObjectList :: [nls_server:nls_object()],
     Lang :: support_lang(),
     DispatcherPid :: pid().
-response_content(ServerName, ContentList, Lang, DispatcherPid) ->
-    gen_server:cast(ServerName, {response_content, ContentList, Lang, DispatcherPid}).
+response_content(ServerName, NlsObjectList, Lang, DispatcherPid) ->
+    gen_server:cast(ServerName, {response_content, NlsObjectList, Lang, DispatcherPid}).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Given "ContentList" contains items {nls, NlsKey} with direct return
+%% Given "NlsObjectList" contains items {nls, NlsKey} with direct return
 %% content values, the function is to replace {nls, NlsKey} with the actual
 %% nls content.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_nls_content(ServerName, ContentList, Lang) -> [term()] when
-    ServerName :: atom(),
-    ContentList :: [{nls, NlsKey} | term()],
-    NlsKey :: atom(),
-    Lang :: support_lang().
-get_nls_content(ServerName, ContentList, Lang) ->
-    gen_server:call(ServerName, {get_nls_content, ContentList, Lang}).
+-spec get_nls_content(ServerName, NlsObjectList, Lang) -> ContentList when
+    ServerName :: erlang:registered_name(),
+    NlsObjectList :: [nls_server:nls_object()],
+    Lang :: support_lang(),
+    ContentList :: [value()].
+get_nls_content(ServerName, NlsObjectList, Lang) ->
+    gen_server:call(ServerName, {get_nls_content, NlsObjectList, Lang}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -151,14 +152,14 @@ read_nls_file(NlsFileName, AccNlsMap) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec do_response_content(Lang, State, ContentList, DispatcherPid) -> ok when
+-spec do_response_content(Lang, State, NlsObjectList, DispatcherPid) -> ok when
     Lang :: support_lang(),
     State :: state(),
-    ContentList :: [term()],
+    NlsObjectList :: [nls_server:nls_object()],
     DispatcherPid :: pid().
-do_response_content(Lang, State, ContentList, DispatcherPid) ->
+do_response_content(Lang, State, NlsObjectList, DispatcherPid) ->
     LangMap = maps:get(Lang, State),
-    ReturnContent = fill_in_nls(ContentList, LangMap, []),
+    ReturnContent = fill_in_nls(NlsObjectList, LangMap, []),
     command_dispatcher:return_content(DispatcherPid, ReturnContent).
 
 %%--------------------------------------------------------------------
@@ -168,7 +169,7 @@ do_response_content(Lang, State, ContentList, DispatcherPid) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec get_nls_map(NlsServerName) -> NlsMap when
-    NlsServerName :: atom(),
+    NlsServerName :: erlang:registered_name(),
     NlsMap :: state().
 get_nls_map(NlsServerName) ->
     gen_server:call(NlsServerName, get_nls_map).
@@ -199,18 +200,18 @@ merge_nls_map(NlsMap1, NlsMap2) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec init(Args) ->
+-spec init({ServerName, ExtraNlsFileNames, NlsFilePath}) ->
     {ok, State} |
     {ok, State, timeout() | hibernate} |
     {stop, Reason} |
     ignore when
 
-    Args :: {ServerName, ExtraNlsFileNames, NlsFilePath},
-    ServerName :: atom(),
-    ExtraNlsFileNames :: [string()],
+    ServerName :: erlang:registered_name(),
+    ExtraNlsFileNames :: [fine:field_name()],
     NlsFilePath :: file:filename_all(),
+
     State :: state(),
-    Reason :: term().
+    Reason :: term(). % generic term
 init({ServerName, ExtraNlsFileNames, NlsFilePath}) ->
     io:format("nls server ~p starting...", [ServerName]),
 
@@ -254,24 +255,28 @@ load_nls_file(NlsFileName, AccNlsMap) ->
     Request ::
     {get, NlsKey, Lang} |
     {is_valid_lang, Lang} |
-    {get_nls_content, ConentList, Lang},
+    {get_nls_content, NlsObjectList, Lang},
+    Reply :: State | ContentList | IsValidLang | NlsValue,
 
-    NlsKey :: atom(),
+    NlsKey :: erlang:registered_name(),
+    NlsValue :: value(),
     Lang :: support_lang(),
-    ConentList :: [term()],
-    From :: {pid(), Tag :: term()},
-    Reply :: term(),
+    NlsObjectList :: [nls_server:nls_object()],
+    ContentList :: [NlsValue],
+    IsValidLang :: boolean(),
+
+    From :: {pid(), Tag :: term()}, % generic term
     State :: state(),
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_call({get, NlsKey, Lang}, _From, State) ->
     NlsValue = maps:get(NlsKey, maps:get(Lang, State)),
     {reply, NlsValue, State};
 handle_call({is_valid_lang, Lang}, _From, State) ->
     {reply, maps:is_key(Lang, State), State};
-handle_call({get_nls_content, ContentList, Lang}, _From, State) ->
+handle_call({get_nls_content, NlsObjectList, Lang}, _From, State) ->
     LangMap = maps:get(Lang, State),
-    ReturnContent = fill_in_nls(ContentList, LangMap, []),
+    ReturnContent = fill_in_nls(NlsObjectList, LangMap, []),
     {reply, ReturnContent, State};
 handle_call(get_nls_map, _From, State) ->
     {reply, State, State}.
@@ -288,15 +293,15 @@ handle_call(get_nls_map, _From, State) ->
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: {response_content, ContentList, Lang, DispatcherPid} | {show_langs, DispatcherPid, Lang},
-    ContentList :: [term()],
+    Request :: {response_content, NlsObjectList, Lang, DispatcherPid} | {show_langs, DispatcherPid, Lang},
+    NlsObjectList :: [nls_server:nls_object()],
     Lang :: support_lang(),
     DispatcherPid :: pid(),
     State :: state(),
     NewState :: State,
-    Reason :: term().
-handle_cast({response_content, ContentList, Lang, DispatcherPid}, State) ->
-    do_response_content(Lang, State, ContentList, DispatcherPid),
+    Reason :: term(). % generic term
+handle_cast({response_content, NlsObjectList, Lang, DispatcherPid}, State) ->
+    do_response_content(Lang, State, NlsObjectList, DispatcherPid),
     {noreply, State};
 handle_cast({show_langs, DispatcherPid, Lang}, State) ->
     LangsNls = lists:reverse([[atom_to_binary(LangName, utf8), <<"\n">>] || LangName <- maps:keys(State)]),
@@ -313,15 +318,15 @@ handle_cast({show_langs, DispatcherPid, Lang}, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
--spec handle_info(Info | term(), State) ->
+-spec handle_info(Info | timeout(), State) ->
     {noreply, NewState} |
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Info :: timeout(),
+    Info :: term(), % generic term
     State :: state(),
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -336,8 +341,8 @@ handle_info(_Info, State) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
--spec terminate(Reason, State) -> term() when
-    Reason :: (normal | shutdown | {shutdown, term()} | term()),
+-spec terminate(Reason, State) -> ok when
+    Reason :: (normal | shutdown | {shutdown, term()} | term()), % generic term
     State :: state().
 terminate(_Reason, _State) ->
     ok.
@@ -354,11 +359,11 @@ terminate(_Reason, _State) ->
     {ok, NewState} |
     {error, Reason} when
 
-    OldVsn :: term() | {down, term()},
+    OldVsn :: term() | {down, term()}, % generic term
     State :: state(),
-    Extra :: term(),
+    Extra :: term(), % generic term
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -374,9 +379,9 @@ code_change(_OldVsn, State, _Extra) ->
 -spec format_status(Opt, StatusData) -> Status when
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
-    PDict :: [{Key :: term(), Value :: term()}],
-    State :: term(),
-    Status :: term().
+    PDict :: [{Key :: term(), Value :: term()}], % generic term
+    State :: state(),
+    Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_server:format_status(Opt, StatusData).
 
@@ -393,9 +398,9 @@ format_status(Opt, StatusData) ->
 %%--------------------------------------------------------------------
 -spec read_line(NewLineData, State) -> FinalValuesMap when
     NewLineData :: {newline, NewLine} | {eof},
-    NewLine :: [term()],
+    NewLine :: [csv_to_object:csv_line()],
     State :: {Counter, KeysMap, ValuesMap},
-    Counter :: non_neg_integer(),
+    Counter :: key_pos(),
     KeysMap :: keys_map(),
     ValuesMap :: lang_map(),
     FinalValuesMap :: ValuesMap.
@@ -414,10 +419,10 @@ read_line({eof}, {_, _, FinalValuesMap}) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec gen_keysmap(NewLine, KeysMap, Pos, ValuesMap) -> {KeysMap, FinalKeysMap} when
-    NewLine :: [string()],
+    NewLine :: [csv_to_object:csv_line()],
     KeysMap :: keys_map(),
     ValuesMap :: lang_map(),
-    Pos :: non_neg_integer(),
+    Pos :: key_pos(),
     FinalKeysMap :: KeysMap.
 gen_keysmap([], KeysMap, _, ValuesMap) ->
     {KeysMap, ValuesMap};
@@ -443,10 +448,10 @@ gen_keysmap([RawKey | Tail], KeysMap, Pos, ValuesMap) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec gen_valuesmap(NewLine, KeysMap, ValuesMap, Pos) -> FinalValuesMap when
-    NewLine :: [term()],
+    NewLine :: [csv_to_object:csv_line()],
     KeysMap :: keys_map(),
     ValuesMap :: lang_map(),
-    Pos :: non_neg_integer(),
+    Pos :: key_pos(),
     FinalValuesMap :: ValuesMap.
 gen_valuesmap([], _, ValueMap, _) ->
     ValueMap;
@@ -473,17 +478,17 @@ gen_valuesmap([Value | Tail], KeysMap, ValuesMap, Pos) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec fill_in_nls(ListIn, LangMap, ListOut) -> [binary()] when
-    ListIn :: [{nls, NlsKey} | term()],
-    NlsKey :: atom(),
+-spec fill_in_nls(NlsObjectList, LangMap, AccContentList) -> ContentList when
+    NlsObjectList :: [nls_server:nls_object()],
     LangMap :: lang_map(),
-    ListOut :: [binary()].
-fill_in_nls([], _, ListOut) ->
-    lists:reverse(ListOut);
-fill_in_nls([{nls, NlsKey} | Tail], LangMap, ListOut) ->
-    fill_in_nls(Tail, LangMap, [maps:get(NlsKey, LangMap) | ListOut]);
-fill_in_nls([NonNlsKey | Tail], LangMap, ListOut) ->
-    fill_in_nls(Tail, LangMap, [NonNlsKey | ListOut]).
+    AccContentList :: [value()],
+    ContentList :: AccContentList.
+fill_in_nls([], _, AccContentList) ->
+    lists:reverse(AccContentList);
+fill_in_nls([{nls, NlsKey} | Tail], LangMap, AccContentList) ->
+    fill_in_nls(Tail, LangMap, [maps:get(NlsKey, LangMap) | AccContentList]);
+fill_in_nls([NonNlsKey | Tail], LangMap, AccContentList) ->
+    fill_in_nls(Tail, LangMap, [NonNlsKey | AccContentList]).
 
 %%--------------------------------------------------------------------
 %% @doc

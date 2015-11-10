@@ -54,13 +54,7 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link() ->
-    {ok, Pid} |
-    ignore |
-    {error, Reason} when
-
-    Pid :: pid(),
-    Reason :: term().
+-spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
@@ -172,15 +166,14 @@ logout(DispatcherPid, Uid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec init(Args) ->
+-spec init([]) ->
     {ok, State} |
     {ok, State, timeout() | hibernate} |
     {stop, Reason} |
     ignore when
 
-    Args :: term(),
     State :: state(),
-    Reason :: term().
+    Reason :: term(). % generic term
 init([]) ->
     io:format("~p starting...", [?MODULE]),
     RegisteredUidsSet =
@@ -216,12 +209,17 @@ init([]) ->
     {stop, Reason, NewState} when
 
     Request :: {is_uid_registered | is_in_registration | delete_user, Uid},
+    Reply :: IsUidRegistered | IsInRegistration | IsUserLoggedIn | ok,
+
     Uid :: player_fsm:uid(),
-    From :: {pid(), Tag :: term()},
-    Reply :: term(),
+    IsUidRegistered :: boolean(),
+    IsInRegistration :: boolean(),
+    IsUserLoggedIn :: boolean(),
+
+    From :: {pid(), Tag :: term()}, % generic term
     State :: state(),
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_call({is_uid_registered, Uid}, _From, #{?R_REGISTERED_UIDS_SET := RegisteredUidsSet} = State) ->
     {reply, gb_sets:is_element(Uid, RegisteredUidsSet), State};
 handle_call({is_in_registration, Uid}, _From, #{?REGISTERING_UIDS_SET := RegisteringUidsSet} = State) ->
@@ -257,7 +255,7 @@ handle_call({is_uid_logged_in, Uid}, _From, #{?LOGGED_IN_UIDS_SET := LoggedUidsS
     PlayerProfile :: player_fsm:player_profile(),
     State :: state(),
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_cast({registration_done, #{uid := Uid, born_month := BornMonth} = PlayerProfile, DispatcherPid}, #{?REGISTERING_UIDS_SET := RegisteringUidsSet, ?R_REGISTERED_UIDS_SET := RegisteredUidsSet, ?BORN_TYPES := BornTypesMap} = State) ->
     UpdatedRegisteredUidsSet = gb_sets:add(Uid, RegisteredUidsSet),
 
@@ -310,15 +308,15 @@ handle_cast({logout, DispatcherPid, Uid}, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
--spec handle_info(Info | term(), State) ->
+-spec handle_info(Info | timeout(), State) ->
     {noreply, NewState} |
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Info :: timeout(),
+    Info :: term(), % generic term
     State :: state(),
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -333,8 +331,8 @@ handle_info(_Info, State) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
--spec terminate(Reason, State) -> term() when
-    Reason :: (normal | shutdown | {shutdown, term()} | term()),
+-spec terminate(Reason, State) -> ok when
+    Reason :: (normal | shutdown | {shutdown, term()} | term()), % generic term
     State :: state().
 terminate(_Reason, _State) ->
     ok.
@@ -351,11 +349,11 @@ terminate(_Reason, _State) ->
     {ok, NewState} |
     {error, Reason} when
 
-    OldVsn :: term() | {down, term()},
+    OldVsn :: term() | {down, term()}, % generic term
     State :: state(),
-    Extra :: term(),
+    Extra :: term(), % generic term
     NewState :: State,
-    Reason :: term().
+    Reason :: term(). % generic term
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -371,9 +369,9 @@ code_change(_OldVsn, State, _Extra) ->
 -spec format_status(Opt, StatusData) -> Status when
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
-    PDict :: [{Key :: term(), Value :: term()}],
-    State :: term(),
-    Status :: term().
+    PDict :: [{Key :: term(), Value :: term()}], % generic term
+    State :: state(),
+    Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_server:format_status(Opt, StatusData).
 
