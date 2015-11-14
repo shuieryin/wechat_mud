@@ -44,7 +44,7 @@
 -type gender() :: male | female.
 -type born_type_info() :: #{born_type => born_month(), attack => integer(), defence => integer(), hp => integer(), dexterity => integer()}.
 -type player_profile() :: #{uid => uid(), born_month => born_month(), born_type => born_type_info(), gender => gender(), lang => nls_server:support_lang(), register_time => pos_integer(), scene => scene_fsm:scene_name()}.
--type simple_player() :: {player, Uid :: uid()}.
+-type simple_player() :: {player, uid()}.
 -type state() :: #{self => player_profile()}.
 -type state_name() :: state_name | non_battle.
 

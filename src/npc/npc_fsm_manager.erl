@@ -36,7 +36,7 @@
 -type npc_spec() :: {npc_type(), npc_amount()}.
 -type npc_born_info() :: #{npc_id => atom(), name_nls_key => atom(), description_nls_key => atom(), attack => integer(), defence => integer(), hp => integer(), dexterity => integer()}.
 -type npc_fsm() :: #{uuid() => uuid()}.
--type simple_npc_fsm() :: {npc, NpcFsmUuid :: npc_fsm_manager:uuid(), npc_fsm_manager:npc_type(), nls_server:key()}.
+-type simple_npc_fsm() :: {npc, npc_fsm_manager:uuid(), npc_fsm_manager:npc_type(), nls_server:key()}.
 -type state() :: #{?NPC_FSMS_MAP => npc_fsm()}.
 
 -export_type([npc_type/0,
