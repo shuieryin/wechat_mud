@@ -3,3 +3,5 @@ npc_dog,二狗,Silly dog
 npc_little_boy,小男孩,Little boy
 npc_dog_desc,这是一只傻狗。,This is a silly dog.
 npc_little_boy_desc,这是一个小男孩。,This is a little boy.
+self_npc_dog_desc,你是一只傻狗。,You are a silly dog.
+self_npc_little_boy_desc,你是一个小男孩。,You are a little boy.

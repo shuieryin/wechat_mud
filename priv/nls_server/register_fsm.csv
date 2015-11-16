@@ -10,3 +10,7 @@ is_confirmed,确定吗? (y / n),Confirm? (y / n)
 welcome_join,欢迎加入!,Welcome join!
 male,男,Male
 female,女,Female
+invalid_id,无效身份编号: ,Invalid identity: 
+please_input_id,请输入身份编号~n(6 - 10位~n英文字母或数字):,Please input identity~n(6 - 10 digits of~nalphabet or  number):
+id_label,身份编号: ,Identity: 
+id_already_exists,身边编号已存在。,Identity already exists.

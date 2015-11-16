@@ -30,13 +30,13 @@
 -define(SERVER, ?MODULE).
 -define(NPC_FSMS_MAP, nps_fsms_map).
 
--type uuid() :: atom(). % generic atom
+-type npc_fsm_id() :: atom(). % generic atom
 -type npc_type() :: dog | little_boy.
 -type npc_amount() :: pos_integer(). % generic integer
 -type npc_spec() :: {npc_type(), npc_amount()}.
--type npc_born_info() :: #{npc_id => atom(), name_nls_key => atom(), description_nls_key => atom(), attack => integer(), defence => integer(), hp => integer(), dexterity => integer()}.
--type npc_fsm() :: #{uuid() => uuid()}.
--type simple_npc_fsm() :: {npc, npc_fsm_manager:uuid(), npc_fsm_manager:npc_type(), nls_server:key()}.
+-type npc_born_info() :: #{npc_id => atom(), name_nls_key => atom(), description_nls_key => atom(), self_description_nls_key => atom(), attack => integer(), defence => integer(), hp => integer(), dexterity => integer()}.
+-type npc_fsm() :: #{npc_fsm_id() => npc_fsm_id()}.
+-type simple_npc_fsm() :: {npc, npc_fsm_manager:npc_fsm_id(), npc_fsm_manager:npc_type(), nls_server:key()}.
 -type state() :: #{?NPC_FSMS_MAP => npc_fsm()}.
 
 -export_type([npc_type/0,
@@ -238,7 +238,7 @@ format_status(Opt, StatusData) ->
 -spec traverse_npcspec(NpcsSpec) -> {SceneNpcFsmList, NpcFsmMap} when
     NpcsSpec :: [npc_spec()],
     SceneNpcFsmList :: [simple_npc_fsm()],
-    NpcFsmMap :: #{uuid() => uuid()}.
+    NpcFsmMap :: #{npc_fsm_id() => npc_fsm_id()}.
 traverse_npcspec(NpcsSpec) ->
     traverse_npcspec(NpcsSpec, [], #{}).
 
@@ -252,7 +252,7 @@ traverse_npcspec(NpcsSpec) ->
 -spec traverse_npcspec(NpcsSpec, AccNpcFsmList, AccNpcFsmMap) -> {NpcFsmList, NpcFsmMap} when
     NpcsSpec :: [npc_spec()],
     AccNpcFsmList :: [simple_npc_fsm()],
-    AccNpcFsmMap :: #{uuid() => uuid()},
+    AccNpcFsmMap :: #{npc_fsm_id() => npc_fsm_id()},
     NpcFsmList :: AccNpcFsmList,
     NpcFsmMap :: AccNpcFsmMap.
 traverse_npcspec([], AccNpcFsmList, AccNpcFsmMap) ->
@@ -272,13 +272,13 @@ traverse_npcspec([{NpcType, Amount} | Tail], AccNpcFsmList, AccNpcFsmMap) ->
     Amount :: npc_amount(),
     NpcBornProfile :: npc_born_info(),
     AccNpcFsmList :: [simple_npc_fsm()],
-    AccOverallNpcFsmMap :: #{uuid() => uuid()},
+    AccOverallNpcFsmMap :: #{npc_fsm_id() => npc_fsm_id()},
     NpcFsmList :: AccNpcFsmList,
     OverallNpcFsmMap :: AccOverallNpcFsmMap.
 new_npc(0, _, AccNpcFsmList, AccOverallNpcFsmMap) ->
     {AccNpcFsmList, AccOverallNpcFsmMap};
 new_npc(Amount, #{npc_id := NpcType, name_nls_key := NameNlsKey} = NpcBornProfile, AccNpcFsmList, AccOverallNpcFsmMap) ->
-    NpcUuid = list_to_atom(uuid:uuid_to_string(uuid:get_v4())),
-    NpcProfile = NpcBornProfile#{npc_uuid => NpcUuid},
+    NpcFsmId = list_to_atom(uuid:uuid_to_string(uuid:get_v4())),
+    NpcProfile = NpcBornProfile#{npc_fsm_id => NpcFsmId},
     npc_fsm_sup:add_child(NpcProfile),
-    new_npc(Amount - 1, NpcBornProfile, [{npc, NpcUuid, NpcType, NameNlsKey} | AccNpcFsmList], AccOverallNpcFsmMap#{NpcUuid => NpcUuid}).
+    new_npc(Amount - 1, NpcBornProfile, [{npc, NpcFsmId, NpcType, NameNlsKey} | AccNpcFsmList], AccOverallNpcFsmMap#{NpcFsmId => NpcFsmId}).

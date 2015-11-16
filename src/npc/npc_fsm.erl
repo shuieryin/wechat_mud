@@ -46,8 +46,8 @@
 %%--------------------------------------------------------------------
 -spec start_link(NpcProfile) -> gen:start_ret() when
     NpcProfile :: npc_fsm_manager:npc_born_info().
-start_link(#{npc_uuid := Uuid} = NpcProfile) ->
-    gen_fsm:start_link({local, Uuid}, ?MODULE, NpcProfile, []).
+start_link(#{npc_fsm_id := NpcFsmId} = NpcProfile) ->
+    gen_fsm:start_link({local, NpcFsmId}, ?MODULE, NpcProfile, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -182,10 +182,10 @@ handle_event(_Event, StateName, State) ->
     {stop, Reason, Reply, NewStateData} |
     {stop, Reason, NewStateData} when
 
-    Event :: {being_looked, SrcUid},
+    Event :: {being_looked, SrcFsmId},
     Reply :: NlsObjectList,
 
-    SrcUid :: player_fsm:uid(),
+    SrcFsmId :: player_fsm:uid() | npc_fsm_manager:npc_fsm_id(),
     NlsObjectList :: [nls_server:nls_object()],
 
     From :: {pid(), Tag :: term()}, % generic term
@@ -194,9 +194,9 @@ handle_event(_Event, StateName, State) ->
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_sync_event({being_looked, _SrcUid}, _From, StateName, #{?NPC_PROFILE := #{description_nls_key := DescriptionNlsKey}} = State) ->
-    Reply = [{nls, DescriptionNlsKey}, <<"\n">>],
-    {reply, Reply, StateName, State}.
+handle_sync_event({being_looked, _SrcFsmId}, _From, StateName, #{?NPC_PROFILE := #{description_nls_key := DescriptionNlsKey}} = State) ->
+    ContentList = [{nls, DescriptionNlsKey}, <<"\n">>],
+    {reply, ContentList, StateName, State}.
 
 %%--------------------------------------------------------------------
 %% @private

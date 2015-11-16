@@ -4,7 +4,7 @@
 %%% @doc
 %%%
 %%% Registration gen_fsm. This gen_fsm states linear as
-%%% select_lang --> input_gender --> input_born_month --> input_confirmation --> done.
+%%% select_lang --> input_id --> input_gender --> input_born_month --> input_confirmation --> done.
 %%% This gen_fsm is created when player starts registration procedure
 %%% and destroyed when the registration is done.
 %%%
@@ -20,6 +20,7 @@
 -export([start_link/2,
     input/3,
     select_lang/2,
+    input_id/2,
     input_gender/2,
     input_born_month/2,
     input_confirmation/2,
@@ -38,11 +39,12 @@
 
 -import(command_dispatcher, [return_content/2]).
 
--define(STATE_NAMES, [{gender, gender_label}, {born_month, born_month_label}]).
+-define(STATE_NAMES, [{gender, gender_label}, {id, id_label}, {born_month, born_month_label}]).
 -define(BORN_SCENE, dream_board_nw).
+-define(ID_RULE_REGEX, "^[a-zA-Z0-9]{6,10}$").
 
 -type state() :: player_fsm:player_profile().
--type state_name() :: select_lang | input_gender | input_born_month | input_confirmation | state_name.
+-type state_name() :: select_lang | input_id | input_gender | input_born_month | input_confirmation | state_name.
 
 %%%===================================================================
 %%% API
@@ -156,7 +158,7 @@ select_lang({LangBin, DispatcherPid}, State) ->
             CurLang = binary_to_atom(LangBin, utf8),
             case nls_server:is_valid_lang(CurLang) of
                 true ->
-                    {input_gender, State#{lang => CurLang}, [{nls, please_input_gender}], CurLang};
+                    {input_id, State#{lang => CurLang}, [{nls, please_input_id}], CurLang};
                 _ ->
                     {select_lang, State, [{nls, select_lang}], zh}
             end
@@ -166,6 +168,44 @@ select_lang({LangBin, DispatcherPid}, State) ->
         end,
     nls_server:response_content(?MODULE, ContentList, Lang, DispatcherPid),
     {next_state, NextState, NewState}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Inputs player id. The previous state is "select_lang". If player
+%% inputs valid gender, sets the next state to "input_gender" and
+%% prints its state infos to player, otherwise prints current state
+%% infos to player.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec input_id({RawId, DispatcherPid}, State) ->
+    {next_state, NextStateName, NextState} |
+    {next_state, NextStateName, NextState, timeout() | hibernate} |
+    {stop, Reason, NewState} when
+
+    RawId :: binary(),
+    DispatcherPid :: pid(),
+    State :: state(),
+    NextStateName :: state_name(),
+    NextState :: State,
+    NewState :: State,
+    Reason :: term(). % generic term
+input_id({RawId, DispatcherPid}, #{lang := Lang} = State) ->
+    {MessageList, NextStateName, UpdatedState} =
+        case re:run(RawId, ?ID_RULE_REGEX) of
+            nomatch ->
+                {[{nls, invalid_id}, RawId, <<"\n\n">>, {nls, please_input_id}], input_id, State};
+            _ ->
+                Id = binary_to_atom(RawId, utf8),
+                case login_server:is_id_registered(Id) of
+                    true ->
+                        {[{nls, id_already_exists}, <<"\n\n">>, {nls, please_input_id}], input_id, State};
+                    _ ->
+                        {[{nls, please_input_gender}], input_gender, State#{id => Id}}
+                end
+        end,
+    nls_server:response_content(?MODULE, MessageList, Lang, DispatcherPid),
+    {next_state, NextStateName, UpdatedState}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -193,14 +233,14 @@ input_gender({RawGender, DispatcherPid}, State) when RawGender == <<"m">> orelse
 input_gender({RawGender, DispatcherPid}, State) when RawGender == <<"f">> orelse RawGender == <<"F">> ->
     input_gender(female, DispatcherPid, State);
 input_gender({Other, DispatcherPid}, #{lang := Lang} = State) ->
-    ErrorMessageNlsContent =
+    ErrorMessageNlsList =
         case Other of
             <<>> ->
                 [{nls, please_input_gender}];
             SomeInput ->
                 [{nls, invalid_gender}, SomeInput, <<"\n\n">>, {nls, please_input_gender}]
         end,
-    nls_server:response_content(?MODULE, ErrorMessageNlsContent, Lang, DispatcherPid),
+    nls_server:response_content(?MODULE, ErrorMessageNlsList, Lang, DispatcherPid),
     {next_state, input_gender, State}.
 input_gender(Gender, DispatcherPid, #{lang := Lang} = State) ->
     nls_server:response_content(?MODULE, [{nls, please_input_born_month}], Lang, DispatcherPid),
@@ -268,14 +308,16 @@ input_born_month({MonthBin, DispatcherPid}, #{lang := Lang} = State) ->
     NewState :: State,
     Reason :: term(). % generic term
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"y">> orelse Answer == <<"Y">> ->
-    State1 = State#{register_time => common_api:timestamp(), scene => ?BORN_SCENE},
+    #{name_nls_key := StubNpcNameNlsKey, description_nls_key := DescriptionNlsKey, self_description_nls_key := SelfDescriptionNlsKey} = common_server:random_npc(),
+
+    State1 = State#{register_time => common_api:timestamp(), scene => ?BORN_SCENE, name => {nls, StubNpcNameNlsKey}, description => {nls, DescriptionNlsKey}, self_description => {nls, SelfDescriptionNlsKey}},
     State2 = maps:remove(summary_content, State1),
 
     login_server:registration_done(State2, DispatcherPid),
     {stop, normal, State2};
 input_confirmation({Answer, DispatcherPid}, #{lang := Lang, uid := Uid}) when Answer == <<"n">> orelse Answer == <<"N">> ->
-    nls_server:response_content(?MODULE, [{nls, please_input_gender}], Lang, DispatcherPid),
-    {next_state, input_gender, #{uid => Uid, lang => Lang}};
+    nls_server:response_content(?MODULE, [{nls, please_input_id}], Lang, DispatcherPid),
+    {next_state, input_id, #{uid => Uid, lang => Lang}};
 input_confirmation({Other, DispatcherPid}, #{lang := Lang, summary_content := SummaryContent} = State) ->
     ErrorMessageNlsContent
         = case Other of
@@ -516,7 +558,7 @@ validate_month(MonthBin) ->
 gen_summary_content([], AccContent, _) ->
     [AccContent, <<"\n">>, {nls, is_confirmed}];
 gen_summary_content([{Key, DescNlsKey} | Tail], AccContent, State) ->
-    Value = gen_summary_convert_value(maps:get(Key, State)),
+    Value = gen_summary_convert_value(Key, maps:get(Key, State)),
     gen_summary_content(Tail, [AccContent, {nls, DescNlsKey}, Value, <<"\n">>], State).
 
 %%--------------------------------------------------------------------
@@ -527,12 +569,15 @@ gen_summary_content([{Key, DescNlsKey} | Tail], AccContent, State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec gen_summary_convert_value(RawValue) -> ConvertedValue when
-    RawValue :: term(), % generic term
-    ConvertedValue :: RawValue.
-gen_summary_convert_value(Value) when is_integer(Value) ->
+-spec gen_summary_convert_value(Key, Value) -> ConvertedValue when
+    Key :: atom(), % generic atom
+    Value :: term(), % generic term
+    ConvertedValue :: Value.
+gen_summary_convert_value(id, Value) ->
+    atom_to_binary(Value, utf8);
+gen_summary_convert_value(_, Value) when is_integer(Value) ->
     integer_to_binary(Value);
-gen_summary_convert_value(Value) when is_atom(Value) ->
+gen_summary_convert_value(_, Value) when is_atom(Value) ->
     {nls, Value};
-gen_summary_convert_value(Value) ->
+gen_summary_convert_value(_, Value) ->
     Value.

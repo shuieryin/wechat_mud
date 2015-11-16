@@ -20,7 +20,7 @@
 
 %% API
 -export([start_link/1,
-    enter/4,
+    enter/6,
     leave/2,
     go_direction/5,
     look_scene/4,
@@ -47,7 +47,7 @@
 -type exit() :: north | east | south | west | northeast | southeast | southwest | northwest.
 -type exits_map() :: #{exit() => nls_server:key()}.
 -type scene_info() :: #{id => scene_name(), exits => exits_map(), title => nls_server:key(), desc => nls_server:key(), nls_files => NlsFileNames :: string(), npcs => [npc_fsm_manager:npc_spec()]}.
--type state() :: #{?SCENE_INFO => scene_info(), ?SCENE_OBJECT_LIST => [npc_fsm_manager:simple_npc_fsm()], ?NLS_MAP => nls_server:state()}.
+-type state() :: #{?SCENE_INFO => scene_info(), ?SCENE_OBJECT_LIST => [scene_object()], ?NLS_MAP => nls_server:state()}.
 -type state_name() :: state_name.
 
 -export_type([scene_name/0]).
@@ -80,13 +80,15 @@ start_link(#{id := SceneName} = SceneInfo) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec enter(SceneName, Uid, Lang, DispatcherPid) -> ok when
+-spec enter(SceneName, Uid, PlayerName, Id, Lang, DispatcherPid) -> ok when
     SceneName :: scene_name(),
     Uid :: player_fsm:uid(),
+    PlayerName :: player_fsm:name(),
+    Id :: player_fsm:id(),
     Lang :: nls_server:support_lang(),
     DispatcherPid :: pid().
-enter(SceneName, Uid, Lang, DispatcherPid) ->
-    gen_fsm:send_all_state_event(SceneName, {enter, Uid, Lang, DispatcherPid}).
+enter(SceneName, Uid, PlayerName, Id, Lang, DispatcherPid) ->
+    gen_fsm:send_all_state_event(SceneName, {enter, Uid, PlayerName, Id, Lang, DispatcherPid}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -274,11 +276,11 @@ state_name(_Event, _From, State) ->
     NewStateData :: StateData,
     Reason :: term(), % generic term
     LookArgs :: binary().
-handle_event({enter, Uid, Lang, DispatcherPid}, StateName, #{?SCENE_OBJECT_LIST := SceneObjectList} = State) ->
+handle_event({enter, Uid, PlayerName, Id, Lang, DispatcherPid}, StateName, #{?SCENE_OBJECT_LIST := SceneObjectList} = State) ->
     ok = show_scene(State, Uid, Lang, DispatcherPid),
-    {next_state, StateName, State#{?SCENE_OBJECT_LIST := [{player, Uid} | SceneObjectList]}};
+    {next_state, StateName, State#{?SCENE_OBJECT_LIST := [{player, Uid, PlayerName, Id} | SceneObjectList]}};
 handle_event({leave, Uid}, StateName, State) ->
-    {next_state, StateName, remove_scene_object({player, Uid}, State)};
+    {next_state, StateName, remove_scene_object(Uid, State)};
 handle_event({look_scene, Uid, Lang, DispatcherPid}, StateName, State) ->
     ok = show_scene(State, Uid, Lang, DispatcherPid),
     {next_state, StateName, State};
@@ -292,16 +294,15 @@ handle_event({look_target, Uid, Lang, DispatcherPid, LookArgs}, StateName, #{?SC
                 {list_to_atom(re:replace(LookArgs, <<" ">>, <<"_">>, [global, {return, list}])), 1}
         end,
     TargetSceneObject = grab_target_scene_objects(SceneObjectList, Target, Sequence),
-    ok = case TargetSceneObject of
-             undefined ->
-                 nls_server:do_response_content(Lang, NlsMap, [{nls, no_such_target}, LookArgs, <<"\n">>], DispatcherPid);
-             {npc, TargetNpcFsmId, _, _} ->
-                 ContentList = npc_fsm:being_looked(TargetNpcFsmId, Uid),
-                 nls_server:do_response_content(Lang, NlsMap, ContentList, DispatcherPid);
-             {player, _TargetPlayerFsmId} ->
-                 % player_fsm:get_description(TargetPlayerFsmId, PlayerProfile, NlsServerName, Lang, DispatcherPid)
-                 ok % TODO: implement above function after player nickname and id features are done.
-         end,
+    ContentList = case TargetSceneObject of
+                      undefined ->
+                          [{nls, no_such_target}, LookArgs, <<"\n">>];
+                      {npc, TargetNpcFsmId, _, _} ->
+                          npc_fsm:being_looked(TargetNpcFsmId, Uid);
+                      {player, TargetPlayerUid, _PlayerName, _Id} ->
+                          player_fsm:being_looked(TargetPlayerUid, Uid)
+                  end,
+    nls_server:do_response_content(Lang, NlsMap, ContentList, DispatcherPid),
     {next_state, StateName, State}.
 
 %%--------------------------------------------------------------------
@@ -332,11 +333,11 @@ grab_target_scene_objects(SceneObjectList, TargetCharacterName, Sequence) ->
     TargetSceneObject :: scene_object() | undefined.
 grab_target_scene_objects([{npc, _, TargetCharacterName, _} = SceneObject | _], TargetCharacterName, Sequence, Sequence) ->
     SceneObject;
-grab_target_scene_objects([{player, TargetCharacterName} = SceneObject | _], TargetCharacterName, Sequence, Sequence) ->
+grab_target_scene_objects([{player, _, _, TargetCharacterName} = SceneObject | _], TargetCharacterName, Sequence, Sequence) ->
     SceneObject;
 grab_target_scene_objects([{npc, _, TargetCharacterName, _} | Tail], TargetCharacterName, Sequence, Counter) ->
     grab_target_scene_objects(Tail, TargetCharacterName, Sequence, Counter + 1);
-grab_target_scene_objects([{player, TargetCharacterName} | Tail], TargetCharacterName, Sequence, Counter) ->
+grab_target_scene_objects([{player, _, _, TargetCharacterName} | Tail], TargetCharacterName, Sequence, Counter) ->
     grab_target_scene_objects(Tail, TargetCharacterName, Sequence, Counter + 1);
 grab_target_scene_objects([_ | Tail], TargetCharacterName, Sequence, Counter) ->
     grab_target_scene_objects(Tail, TargetCharacterName, Sequence, Counter);
@@ -349,12 +350,12 @@ grab_target_scene_objects([], _, _, _) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec remove_scene_object(SceneObject, State) -> UpdatedState when
-    SceneObject :: scene_object(),
+-spec remove_scene_object(SceneObjectKey, State) -> UpdatedState when
+    SceneObjectKey :: npc_fsm_manager:npc_fsm_id() | player_fsm:uid(),
     State :: state(),
     UpdatedState :: State.
-remove_scene_object(SceneObject, #{?SCENE_OBJECT_LIST := SceneObjectList} = State) ->
-    State#{?SCENE_OBJECT_LIST := lists:delete(SceneObject, SceneObjectList)}.
+remove_scene_object(SceneObjectKey, #{?SCENE_OBJECT_LIST := SceneObjectList} = State) ->
+    State#{?SCENE_OBJECT_LIST := lists:keydelete(SceneObjectKey, 2, SceneObjectList)}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -395,7 +396,7 @@ handle_sync_event({go_direction, Uid, Lang, DispatcherPid, TargetDirection}, _Fr
                 nls_server:do_response_content(Lang, NlsMap, [{nls, invalid_exit}], DispatcherPid),
                 {undefined, State};
             SceneName ->
-                {SceneName, remove_scene_object({player, Uid}, State)}
+                {SceneName, remove_scene_object(Uid, State)}
         end,
 
     {reply, TargetSceneName, StateName, UpdatedState}.
@@ -521,14 +522,19 @@ gen_characters_name_list(SceneObjectList, CallerUid) ->
     AccSceneObjectNameList :: [nls_server:nls_object()],
     SceneObjectNameList :: AccSceneObjectNameList.
 gen_character_name([], _, AccList) ->
-    AccList;
+    case AccList of
+        [<<"\n">>] ->
+            [];
+        _ ->
+            AccList
+    end;
 gen_character_name([{npc, _, NpcType, NpcNameNlsKey} | Tail], CallerUid, AccSceneObjectNameList) ->
     NpcTypeForDisplay = re:replace(atom_to_list(NpcType), "_", " ", [global, {return, binary}]),
     gen_character_name(Tail, CallerUid, [{nls, NpcNameNlsKey}, <<" (">>, NpcTypeForDisplay, <<")">>, <<"\n">>] ++ AccSceneObjectNameList);
-gen_character_name([{player, CallerUid} | Tail], CallerUid, AccCharactersNameList) ->
+gen_character_name([{player, CallerUid, _, _} | Tail], CallerUid, AccCharactersNameList) ->
     gen_character_name(Tail, CallerUid, AccCharactersNameList);
-gen_character_name([{player, Uid} | Tail], CallerUid, AccSceneObjectNameList) ->
-    gen_character_name(Tail, CallerUid, [atom_to_binary(Uid, utf8), <<"\n">>] ++ AccSceneObjectNameList).
+gen_character_name([{player, _, PlayerName, Id} | Tail], CallerUid, AccSceneObjectNameList) ->
+    gen_character_name(Tail, CallerUid, [PlayerName, <<" (">>, atom_to_binary(Id, utf8), <<")">>, <<"\n">>] ++ AccSceneObjectNameList).
 
 %%--------------------------------------------------------------------
 %% @doc

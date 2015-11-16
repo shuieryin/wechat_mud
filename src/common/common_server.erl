@@ -18,7 +18,8 @@
     is_wechat_debug/0,
     turn_on_wechat_debug/0,
     turn_off_wechat_debug/0,
-    get_runtime_data/1]).
+    get_runtime_data/1,
+    random_npc/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -109,6 +110,17 @@ turn_off_wechat_debug() ->
 get_runtime_data(Phases) ->
     gen_server:call(?MODULE, {get_runtime_data, Phases}).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Randomly select an npc profile.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec random_npc() -> NpcProfile when
+    NpcProfile :: npc_fsm_manager:npc_born_info().
+random_npc() ->
+    gen_server:call(?MODULE, random_npc).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -187,7 +199,11 @@ handle_call({set_wechat_debug, IsOn}, _From, #{?R_COMMON_CONFIG := CommonConfigs
     {reply, IsOn, State#{?R_COMMON_CONFIG := CommonConfigs#{is_wechat_debug => IsOn}}};
 handle_call({get_runtime_data, Phases}, _From, #{?RUNTIME_DATAS := RuntimeDatasMap} = State) ->
     TargetRuntimeData = get_runtime_data(Phases, RuntimeDatasMap),
-    {reply, TargetRuntimeData, State}.
+    {reply, TargetRuntimeData, State};
+handle_call(random_npc, _From, #{?RUNTIME_DATAS := #{npcs := NpcsRuntimeDataMap}} = State) ->
+    RandomKey = common_api:random_from_list(maps:keys(NpcsRuntimeDataMap)),
+    #{RandomKey := RandomNpc} = NpcsRuntimeDataMap,
+    {reply, RandomNpc, State}.
 
 
 %%--------------------------------------------------------------------

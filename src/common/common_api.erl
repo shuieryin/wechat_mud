@@ -23,7 +23,8 @@
     hot_code_upgrade/0,
     quit/0,
     first_to_lower/1,
-    remove_last_newline/1]).
+    remove_last_newline/1,
+    random_from_list/1]).
 
 -type valid_type() :: atom | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple.
 
@@ -228,6 +229,20 @@ remove_last_newline(SrcList) ->
         _ ->
             SrcList
     end.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Random pick element from list.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec random_from_list(SrcList) -> Element when
+    Element :: term(), % generic term
+    SrcList :: [Element].
+random_from_list(SrcList) ->
+    ListSize = length(SrcList),
+    RandomPos = random:uniform(ListSize),
+    lists:nth(RandomPos, SrcList).
 
 %%%===================================================================
 %%% Internal functions

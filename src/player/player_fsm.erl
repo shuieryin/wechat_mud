@@ -24,7 +24,8 @@
     response_content/4,
     leave_scene/1,
     switch_lang/3,
-    look_target/3]).
+    look_target/3,
+    being_looked/2]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -42,9 +43,35 @@
 -type uid() :: atom().
 -type born_month() :: 1..12.
 -type gender() :: male | female.
--type born_type_info() :: #{born_type => born_month(), attack => integer(), defence => integer(), hp => integer(), dexterity => integer()}.
--type player_profile() :: #{uid => uid(), born_month => born_month(), born_type => born_type_info(), gender => gender(), lang => nls_server:support_lang(), register_time => pos_integer(), scene => scene_fsm:scene_name()}.
--type simple_player() :: {player, uid()}.
+-type id() :: atom().
+-type name() :: nls_server:nls_object().
+
+-type born_type_info() ::
+#{born_type => born_month(),
+attack => integer(),
+defence => integer(),
+hp => integer(),
+dexterity => integer()}.
+
+-type avatar_profile() ::
+#{name => name(),
+description => [nls_server:nls_object()]}.
+
+-type player_profile() ::
+#{uid => uid(),
+id => id(),
+name => name(),
+description => nls_server:nls_object(),
+self_description => nls_server:nls_object(),
+born_month => born_month(),
+born_type => born_type_info(),
+gender => gender(),
+lang => nls_server:support_lang(),
+register_time => pos_integer(),
+scene => scene_fsm:scene_name(),
+avatar_profile => avatar_profile() | undefined}.
+
+-type simple_player() :: {player, uid(), name(), id()}.
 -type state() :: #{self => player_profile()}.
 -type state_name() :: state_name | non_battle.
 
@@ -116,6 +143,16 @@ look_scene(Uid, DispatcherPid) ->
     LookArgs :: binary().
 look_target(Uid, DispatcherPid, LookArgs) ->
     gen_fsm:send_all_state_event(Uid, {look_target, DispatcherPid, LookArgs}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Being looked by given player. The npc might launch a offensive to
+%% player depending on its rage point.
+%%
+%% @end
+%%--------------------------------------------------------------------
+being_looked(TargetPlayerUid, SrcUid) ->
+    gen_fsm:sync_send_all_state_event(TargetPlayerUid, {being_looked, SrcUid}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -310,13 +347,13 @@ state_name(_Event, _From, State) ->
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_event({go_direction, DispatcherPid, Direction}, StateName, #{self := #{scene := CurSceneName, uid := Uid, lang := Lang} = PlayerProfile} = State) ->
+handle_event({go_direction, DispatcherPid, Direction}, StateName, #{self := #{scene := CurSceneName, uid := Uid, lang := Lang, name := PlayerName, id := Id} = PlayerProfile} = State) ->
     TargetSceneName =
         case scene_fsm:go_direction(CurSceneName, Uid, Lang, DispatcherPid, Direction) of
             undefined ->
                 CurSceneName;
             NewSceneName ->
-                scene_fsm:enter(NewSceneName, Uid, Lang, DispatcherPid),
+                scene_fsm:enter(NewSceneName, Uid, PlayerName, Id, Lang, DispatcherPid),
                 NewSceneName
         end,
 
@@ -361,10 +398,11 @@ handle_event(logout, _StateName, #{self := #{scene := CurSceneName, uid := Uid} 
     {stop, Reason, Reply, NewStateData} |
     {stop, Reason, NewStateData} when
 
-    Event :: get_lang,
+    Event :: get_lang | {being_looked, SrcFsmId},
     Reply :: Lang,
 
     Lang :: nls_server:support_lang(),
+    SrcFsmId :: uid() | npc_fsm_manager:npc_fsm_id(),
 
     From :: {pid(), Tag :: term()}, % generic term
     StateName :: state_name(),
@@ -373,7 +411,15 @@ handle_event(logout, _StateName, #{self := #{scene := CurSceneName, uid := Uid} 
     NewStateData :: StateData,
     Reason :: term(). % generic term
 handle_sync_event(get_lang, _From, StateName, #{self := #{lang := Lang}} = State) ->
-    {reply, Lang, StateName, State}.
+    {reply, Lang, StateName, State};
+handle_sync_event({being_looked, SrcUid}, _From, StateName, #{self := #{uid := Uid, description := Description, self_description := SelfDescription}} = State) ->
+    ContentList = if
+                      SrcUid == Uid ->
+                          [SelfDescription, <<"\n">>];
+                      true ->
+                          [Description, <<"\n">>]
+                  end,
+    {reply, ContentList, StateName, State}.
 
 %%--------------------------------------------------------------------
 %% @private
