@@ -20,11 +20,11 @@
 
 %% API
 -export([start_link/1,
-    enter/6,
+    enter/5,
     leave/2,
-    go_direction/5,
-    look_scene/4,
-    look_target/5]).
+    go_direction/3,
+    look_scene/3,
+    look_target/4]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -39,15 +39,14 @@
 
 -define(SCENE_INFO, scene_info).
 -define(SCENE_OBJECT_LIST, scene_object_list).
--define(NLS_MAP, nls_map).
 
 -type scene_object() :: player_fsm:simple_player() | npc_fsm_manager:simple_npc_fsm().
 -type scene_character_name() :: npc_fsm_manager:npc_type() | player_fsm:uid().
 -type scene_name() :: atom(). % generic atom
 -type exit() :: north | east | south | west | northeast | southeast | southwest | northwest.
 -type exits_map() :: #{exit() => nls_server:key()}.
--type scene_info() :: #{id => scene_name(), exits => exits_map(), title => nls_server:key(), desc => nls_server:key(), nls_files => NlsFileNames :: string(), npcs => [npc_fsm_manager:npc_spec()]}.
--type state() :: #{?SCENE_INFO => scene_info(), ?SCENE_OBJECT_LIST => [scene_object()], ?NLS_MAP => nls_server:state()}.
+-type scene_info() :: #{id => scene_name(), exits => exits_map(), title => nls_server:key(), desc => nls_server:key(), npcs => [npc_fsm_manager:npc_spec()]}.
+-type state() :: #{?SCENE_INFO => scene_info(), ?SCENE_OBJECT_LIST => [scene_object()]}.
 -type state_name() :: state_name.
 
 -export_type([scene_name/0]).
@@ -80,15 +79,14 @@ start_link(#{id := SceneName} = SceneInfo) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec enter(SceneName, Uid, PlayerName, Id, Lang, DispatcherPid) -> ok when
+-spec enter(SceneName, Uid, PlayerName, Id, DispatcherPid) -> ok when
     SceneName :: scene_name(),
     Uid :: player_fsm:uid(),
     PlayerName :: player_fsm:name(),
     Id :: player_fsm:id(),
-    Lang :: nls_server:support_lang(),
     DispatcherPid :: pid().
-enter(SceneName, Uid, PlayerName, Id, Lang, DispatcherPid) ->
-    gen_fsm:send_all_state_event(SceneName, {enter, Uid, PlayerName, Id, Lang, DispatcherPid}).
+enter(SceneName, Uid, PlayerName, Id, DispatcherPid) ->
+    gen_fsm:send_all_state_event(SceneName, {enter, Uid, PlayerName, Id, DispatcherPid}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -99,17 +97,15 @@ enter(SceneName, Uid, PlayerName, Id, Lang, DispatcherPid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec go_direction(SceneName, Uid, Lang, DispatcherPid, TargetDirection) -> Result when
+-spec go_direction(SceneName, Uid, TargetDirection) -> Result when
     SceneName :: scene_name(),
     Uid :: player_fsm:uid(),
-    Lang :: nls_server:support_lang(),
-    DispatcherPid :: pid(),
     TargetDirection :: direction:directions(),
     Result :: TargetSceneName | {undefined, SceneNlsServerName},
     TargetSceneName :: scene_name(),
     SceneNlsServerName :: erlang:registered_name().
-go_direction(SceneName, Uid, Lang, DispatcherPid, TargetDirection) ->
-    gen_fsm:sync_send_all_state_event(SceneName, {go_direction, Uid, Lang, DispatcherPid, TargetDirection}).
+go_direction(SceneName, Uid, TargetDirection) ->
+    gen_fsm:sync_send_all_state_event(SceneName, {go_direction, Uid, TargetDirection}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -130,13 +126,12 @@ leave(SceneName, Uid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec look_scene(CurSceneName, Uid, Lang, DispatcherPid) -> ok when
+-spec look_scene(CurSceneName, Uid, DispatcherPid) -> ok when
     CurSceneName :: scene_name(),
     DispatcherPid :: pid(),
-    Uid :: player_fsm:uid(),
-    Lang :: nls_server:support_lang().
-look_scene(CurSceneName, Uid, Lang, DispatcherPid) ->
-    gen_fsm:send_all_state_event(CurSceneName, {look_scene, Uid, Lang, DispatcherPid}).
+    Uid :: player_fsm:uid().
+look_scene(CurSceneName, Uid, DispatcherPid) ->
+    gen_fsm:send_all_state_event(CurSceneName, {look_scene, Uid, DispatcherPid}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -146,14 +141,13 @@ look_scene(CurSceneName, Uid, Lang, DispatcherPid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec look_target(CurSceneName, Uid, Lang, DispatcherPid, LookArgs) -> ok when
+-spec look_target(CurSceneName, Uid, DispatcherPid, LookArgs) -> ok when
     CurSceneName :: scene_name(),
     DispatcherPid :: pid(),
     Uid :: player_fsm:uid(),
-    Lang :: nls_server:support_lang(),
     LookArgs :: binary().
-look_target(CurSceneName, Uid, Lang, DispatcherPid, LookArgs) ->
-    gen_fsm:send_all_state_event(CurSceneName, {look_target, Uid, Lang, DispatcherPid, LookArgs}).
+look_target(CurSceneName, Uid, DispatcherPid, LookArgs) ->
+    gen_fsm:send_all_state_event(CurSceneName, {look_target, Uid, DispatcherPid, LookArgs}).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -180,14 +174,14 @@ look_target(CurSceneName, Uid, Lang, DispatcherPid, LookArgs) ->
     StateName :: state_name(),
     StateData :: state(),
     Reason :: term(). % generic term
-init(#{id := SceneName, npcs := NpcsSpec, nls_files := NlsFileNames} = SceneInfo) ->
+init(#{id := SceneName, npcs := NpcsSpec} = SceneInfo) ->
     io:format("scene server ~p starting...", [SceneName]),
 
-    NlsMap = load_nls_file(string:tokens(NlsFileNames, ","), #{}),
+%%    NlsMap = load_nls_file(string:tokens(NlsFileNames, ","), #{}),
     SceneNpcFsmList = npc_fsm_manager:new_npcs(NpcsSpec),
-    State = #{?SCENE_INFO => SceneInfo, ?SCENE_OBJECT_LIST => SceneNpcFsmList, ?NLS_MAP => NlsMap},
+    State = #{?SCENE_INFO => SceneInfo, ?SCENE_OBJECT_LIST => SceneNpcFsmList},
 
-    io:format("done~n"),
+    io:format("started~n"),
     {ok, state_name, State}.
 
 %%--------------------------------------------------------------------
@@ -262,29 +256,31 @@ state_name(_Event, _From, State) ->
     {stop, Reason, NewStateData} when
 
     Event ::
-    {enter, Uid, Lang, DispatcherPid} |
+    {enter, Uid, PlayerName, Id, DispatcherPid} |
     {leave, Uid} |
-    {look_scene, Uid, Lang, DispatcherPid} |
-    {look_target, Uid, Lang, DispatcherPid, LookArgs},
+    {look_scene, Uid, DispatcherPid} |
+    {look_target, Uid, DispatcherPid, LookArgs},
 
+    PlayerName :: player_fsm:name(),
+    Id :: player_fsm:id(),
     DispatcherPid :: pid(),
     Uid :: player_fsm:uid(),
-    Lang :: nls_server:support_lang(),
+    LookArgs :: binary(),
+
     StateName :: state_name(),
     StateData :: state(),
     NextStateName :: StateName,
     NewStateData :: StateData,
-    Reason :: term(), % generic term
-    LookArgs :: binary().
-handle_event({enter, Uid, PlayerName, Id, Lang, DispatcherPid}, StateName, #{?SCENE_OBJECT_LIST := SceneObjectList} = State) ->
-    ok = show_scene(State, Uid, Lang, DispatcherPid),
+    Reason :: term(). % generic term
+handle_event({enter, Uid, PlayerName, Id, DispatcherPid}, StateName, #{?SCENE_OBJECT_LIST := SceneObjectList} = State) ->
+    ok = show_scene(State, Uid, DispatcherPid),
     {next_state, StateName, State#{?SCENE_OBJECT_LIST := [{player, Uid, PlayerName, Id} | SceneObjectList]}};
 handle_event({leave, Uid}, StateName, State) ->
     {next_state, StateName, remove_scene_object(Uid, State)};
-handle_event({look_scene, Uid, Lang, DispatcherPid}, StateName, State) ->
-    ok = show_scene(State, Uid, Lang, DispatcherPid),
+handle_event({look_scene, Uid, DispatcherPid}, StateName, State) ->
+    ok = show_scene(State, Uid, DispatcherPid),
     {next_state, StateName, State};
-handle_event({look_target, Uid, Lang, DispatcherPid, LookArgs}, StateName, #{?SCENE_OBJECT_LIST := SceneObjectList, ?NLS_MAP := NlsMap} = State) ->
+handle_event({look_target, Uid, DispatcherPid, LookArgs}, StateName, #{?SCENE_OBJECT_LIST := SceneObjectList} = State) ->
     [RawSequence | Rest] = lists:reverse(string:tokens(binary_to_list(LookArgs), " ")),
     {Target, Sequence} =
         case re:run(RawSequence, "^[0-9]*$") of
@@ -302,7 +298,7 @@ handle_event({look_target, Uid, Lang, DispatcherPid, LookArgs}, StateName, #{?SC
                       {player, TargetPlayerUid, _PlayerName, _Id} ->
                           player_fsm:being_looked(TargetPlayerUid, Uid)
                   end,
-    nls_server:do_response_content(Lang, NlsMap, ContentList, DispatcherPid),
+    player_fsm:response_content(Uid, ContentList, DispatcherPid),
     {next_state, StateName, State}.
 
 %%--------------------------------------------------------------------
@@ -374,12 +370,10 @@ remove_scene_object(SceneObjectKey, #{?SCENE_OBJECT_LIST := SceneObjectList} = S
     {stop, Reason, Reply, NewStateData} |
     {stop, Reason, NewStateData} when
 
-    Event :: {go_direction, Uid, Lang, DispatcherPid, TargetDirection},
+    Event :: {go_direction, Uid, TargetDirection},
     Reply :: SceneName,
 
     Uid :: player_fsm:uid(),
-    Lang :: nls_server:support_lang(),
-    DispatcherPid :: pid(),
     TargetDirection :: direction:directions(),
     SceneName :: scene_name(),
 
@@ -389,11 +383,10 @@ remove_scene_object(SceneObjectKey, #{?SCENE_OBJECT_LIST := SceneObjectList} = S
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_sync_event({go_direction, Uid, Lang, DispatcherPid, TargetDirection}, _From, StateName, #{?SCENE_INFO := #{exits := ExitsMap}, ?NLS_MAP := NlsMap} = State) ->
+handle_sync_event({go_direction, Uid, TargetDirection}, _From, StateName, #{?SCENE_INFO := #{exits := ExitsMap}} = State) ->
     {TargetSceneName, UpdatedState} =
         case maps:get(TargetDirection, ExitsMap, undefined) of
             undefined ->
-                nls_server:do_response_content(Lang, NlsMap, [{nls, invalid_exit}], DispatcherPid),
                 {undefined, State};
             SceneName ->
                 {SceneName, remove_scene_object(Uid, State)}
@@ -543,12 +536,11 @@ gen_character_name([{player, _, PlayerName, Id} | Tail], CallerUid, AccSceneObje
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec show_scene(State, Uid, Lang, DispatcherPid) -> ok when
+-spec show_scene(State, Uid, DispatcherPid) -> ok when
     DispatcherPid :: pid(),
     State :: state(),
-    Uid :: player_fsm:uid(),
-    Lang :: nls_server:support_lang().
-show_scene(#{?SCENE_INFO := #{exits := ExitsMap, title := SceneTitle, desc := SceneDesc}, ?NLS_MAP := NlsMap, ?SCENE_OBJECT_LIST :=  SceneObjectList}, Uid, Lang, DispatcherPid) ->
+    Uid :: player_fsm:uid().
+show_scene(#{?SCENE_INFO := #{exits := ExitsMap, title := SceneTitle, desc := SceneDesc}, ?SCENE_OBJECT_LIST :=  SceneObjectList}, Uid, DispatcherPid) ->
     ContentList = lists:flatten([
         {nls, SceneTitle},
         <<"\n\n">>,
@@ -559,24 +551,4 @@ show_scene(#{?SCENE_INFO := #{exits := ExitsMap, title := SceneTitle, desc := Sc
         <<"\n">>,
         gen_exits_desc(ExitsMap)
     ]),
-    nls_server:do_response_content(Lang, NlsMap, ContentList, DispatcherPid).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Loads nls file. This function is called by lists:foldl/3 or lists:foldr/3.
-%% @see lists:foldl/3.
-%% @see lists:foldr/3.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec load_nls_file(NlsFileNames, AccNlsMap) -> NlsMap when
-    NlsFileNames :: [file:filename_all()],
-    AccNlsMap :: nls_server:state(),
-    NlsMap :: AccNlsMap.
-load_nls_file([NlsFileName | Tail], AccNlsMap) ->
-    NlsServerName = list_to_atom(NlsFileName),
-    CurNlsMap = nls_server:get_nls_map(NlsServerName),
-    UpdatedAccNlsMap = nls_server:merge_nls_map(CurNlsMap, AccNlsMap),
-    load_nls_file(Tail, UpdatedAccNlsMap);
-load_nls_file([], AccNlsMap) ->
-    AccNlsMap.
+    player_fsm:response_content(Uid, ContentList, DispatcherPid).

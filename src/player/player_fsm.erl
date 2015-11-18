@@ -21,7 +21,7 @@
     go_direction/3,
     look_scene/2,
     get_lang/1,
-    response_content/4,
+    response_content/3,
     leave_scene/1,
     switch_lang/3,
     look_target/3,
@@ -45,6 +45,13 @@
 -type gender() :: male | female.
 -type id() :: atom().
 -type name() :: nls_server:nls_object().
+-type simple_player() :: {player, uid(), name(), id()}.
+-type mail_object() :: [nls_server:nls_object()].
+
+-type mailbox() ::
+#{battle => [mail_object()],
+scene => [mail_object()],
+other => [mail_object()]}.
 
 -type born_type_info() ::
 #{born_type => born_month(),
@@ -71,8 +78,7 @@ register_time => pos_integer(),
 scene => scene_fsm:scene_name(),
 avatar_profile => avatar_profile() | undefined}.
 
--type simple_player() :: {player, uid(), name(), id()}.
--type state() :: #{self => player_profile()}.
+-type state() :: #{self => player_profile(), mail_box => mailbox(), lang_map => nls_server:lang_map()}.
 -type state_name() :: state_name | non_battle.
 
 -export_type([born_type_info/0,
@@ -97,7 +103,7 @@ avatar_profile => avatar_profile() | undefined}.
 -spec start_link(PlayerProfile) -> gen:start_ret() when
     PlayerProfile :: player_profile().
 start_link(#{uid := Uid} = PlayerProfile) ->
-    gen_fsm:start({local, Uid}, ?MODULE, PlayerProfile, []).
+    gen_fsm:start_link({local, Uid}, ?MODULE, PlayerProfile, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -178,13 +184,12 @@ get_lang(Uid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec response_content(Uid, NlsServer, ContentList, DispatcherPid) -> ok when
+-spec response_content(Uid, ContentList, DispatcherPid) -> ok when
     Uid :: uid(),
-    NlsServer :: erlang:registered_name(),
     ContentList :: [term()], % generic term
     DispatcherPid :: pid().
-response_content(Uid, NlsServer, ContentList, DispatcherPid) ->
-    gen_fsm:send_all_state_event(Uid, {response_content, NlsServer, ContentList, DispatcherPid}).
+response_content(Uid, ContentList, DispatcherPid) ->
+    gen_fsm:send_all_state_event(Uid, {response_content, ContentList, DispatcherPid}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -250,9 +255,10 @@ logout(Uid) ->
     StateName :: state_name(),
     StateData :: state(),
     Reason :: term(). % generic term
-init(PlayerProfile) ->
+init(#{lang := Lang} = PlayerProfile) ->
+    LangMap = nls_server:get_lang_map(Lang),
     error_logger:info_msg("Player fsm initialized:~p~n", [PlayerProfile]),
-    {ok, non_battle, #{self => PlayerProfile}}.
+    {ok, non_battle, #{self => PlayerProfile, lang_map => LangMap}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -329,12 +335,11 @@ state_name(_Event, _From, State) ->
     {go_direction, DispatcherPid, Direction} |
     {look_scene, DispatcherPid} |
     {look_target, DispatcherPid, LookArgs} |
-    {response_content, NlsServer, NlsObjectList, DispatcherPid} |
+    {response_content, NlsObjectList, DispatcherPid} |
     leave_scene |
     {switch_lang, DispatcherPid, TargetLang} |
     {logout, NotifyOkPid},
 
-    NlsServer :: erlang:registered_name(),
     NlsObjectList :: [nls_server:nls_object()],
     DispatcherPid :: pid(),
     Direction :: direction:directions(),
@@ -347,34 +352,35 @@ state_name(_Event, _From, State) ->
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_event({go_direction, DispatcherPid, Direction}, StateName, #{self := #{scene := CurSceneName, uid := Uid, lang := Lang, name := PlayerName, id := Id} = PlayerProfile} = State) ->
+handle_event({go_direction, DispatcherPid, Direction}, StateName, #{self := #{scene := CurSceneName, uid := Uid, name := PlayerName, id := Id} = PlayerProfile} = State) ->
     TargetSceneName =
-        case scene_fsm:go_direction(CurSceneName, Uid, Lang, DispatcherPid, Direction) of
+        case scene_fsm:go_direction(CurSceneName, Uid, Direction) of
             undefined ->
                 CurSceneName;
             NewSceneName ->
-                scene_fsm:enter(NewSceneName, Uid, PlayerName, Id, Lang, DispatcherPid),
+                scene_fsm:enter(NewSceneName, Uid, PlayerName, Id, DispatcherPid),
                 NewSceneName
         end,
 
     {next_state, StateName, State#{self := PlayerProfile#{scene := TargetSceneName}}};
-handle_event({look_scene, DispatcherPid}, StateName, #{self := #{scene := CurSceneName, uid := Uid, lang := Lang}} = State) ->
-    scene_fsm:look_scene(CurSceneName, Uid, Lang, DispatcherPid),
+handle_event({look_scene, DispatcherPid}, StateName, #{self := #{scene := CurSceneName, uid := Uid}} = State) ->
+    scene_fsm:look_scene(CurSceneName, Uid, DispatcherPid),
     {next_state, StateName, State};
-handle_event({look_target, DispatcherPid, LookArgs}, StateName, #{self := #{scene := CurSceneName, uid := Uid, lang := Lang}} = State) ->
-    scene_fsm:look_target(CurSceneName, Uid, Lang, DispatcherPid, LookArgs),
+handle_event({look_target, DispatcherPid, LookArgs}, StateName, #{self := #{scene := CurSceneName, uid := Uid}} = State) ->
+    scene_fsm:look_target(CurSceneName, Uid, DispatcherPid, LookArgs),
     {next_state, StateName, State};
-handle_event({response_content, NlsServer, NlsObjectList, DispatcherPid}, StateName, #{self := #{lang := Lang}} = State) ->
-    nls_server:response_content(NlsServer, NlsObjectList, Lang, DispatcherPid),
+handle_event({response_content, NlsObjectList, DispatcherPid}, StateName, #{lang_map := LangMap} = State) ->
+    do_response_content(LangMap, NlsObjectList, DispatcherPid),
     {next_state, StateName, State};
 handle_event(leave_scene, StateName, #{self := #{scene := CurSceneName, uid := Uid}} = State) ->
     scene_fsm:leave(CurSceneName, Uid),
     {next_state, StateName, State};
 handle_event({switch_lang, DispatcherPid, TargetLang}, StateName, #{self := #{uid := Uid} = PlayerProfile} = State) ->
-    nls_server:response_content(commands, [{nls, lang_switched}], TargetLang, DispatcherPid),
+    TargetLangMap = nls_server:get_lang_map(TargetLang),
+    do_response_content(TargetLangMap, [{nls, lang_switched}], DispatcherPid),
     UpdatedPlayerProfile = PlayerProfile#{lang := TargetLang},
     redis_client_server:async_set(Uid, UpdatedPlayerProfile, true),
-    {next_state, StateName, State#{self := UpdatedPlayerProfile}};
+    {next_state, StateName, State#{self := UpdatedPlayerProfile, lang_map := TargetLangMap}};
 handle_event(logout, _StateName, #{self := #{scene := CurSceneName, uid := Uid} = PlayerProfile} = State) ->
     scene_fsm:leave(CurSceneName, Uid),
     error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
@@ -500,3 +506,17 @@ format_status(Opt, StatusData) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Implementation function for response_content/3.
+%% @see response_content/3.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec do_response_content(LangMap, NlsObjectList, DispatcherPid) -> ok when
+    LangMap :: nls_server:lang_map(),
+    NlsObjectList :: [nls_server:nls_object()],
+    DispatcherPid :: pid().
+do_response_content(LangMap, NlsObjectList, DispatcherPid) ->
+    nls_server:do_response_content(LangMap, NlsObjectList, DispatcherPid).

@@ -37,7 +37,7 @@ exec(DispatcherPid, Uid) ->
         undefined ->
             login_server:register_uid(DispatcherPid, Uid);
         _ ->
-            player_fsm:response_content(Uid, commands, [{nls, please_logout_first}], DispatcherPid)
+            player_fsm:response_content(Uid, [{nls, please_logout_first}], DispatcherPid)
     end.
 
 %%%===================================================================

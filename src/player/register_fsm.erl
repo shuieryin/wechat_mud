@@ -66,8 +66,8 @@
     Uid :: player_fsm:uid(),
     DispatcherPid :: pid().
 start_link(DispatcherPid, Uid) ->
-    nls_server:response_content(?MODULE, [{nls, select_lang}], zh, DispatcherPid),
-    gen_fsm:start({local, fsm_server_name(Uid)}, ?MODULE, Uid, []).
+    nls_server:response_content([{nls, select_lang}], zh, DispatcherPid),
+    gen_fsm:start_link({local, fsm_server_name(Uid)}, ?MODULE, Uid, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -166,7 +166,7 @@ select_lang({LangBin, DispatcherPid}, State) ->
             _:_ ->
                 {select_lang, State, [{nls, select_lang}], zh}
         end,
-    nls_server:response_content(?MODULE, ContentList, Lang, DispatcherPid),
+    nls_server:response_content(ContentList, Lang, DispatcherPid),
     {next_state, NextState, NewState}.
 
 %%--------------------------------------------------------------------
@@ -191,6 +191,7 @@ select_lang({LangBin, DispatcherPid}, State) ->
     NewState :: State,
     Reason :: term(). % generic term
 input_id({RawId, DispatcherPid}, #{lang := Lang} = State) ->
+    % TODO: filter npc, items and prohibited names
     {MessageList, NextStateName, UpdatedState} =
         case re:run(RawId, ?ID_RULE_REGEX) of
             nomatch ->
@@ -204,7 +205,7 @@ input_id({RawId, DispatcherPid}, #{lang := Lang} = State) ->
                         {[{nls, please_input_gender}], input_gender, State#{id => Id}}
                 end
         end,
-    nls_server:response_content(?MODULE, MessageList, Lang, DispatcherPid),
+    nls_server:response_content(MessageList, Lang, DispatcherPid),
     {next_state, NextStateName, UpdatedState}.
 
 %%--------------------------------------------------------------------
@@ -240,10 +241,10 @@ input_gender({Other, DispatcherPid}, #{lang := Lang} = State) ->
             SomeInput ->
                 [{nls, invalid_gender}, SomeInput, <<"\n\n">>, {nls, please_input_gender}]
         end,
-    nls_server:response_content(?MODULE, ErrorMessageNlsList, Lang, DispatcherPid),
+    nls_server:response_content(ErrorMessageNlsList, Lang, DispatcherPid),
     {next_state, input_gender, State}.
 input_gender(Gender, DispatcherPid, #{lang := Lang} = State) ->
-    nls_server:response_content(?MODULE, [{nls, please_input_born_month}], Lang, DispatcherPid),
+    nls_server:response_content([{nls, please_input_born_month}], Lang, DispatcherPid),
     {next_state, input_born_month, maps:put(gender, Gender, State)}.
 
 %%--------------------------------------------------------------------
@@ -283,7 +284,7 @@ input_born_month({MonthBin, DispatcherPid}, #{lang := Lang} = State) ->
                     end,
                 {input_born_month, State, [ErrorMessageNlsContent, {nls, please_input_born_month}]}
         end,
-    nls_server:response_content(?MODULE, lists:flatten(ContentList), Lang, DispatcherPid),
+    nls_server:response_content(lists:flatten(ContentList), Lang, DispatcherPid),
     {next_state, NewStateName, NewState}.
 
 %%--------------------------------------------------------------------
@@ -310,13 +311,13 @@ input_born_month({MonthBin, DispatcherPid}, #{lang := Lang} = State) ->
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"y">> orelse Answer == <<"Y">> ->
     #{name_nls_key := StubNpcNameNlsKey, description_nls_key := DescriptionNlsKey, self_description_nls_key := SelfDescriptionNlsKey} = common_server:random_npc(),
 
-    State1 = State#{register_time => common_api:timestamp(), scene => ?BORN_SCENE, name => {nls, StubNpcNameNlsKey}, description => {nls, DescriptionNlsKey}, self_description => {nls, SelfDescriptionNlsKey}},
+    State1 = State#{register_time => share:timestamp(), scene => ?BORN_SCENE, name => {nls, StubNpcNameNlsKey}, description => {nls, DescriptionNlsKey}, self_description => {nls, SelfDescriptionNlsKey}},
     State2 = maps:remove(summary_content, State1),
 
     login_server:registration_done(State2, DispatcherPid),
     {stop, normal, State2};
 input_confirmation({Answer, DispatcherPid}, #{lang := Lang, uid := Uid}) when Answer == <<"n">> orelse Answer == <<"N">> ->
-    nls_server:response_content(?MODULE, [{nls, please_input_id}], Lang, DispatcherPid),
+    nls_server:response_content([{nls, please_input_id}], Lang, DispatcherPid),
     {next_state, input_id, #{uid => Uid, lang => Lang}};
 input_confirmation({Other, DispatcherPid}, #{lang := Lang, summary_content := SummaryContent} = State) ->
     ErrorMessageNlsContent
@@ -326,7 +327,7 @@ input_confirmation({Other, DispatcherPid}, #{lang := Lang, summary_content := Su
               _ ->
                   lists:flatten([{nls, invalid_command}, Other, <<"\n\n">>, SummaryContent])
           end,
-    nls_server:response_content(?MODULE, ErrorMessageNlsContent, Lang, DispatcherPid),
+    nls_server:response_content(ErrorMessageNlsContent, Lang, DispatcherPid),
     {next_state, input_confirmation, State}.
 
 %%--------------------------------------------------------------------

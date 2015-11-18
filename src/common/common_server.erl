@@ -160,7 +160,7 @@ init([]) ->
     RuntimeDatas = csv_to_object:traverse_files("priv/runtime"),
     State = #{?R_COMMON_CONFIG => CommonConfig, ?RUNTIME_DATAS => RuntimeDatas},
 
-    io:format("done~n"),
+    io:format("started~n"),
     {ok, State}.
 
 %%--------------------------------------------------------------------
@@ -201,7 +201,7 @@ handle_call({get_runtime_data, Phases}, _From, #{?RUNTIME_DATAS := RuntimeDatasM
     TargetRuntimeData = get_runtime_data(Phases, RuntimeDatasMap),
     {reply, TargetRuntimeData, State};
 handle_call(random_npc, _From, #{?RUNTIME_DATAS := #{npcs := NpcsRuntimeDataMap}} = State) ->
-    RandomKey = common_api:random_from_list(maps:keys(NpcsRuntimeDataMap)),
+    RandomKey = share:random_from_list(maps:keys(NpcsRuntimeDataMap)),
     #{RandomKey := RandomNpc} = NpcsRuntimeDataMap,
     {reply, RandomNpc, State}.
 

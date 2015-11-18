@@ -8,7 +8,7 @@
 %%% @end
 %%% Created : 26. Aug 2015 11:04 AM
 %%%-------------------------------------------------------------------
--module(common_api).
+-module(share).
 -author("Shuieryin").
 
 %% API
@@ -24,9 +24,12 @@
     quit/0,
     first_to_lower/1,
     remove_last_newline/1,
-    random_from_list/1]).
+    random_from_list/1,
+    observer/0]).
 
 -type valid_type() :: atom | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple.
+
+-define(OBSERVER_NODE, 'collin@192.168.1.110').
 
 %%%===================================================================
 %%% API
@@ -243,6 +246,16 @@ random_from_list(SrcList) ->
     ListSize = length(SrcList),
     RandomPos = random:uniform(ListSize),
     lists:nth(RandomPos, SrcList).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Connect observer node.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec observer() -> pong | pang.
+observer() ->
+    net_adm:ping(?OBSERVER_NODE).
 
 %%%===================================================================
 %%% Internal functions

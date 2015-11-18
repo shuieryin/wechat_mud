@@ -194,7 +194,7 @@ init([]) ->
 
     State = connect_reids(#{}),
 
-    io:format("done~n"),
+    io:format("started~n"),
     {ok, State}.
 
 %%--------------------------------------------------------------------

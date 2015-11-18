@@ -70,12 +70,12 @@ init([]) ->
                 [common_server]
             },
 
-            {nls_sup,
-                {nls_sup, start_link, []},
+            {nls_server,
+                {nls_server, start_link, []},
                 permanent,
                 10000,
-                supervisor,
-                [nls_sup]
+                worker,
+                [nls_server]
             },
 
             {login_server,

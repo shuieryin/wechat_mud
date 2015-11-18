@@ -100,7 +100,7 @@ pending_content(Module, Function, Args) ->
     FunctionArgs = [Self | Args],
     spawn(fun() ->
         execute_command(Module, Function, FunctionArgs)
-    end),
+          end),
     receive
         {execed, Self, ReturnContent} ->
             ReturnContent
@@ -224,7 +224,7 @@ process_request(Req) ->
                                             <<"login">> == RawInput orelse <<"rereg">> == RawInput orelse subscribe == RawInput ->
                                                 FuncForRegsiteredUser(Uid);
                                             true ->
-                                                nls_server:get_nls_content(commands, [{nls, please_login}], zh)
+                                                nls_server:get_nls_content([{nls, please_login}], zh)
                                         end
                                 end;
                             _ ->
@@ -240,7 +240,7 @@ process_request(Req) ->
                         <<>>;
                     _ ->
                         try
-                            ReturnContentBinary = list_to_binary(lists:flatten(common_api:remove_last_newline(ReturnContent))),
+                            ReturnContentBinary = list_to_binary(lists:flatten(share:remove_last_newline(ReturnContent))),
                             error_logger:info_msg("ReplyContent:~tp~n", [ReturnContentBinary]),
                             compose_xml_response(UidBin, PlatformId, ReturnContentBinary)
                         catch
@@ -291,16 +291,16 @@ gen_action_from_message_type(MsgType, ReqParamsMap) ->
             case Event of
                 subscribe ->
                     {subscribe, fun(_Uid) ->
-                        nls_server:get_nls_content(commands, [{nls, welcome_back}], zh)
-                    end};
+                        nls_server:get_nls_content([{nls, welcome_back}], zh)
+                                end};
                 unsubscribe ->
                     {unsubscribe, fun(Uid) ->
                         handle_input(Uid, <<"logout">>, [])
-                    end};
+                                  end};
                 _ ->
                     {no_reply, fun(_Uid) ->
                         ?EMPTY_CONTENT
-                    end}
+                               end}
             end;
         text ->
             % _MsgId = maps:get('MsgId', ReqParamsMap),
@@ -308,11 +308,11 @@ gen_action_from_message_type(MsgType, ReqParamsMap) ->
             [ModuleNameBin | RawCommandArgs] = binary:split(RawInput, <<" ">>),
             {RawInput, fun(Uid) ->
                 handle_input(Uid, ModuleNameBin, RawCommandArgs)
-            end};
+                       end};
         _ ->
             {<<>>, fun(Uid) ->
-                nls_server:get_nls_content(commands, [{nls, message_type_not_support}], player_fsm:get_lang(Uid))
-            end}
+                nls_server:get_nls_content([{nls, message_type_not_support}], player_fsm:get_lang(Uid))
+                   end}
     end.
 
 %%--------------------------------------------------------------------
@@ -363,12 +363,12 @@ handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
             true ->
                 pending_content(ModuleName, exec, Args);
             _ ->
-                nls_server:get_nls_content(commands, [{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(binary_to_list(ModuleNameBin) ++ "_help")}], player_fsm:get_lang(Uid))
+                nls_server:get_nls_content([{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(binary_to_list(ModuleNameBin) ++ "_help")}], player_fsm:get_lang(Uid))
         end
     catch
         Type:Reason ->
             error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
-            nls_server:get_nls_content(commands, [{nls, invalid_command}, ModuleNameBin], player_fsm:get_lang(Uid))
+            nls_server:get_nls_content([{nls, invalid_command}, ModuleNameBin], player_fsm:get_lang(Uid))
     end.
 
 %%--------------------------------------------------------------------
@@ -391,7 +391,7 @@ compose_xml_response(UidBin, PlatformIdBin, ContentBin) ->
         <<"]]></ToUserName><FromUserName><![CDATA[">>,
         PlatformIdBin,
         <<"]]></FromUserName><CreateTime>">>,
-        integer_to_binary(common_api:timestamp()),
+        integer_to_binary(share:timestamp()),
         <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>],
 
     list_to_binary(XmlContentList).
@@ -512,7 +512,7 @@ execute_command(Module, Function, [DispatcherPid, Uid | CommandArgs] = FunctionA
         apply(Module, Function, FunctionArgs)
     catch
         Type:Reason ->
-            nls_server:response_content(commands, [{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(atom_to_list(Module) ++ "_help")}], player_fsm:get_lang(Uid), DispatcherPid),
+            player_fsm:response_content(Uid, [{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(atom_to_list(Module) ++ "_help")}], DispatcherPid),
             error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
             throw(Reason)
     end.

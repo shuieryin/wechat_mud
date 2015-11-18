@@ -19,14 +19,15 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1,
+-export([start_link/0,
     is_valid_lang/1,
-    response_content/4,
-    get_nls_content/3,
+    response_content/3,
+    get_nls_content/2,
     show_langs/2,
     read_nls_file/2,
     do_response_content/4,
-    get_nls_map/1,
+    do_response_content/3,
+    get_lang_map/1,
     merge_nls_map/2]).
 
 %% gen_server callbacks
@@ -45,15 +46,19 @@
 -type value() :: binary().
 -type field_name() :: atom(). % generic atom
 -type lang_map() :: #{key() => value()}.
--type state() :: #{support_lang() => lang_map()}.
 -type key_pos() :: non_neg_integer(). % generic integer
 -type keys_map() :: #{key_pos() => field_name()}.
 -type nls_object() :: {nls, key()} | value().
 
+-type state() :: #{support_lang() => lang_map()}.
+
 -export_type([support_lang/0,
     nls_object/0,
+    lang_map/0,
     key/0,
     value/0]).
+
+-define(SERVER, ?MODULE).
 
 %%%===================================================================
 %%% API
@@ -65,13 +70,9 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link(NlsFilePath) -> gen:start_ret() when
-    NlsFilePath :: file:filename_all().
-start_link(NlsFilePath) ->
-    ServerNamesStr = filename:rootname(filename:basename(NlsFilePath)),
-    [ServerNameStr | ExtraNlsFileNames] = string:tokens(ServerNamesStr, "."),
-    ServerName = list_to_atom(ServerNameStr),
-    gen_server:start_link({local, ServerName}, ?MODULE, {ServerName, ExtraNlsFileNames, NlsFilePath}, []).
+-spec start_link() -> gen:start_ret().
+start_link() ->
+    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -81,13 +82,12 @@ start_link(NlsFilePath) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec response_content(ServerName, NlsObjectList, Lang, DispatcherPid) -> ok when
-    ServerName :: erlang:registered_name(),
+-spec response_content(NlsObjectList, Lang, DispatcherPid) -> ok when
     NlsObjectList :: [nls_server:nls_object()],
     Lang :: support_lang(),
     DispatcherPid :: pid().
-response_content(ServerName, NlsObjectList, Lang, DispatcherPid) ->
-    gen_server:cast(ServerName, {response_content, NlsObjectList, Lang, DispatcherPid}).
+response_content(NlsObjectList, Lang, DispatcherPid) ->
+    gen_server:cast(?SERVER, {response_content, NlsObjectList, Lang, DispatcherPid}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -97,13 +97,12 @@ response_content(ServerName, NlsObjectList, Lang, DispatcherPid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_nls_content(ServerName, NlsObjectList, Lang) -> ContentList when
-    ServerName :: erlang:registered_name(),
+-spec get_nls_content(NlsObjectList, Lang) -> ContentList when
     NlsObjectList :: [nls_server:nls_object()],
     Lang :: support_lang(),
     ContentList :: [value()].
-get_nls_content(ServerName, NlsObjectList, Lang) ->
-    gen_server:call(ServerName, {get_nls_content, NlsObjectList, Lang}).
+get_nls_content(NlsObjectList, Lang) ->
+    gen_server:call(?SERVER, {get_nls_content, NlsObjectList, Lang}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -115,7 +114,7 @@ get_nls_content(ServerName, NlsObjectList, Lang) ->
 -spec is_valid_lang(Lang) -> boolean() when
     Lang :: support_lang().
 is_valid_lang(Lang) ->
-    gen_server:call(commands, {is_valid_lang, Lang}).
+    gen_server:call(?SERVER, {is_valid_lang, Lang}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -127,7 +126,7 @@ is_valid_lang(Lang) ->
     DispatcherPid :: pid(),
     Lang :: support_lang().
 show_langs(DispatcherPid, Lang) ->
-    gen_server:cast(commands, {show_langs, DispatcherPid, Lang}).
+    gen_server:cast(?SERVER, {show_langs, DispatcherPid, Lang}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -147,8 +146,8 @@ read_nls_file(NlsFileName, AccNlsMap) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Implementation function for response_content/4.
-%% @see response_content/4.
+%% Implementation function for response_content/3.
+%% @see response_content/3.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -159,6 +158,20 @@ read_nls_file(NlsFileName, AccNlsMap) ->
     DispatcherPid :: pid().
 do_response_content(Lang, State, NlsObjectList, DispatcherPid) ->
     LangMap = maps:get(Lang, State),
+    do_response_content(LangMap, NlsObjectList, DispatcherPid).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Implementation function for response_content/3.
+%% @see response_content/3.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec do_response_content(LangMap, NlsObjectList, DispatcherPid) -> ok when
+    LangMap :: lang_map(),
+    NlsObjectList :: [nls_server:nls_object()],
+    DispatcherPid :: pid().
+do_response_content(LangMap, NlsObjectList, DispatcherPid) ->
     ReturnContent = fill_in_nls(NlsObjectList, LangMap, []),
     command_dispatcher:return_content(DispatcherPid, ReturnContent).
 
@@ -168,11 +181,11 @@ do_response_content(Lang, State, NlsObjectList, DispatcherPid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_nls_map(NlsServerName) -> NlsMap when
-    NlsServerName :: erlang:registered_name(),
-    NlsMap :: state().
-get_nls_map(NlsServerName) ->
-    gen_server:call(NlsServerName, get_nls_map).
+-spec get_lang_map(Lang) -> LangMap when
+    Lang :: support_lang(),
+    LangMap :: lang_map().
+get_lang_map(Lang) ->
+    gen_server:call(?SERVER, {get_lang_map, Lang}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -200,28 +213,25 @@ merge_nls_map(NlsMap1, NlsMap2) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec init({ServerName, ExtraNlsFileNames, NlsFilePath}) ->
+-spec init([]) ->
     {ok, State} |
     {ok, State, timeout() | hibernate} |
     {stop, Reason} |
     ignore when
 
-    ServerName :: erlang:registered_name(),
-    ExtraNlsFileNames :: [fine:field_name()],
-    NlsFilePath :: file:filename_all(),
-
     State :: state(),
     Reason :: term(). % generic term
-init({ServerName, ExtraNlsFileNames, NlsFilePath}) ->
-    io:format("nls server ~p starting...", [ServerName]),
+init([]) ->
+    io:format("nls server starting..."),
+
+    {ok, FileNameList} = file:list_dir(?NLS_PATH),
 
     CommonNlsFilePath = filename:append(?NLS_PATH, ?COMMON_NLS),
-    CommonNlsMap = nls_server:read_nls_file(CommonNlsFilePath, #{}),
-    NlsMap = read_nls_file(NlsFilePath, CommonNlsMap),
-    FinalNlsMap = lists:foldl(fun load_nls_file/2, NlsMap, ExtraNlsFileNames),
+    CommonNlsMap = read_nls_file(CommonNlsFilePath, #{}),
+    NlsMap = lists:foldl(fun load_nls_file/2, CommonNlsMap, FileNameList),
 
-    io:format("done~n"),
-    {ok, FinalNlsMap}.
+    io:format("started~n"),
+    {ok, NlsMap}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -236,7 +246,7 @@ init({ServerName, ExtraNlsFileNames, NlsFilePath}) ->
     AccNlsMap :: state(),
     NlsMap :: AccNlsMap.
 load_nls_file(NlsFileName, AccNlsMap) ->
-    read_nls_file(filename:join(?NLS_PATH, NlsFileName) ++ ?NLS_EXTENSION, AccNlsMap).
+    read_nls_file(filename:join(?NLS_PATH, NlsFileName), AccNlsMap).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -256,7 +266,9 @@ load_nls_file(NlsFileName, AccNlsMap) ->
     Request ::
     {get, NlsKey, Lang} |
     {is_valid_lang, Lang} |
-    {get_nls_content, NlsObjectList, Lang},
+    {get_nls_content, NlsObjectList, Lang} |
+    {get_lang_map, Lang},
+
     Reply :: State | ContentList | IsValidLang | NlsValue,
 
     NlsKey :: erlang:registered_name(),
@@ -279,8 +291,8 @@ handle_call({get_nls_content, NlsObjectList, Lang}, _From, State) ->
     LangMap = maps:get(Lang, State),
     ReturnContent = fill_in_nls(NlsObjectList, LangMap, []),
     {reply, ReturnContent, State};
-handle_call(get_nls_map, _From, State) ->
-    {reply, State, State}.
+handle_call({get_lang_map, Lang}, _From, State) ->
+    {reply, maps:get(Lang, State), State}.
 
 %%--------------------------------------------------------------------
 %% @private

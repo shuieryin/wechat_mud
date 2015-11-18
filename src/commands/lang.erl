@@ -44,7 +44,7 @@ exec(DispatcherPid, Uid, RawTargetLang) ->
                 true ->
                     player_fsm:switch_lang(DispatcherPid, Uid, TargetLang);
                 _ ->
-                    nls_server:response_content(commands, [{nls, invalid_lang}, atom_to_binary(TargetLang, utf8), <<"\n\n">>, {nls, lang_help}], CurLang, DispatcherPid)
+                    player_fsm:response_content(Uid, [{nls, invalid_lang}, atom_to_binary(TargetLang, utf8), <<"\n\n">>, {nls, lang_help}], DispatcherPid)
             end
     end.
 

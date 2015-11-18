@@ -214,7 +214,7 @@ init([]) ->
     BornTypesMap = common_server:get_runtime_data([born_types]),
     State = #{?REGISTERING_UIDS_SET => gb_sets:new(), ?R_REGISTERED_UIDS_SET => RegisteredUidsSet, ?R_REGISTERED_IDS_SET => RegisteredIdsSet, ?LOGGED_IN_UIDS_SET => gb_sets:new(), ?BORN_TYPES => BornTypesMap},
 
-    io:format("done~n"),
+    io:format("started~n"),
     {ok, State}.
 
 %%--------------------------------------------------------------------
@@ -254,7 +254,7 @@ handle_call({is_in_registration, Uid}, _From, #{?REGISTERING_UIDS_SET := Registe
     {reply, Result, State};
 handle_call({delete_user, Uid}, _From, #{?R_REGISTERED_UIDS_SET := RegisteredUidsSet} = State) ->
     LoggedOutState = logout(internal, Uid, State),
-    ok = common_api:until_process_terminated(Uid, 20),
+    ok = share:until_process_terminated(Uid, 20),
     UpdatedRegisteredUidsSet = gb_sets:delete(Uid, RegisteredUidsSet),
 
     redis_client_server:async_del([Uid], false),
@@ -317,19 +317,19 @@ handle_cast({login, DispatcherPid, Uid}, #{?LOGGED_IN_UIDS_SET := LoggedInUidsSe
     UpdatedLoggedInUidsSet =
         case gb_sets:is_element(Uid, LoggedInUidsSet) of
             false ->
-                #{scene := CurSceneName, lang := Lang, name := PlayerName, id := Id} = PlayerProfile = redis_client_server:get(Uid),
+                #{scene := CurSceneName, name := PlayerName, id := Id} = PlayerProfile = redis_client_server:get(Uid),
                 player_fsm_sup:add_child(PlayerProfile),
-                scene_fsm:enter(CurSceneName, Uid, PlayerName, Id, Lang, DispatcherPid),
+                scene_fsm:enter(CurSceneName, Uid, PlayerName, Id, DispatcherPid),
                 gb_sets:add(Uid, LoggedInUidsSet);
             _ ->
-                player_fsm:response_content(Uid, commands, [{nls, already_login}], DispatcherPid),
+                player_fsm:response_content(Uid, [{nls, already_login}], DispatcherPid),
                 LoggedInUidsSet
         end,
 
     {noreply, State#{?LOGGED_IN_UIDS_SET := UpdatedLoggedInUidsSet}};
 handle_cast({logout, DispatcherPid, Uid}, State) ->
     UpdatedState = logout(internal, Uid, State),
-    player_fsm:response_content(Uid, commands, [{nls, already_logout}], DispatcherPid),
+    player_fsm:response_content(Uid, [{nls, already_logout}], DispatcherPid),
     {noreply, UpdatedState}.
 
 %%--------------------------------------------------------------------
