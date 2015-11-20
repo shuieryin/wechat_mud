@@ -25,7 +25,8 @@
     first_to_lower/1,
     remove_last_newline/1,
     random_from_list/1,
-    observer/0]).
+    observer/0,
+    binary_join/2]).
 
 -type valid_type() :: atom | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple.
 
@@ -256,6 +257,29 @@ random_from_list(SrcList) ->
 -spec observer() -> pong | pang.
 observer() ->
     net_adm:ping(?OBSERVER_NODE).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Binary join with separator.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec binary_join([binary()], binary()) -> binary().
+binary_join([], _Sep) ->
+    <<>>;
+binary_join([Part], _Sep) ->
+    Part;
+binary_join(List, Sep) ->
+    lists:foldr(
+        fun(A, B) ->
+            if
+                bit_size(B) > 0 -> <<A/binary, Sep/binary, B/binary>>;
+                true -> A
+            end
+        end,
+        <<>>,
+        List
+    ).
 
 %%%===================================================================
 %%% Internal functions

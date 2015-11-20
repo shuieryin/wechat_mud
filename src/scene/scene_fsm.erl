@@ -281,13 +281,18 @@ handle_event({look_scene, Uid, DispatcherPid}, StateName, State) ->
     ok = show_scene(State, Uid, DispatcherPid),
     {next_state, StateName, State};
 handle_event({look_target, Uid, DispatcherPid, LookArgs}, StateName, #{?SCENE_OBJECT_LIST := SceneObjectList} = State) ->
-    [RawSequence | Rest] = lists:reverse(string:tokens(binary_to_list(LookArgs), " ")),
+    [RawSequence | Rest] = lists:reverse(re:split(LookArgs, <<" ">>)),
     {Target, Sequence} =
-        case re:run(RawSequence, "^[0-9]*$") of
-            {match, _} ->
-                {list_to_atom(string:join(lists:reverse(Rest), "_")), list_to_integer(RawSequence)};
+        case Rest of
+            [] ->
+                {binary_to_atom(RawSequence, utf8), 1};
             _ ->
-                {list_to_atom(re:replace(LookArgs, <<" ">>, <<"_">>, [global, {return, list}])), 1}
+                case re:run(RawSequence, "^[0-9]*$") of
+                    {match, _} ->
+                        {binary_to_atom(share:binary_join(lists:reverse(Rest), <<"_">>), utf8), binary_to_integer(RawSequence)};
+                    _ ->
+                        {binary_to_atom(re:replace(LookArgs, <<" ">>, <<"_">>, [global, {return, list}]), utf8), 1}
+                end
         end,
     TargetSceneObject = grab_target_scene_objects(SceneObjectList, Target, Sequence),
     ContentList = case TargetSceneObject of
