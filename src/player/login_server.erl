@@ -254,7 +254,7 @@ handle_call({is_in_registration, Uid}, _From, #{?REGISTERING_UIDS_SET := Registe
     {reply, Result, State};
 handle_call({delete_user, Uid}, _From, #{?R_REGISTERED_UIDS_SET := RegisteredUidsSet} = State) ->
     LoggedOutState = logout(internal, Uid, State),
-    ok = share:until_process_terminated(Uid, 20),
+    ok = cm:until_process_terminated(Uid, 20),
     UpdatedRegisteredUidsSet = gb_sets:delete(Uid, RegisteredUidsSet),
 
     redis_client_server:async_del([Uid], false),

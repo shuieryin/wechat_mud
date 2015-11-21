@@ -240,7 +240,7 @@ process_request(Req) ->
                         <<>>;
                     _ ->
                         try
-                            ReturnContentBinary = list_to_binary(lists:flatten(share:remove_last_newline(ReturnContent))),
+                            ReturnContentBinary = list_to_binary(lists:flatten(cm:remove_last_newline(ReturnContent))),
                             error_logger:info_msg("ReplyContent:~tp~n", [ReturnContentBinary]),
                             compose_xml_response(UidBin, PlatformId, ReturnContentBinary)
                         catch
@@ -391,7 +391,7 @@ compose_xml_response(UidBin, PlatformIdBin, ContentBin) ->
         <<"]]></ToUserName><FromUserName><![CDATA[">>,
         PlatformIdBin,
         <<"]]></FromUserName><CreateTime>">>,
-        integer_to_binary(share:timestamp()),
+        integer_to_binary(cm:timestamp()),
         <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>],
 
     list_to_binary(XmlContentList).

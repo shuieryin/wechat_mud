@@ -311,7 +311,7 @@ input_born_month({MonthBin, DispatcherPid}, #{lang := Lang} = State) ->
 input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"y">> orelse Answer == <<"Y">> ->
     #{name_nls_key := StubNpcNameNlsKey, description_nls_key := DescriptionNlsKey, self_description_nls_key := SelfDescriptionNlsKey} = common_server:random_npc(),
 
-    State1 = State#{register_time => share:timestamp(), scene => ?BORN_SCENE, name => {nls, StubNpcNameNlsKey}, description => {nls, DescriptionNlsKey}, self_description => {nls, SelfDescriptionNlsKey}},
+    State1 = State#{register_time => cm:timestamp(), scene => ?BORN_SCENE, name => {nls, StubNpcNameNlsKey}, description => {nls, DescriptionNlsKey}, self_description => {nls, SelfDescriptionNlsKey}},
     State2 = maps:remove(summary_content, State1),
 
     login_server:registration_done(State2, DispatcherPid),

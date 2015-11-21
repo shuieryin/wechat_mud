@@ -8,7 +8,7 @@
 %%% @end
 %%% Created : 26. Aug 2015 11:04 AM
 %%%-------------------------------------------------------------------
--module(share).
+-module(cm).
 -author("Shuieryin").
 
 %% API

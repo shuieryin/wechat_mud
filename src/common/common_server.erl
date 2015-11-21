@@ -201,7 +201,7 @@ handle_call({get_runtime_data, Phases}, _From, #{?RUNTIME_DATAS := RuntimeDatasM
     TargetRuntimeData = get_runtime_data(Phases, RuntimeDatasMap),
     {reply, TargetRuntimeData, State};
 handle_call(random_npc, _From, #{?RUNTIME_DATAS := #{npcs := NpcsRuntimeDataMap}} = State) ->
-    RandomKey = share:random_from_list(maps:keys(NpcsRuntimeDataMap)),
+    RandomKey = cm:random_from_list(maps:keys(NpcsRuntimeDataMap)),
     #{RandomKey := RandomNpc} = NpcsRuntimeDataMap,
     {reply, RandomNpc, State}.
 

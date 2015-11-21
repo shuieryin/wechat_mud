@@ -289,7 +289,7 @@ handle_event({look_target, Uid, DispatcherPid, LookArgs}, StateName, #{?SCENE_OB
             _ ->
                 case re:run(RawSequence, "^[0-9]*$") of
                     {match, _} ->
-                        {binary_to_atom(share:binary_join(lists:reverse(Rest), <<"_">>), utf8), binary_to_integer(RawSequence)};
+                        {binary_to_atom(cm:binary_join(lists:reverse(Rest), <<"_">>), utf8), binary_to_integer(RawSequence)};
                     _ ->
                         {binary_to_atom(re:replace(LookArgs, <<" ">>, <<"_">>, [global, {return, list}]), utf8), 1}
                 end
