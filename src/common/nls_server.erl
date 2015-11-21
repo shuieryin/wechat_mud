@@ -39,7 +39,14 @@
     code_change/3,
     format_status/2]).
 
--include("nls.hrl").
+%% Nls files root path
+-define(NLS_PATH, "priv/nls_server").
+
+%% Common nls file name
+-define(COMMON_NLS, "common.csv").
+
+%% Unique nls file extension
+-define(NLS_EXTENSION, ".csv").
 
 -type support_lang() :: zh | en.
 -type key() :: atom(). % generic atom

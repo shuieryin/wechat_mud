@@ -22,7 +22,12 @@
 -export([init/1]).
 
 -define(SERVER, ?MODULE).
--include("scene.hrl").
+
+%% Nls files root path
+-define(SCENE_NLS_PATH, "priv/scene").
+
+%% Unique scene file extension
+-define(FILE_EXTENSION, ".csv").
 
 -type scene_child() :: {scene_fsm:scene_name(), {scene_fsm, start_link, [scene_fsm:scene_info()]}, supervisor:restart(), supervisor:shutdown(), supervisor:worker(), [scene_fsm]}.
 
