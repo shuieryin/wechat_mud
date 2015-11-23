@@ -48,7 +48,7 @@
     logged_in_uids_set :: uid_set(),
     registering_uids_set :: uid_set(),
     registered_ids_set :: id_set(),
-    born_types :: #{player_fsm:born_month() => #born_type_info{}}
+    born_type_info :: #{player_fsm:born_month() => #born_type_info{}}
 }).
 
 %%%===================================================================
@@ -214,13 +214,13 @@ init([]) ->
                 IdsSet
         end,
 
-    BornTypesMap = common_server:get_runtime_data([born_types]),
+    BornTypesMap = common_server:get_runtime_data([born_type_info]),
     State = #state{
         registering_uids_set = gb_sets:new(),
         registered_uids_set = RegisteredUidsSet,
         registered_ids_set = RegisteredIdsSet,
         logged_in_uids_set = gb_sets:new(),
-        born_types = BornTypesMap
+        born_type_info = BornTypesMap
     },
 
     io:format("started~n"),
@@ -256,7 +256,7 @@ init([]) ->
     Reason :: term(). % generic term
 handle_call({is_uid_registered, Uid}, _From, #state{registered_uids_set = RegisteredUidsSet} = State) ->
     {reply, gb_sets:is_element(Uid, RegisteredUidsSet), State};
-handle_call({is_id_registered, Id}, _From, #{registered_ids_set := RegisteredIdsSet} = State) ->
+handle_call({is_id_registered, Id}, _From, #state{registered_ids_set = RegisteredIdsSet} = State) ->
     {reply, gb_sets:is_element(Id, RegisteredIdsSet), State};
 handle_call({is_in_registration, Uid}, _From, #state{registering_uids_set = RegisteringUidsSet} = State) ->
     Result = gb_sets:is_element(Uid, RegisteringUidsSet),
@@ -292,13 +292,14 @@ handle_call({is_uid_logged_in, Uid}, _From, #state{logged_in_uids_set = LoggedUi
     State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
-handle_cast({registration_done, #player_profile{uid = Uid, id = Id, born_month = BornMonth} = PlayerProfile, DispatcherPid}, #state{registering_uids_set = RegisteringUidsSet, registered_uids_set = RegisteredUidsSet, registered_ids_set = RegisteredIdsSet, born_types = BornTypesMap} = State) ->
+handle_cast({registration_done, #player_profile{uid = Uid, id = Id, born_month = BornMonth} = PlayerProfile, DispatcherPid}, #state{registering_uids_set = RegisteringUidsSet, registered_uids_set = RegisteredUidsSet, registered_ids_set = RegisteredIdsSet, born_type_info = BornTypesMap} = State) ->
     UpdatedRegisteredUidsSet = gb_sets:add(Uid, RegisteredUidsSet),
+
     redis_client_server:async_set(registered_uids_set, UpdatedRegisteredUidsSet, false),
 
     UpdatedRegisteredIdsSet = gb_sets:add(Id, case redis_client_server:get(Uid) of
                                                   #player_profile{id = ExistingId} ->
-                                                      gb_sets:delete(ExistingId, RegisteredIdsSet);
+                                                      gb_sets:del_element(ExistingId, RegisteredIdsSet);
                                                   _ ->
                                                       RegisteredIdsSet
                                               end),

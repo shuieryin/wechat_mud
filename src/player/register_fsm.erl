@@ -45,6 +45,7 @@
 -type state_name() :: select_lang | input_id | input_gender | input_born_month | input_confirmation | state_name.
 
 -include("../data_type/player_profile.hrl").
+-include("../data_type/npc_born_info.hrl").
 
 -record(state, {self :: #player_profile{}, summary_content :: [nls_server:value()]}).
 
@@ -199,7 +200,7 @@ input_id({RawId, DispatcherPid}, #state{self = #player_profile{lang = Lang} = Pl
             nomatch ->
                 {[{nls, invalid_id}, RawId, <<"\n\n">>, {nls, please_input_id}], input_id, State};
             _ ->
-                Id = binary_to_atom(RawId, utf8),
+                Id = list_to_atom(string:to_lower(binary_to_list(RawId))),
                 case login_server:is_id_registered(Id) of
                     true ->
                         {[{nls, id_already_exists}, <<"\n\n">>, {nls, please_input_id}], input_id, State};
@@ -231,9 +232,9 @@ input_id({RawId, DispatcherPid}, #state{self = #player_profile{lang = Lang} = Pl
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-input_gender({RawGender, DispatcherPid}, State) when RawGender == <<"m">> orelse RawGender == <<"M">> ->
+input_gender({RawGender, DispatcherPid}, State) when RawGender == <<"m">> orelse RawGender == <<"male">> ->
     input_gender(male, DispatcherPid, State);
-input_gender({RawGender, DispatcherPid}, State) when RawGender == <<"f">> orelse RawGender == <<"F">> ->
+input_gender({RawGender, DispatcherPid}, State) when RawGender == <<"f">> orelse RawGender == <<"female">> ->
     input_gender(female, DispatcherPid, State);
 input_gender({Other, DispatcherPid}, #state{self = #player_profile{lang = Lang}} = State) ->
     ErrorMessageNlsList =
@@ -310,15 +311,15 @@ input_born_month({MonthBin, DispatcherPid}, #state{self = #player_profile{lang =
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-input_confirmation({Answer, DispatcherPid}, #state{self = PlayerProfile} = State) when Answer == <<"y">> orelse Answer == <<"Y">> ->
-    #{name_nls_key := StubNpcNameNlsKey, description_nls_key := DescriptionNlsKey, self_description_nls_key := SelfDescriptionNlsKey} = common_server:random_npc(),
+input_confirmation({Answer, DispatcherPid}, #state{self = PlayerProfile} = State) when Answer == <<"y">> orelse Answer == <<"yes">> ->
+    #npc_born_info{name_nls_key = StubNpcNameNlsKey, description_nls_key = DescriptionNlsKey, self_description_nls_key = SelfDescriptionNlsKey} = common_server:random_npc(),
 
     FinalPlayerProfile = PlayerProfile#player_profile{register_time = cm:timestamp(), scene = ?BORN_SCENE, name = {nls, StubNpcNameNlsKey}, description = {nls, DescriptionNlsKey}, self_description = {nls, SelfDescriptionNlsKey}},
     UpdatedState = State#state{self = FinalPlayerProfile},
 
     login_server:registration_done(FinalPlayerProfile, DispatcherPid),
     {stop, normal, UpdatedState};
-input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{lang = Lang, uid = Uid}}) when Answer == <<"n">> orelse Answer == <<"N">> ->
+input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{lang = Lang, uid = Uid}}) when Answer == <<"n">> orelse Answer == <<"no">> ->
     nls_server:response_content([{nls, please_input_id}], Lang, DispatcherPid),
     {next_state, input_id, #state{self = #player_profile{uid = Uid, lang = Lang}}};
 input_confirmation({Other, DispatcherPid}, #state{self = #player_profile{lang = Lang}, summary_content = SummaryContent} = State) ->

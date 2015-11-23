@@ -35,3 +35,9 @@
     scene :: scene_fsm:scene_name(),
     avatar_profile :: #avatar_profile{} | undefined
 }).
+
+-record(simple_player, {
+    uid :: player_fsm:uid(),
+    name :: player_fsm:name(),
+    id :: player_fsm:id()
+}).

@@ -38,8 +38,10 @@
     format_status/2]).
 
 -include("../data_type/scene_info.hrl").
+-include("../data_type/npc_born_info.hrl").
+-include("../data_type/player_profile.hrl").
 
--type scene_object() :: player_fsm:simple_player() | npc_fsm_manager:simple_npc_fsm().
+-type scene_object() :: #simple_player{} | #simple_npc_fsm{}.
 -type scene_character_name() :: npc_fsm_manager:npc_type() | player_fsm:uid().
 -type scene_name() :: atom(). % generic atom
 -type exit() :: north | east | south | west | northeast | southeast | southwest | northwest.
@@ -276,7 +278,7 @@ state_name(_Event, _From, State) ->
     Reason :: term(). % generic term
 handle_event({enter, Uid, PlayerName, Id, DispatcherPid}, StateName, #state{scene_object_list = SceneObjectList} = State) ->
     ok = show_scene(State, Uid, DispatcherPid),
-    {next_state, StateName, State#state{scene_object_list = [{player, Uid, PlayerName, Id} | SceneObjectList]}};
+    {next_state, StateName, State#state{scene_object_list = [#simple_player{uid = Uid, name = PlayerName, id = Id} | SceneObjectList]}};
 handle_event({leave, Uid}, StateName, State) ->
     {next_state, StateName, remove_scene_object(Uid, State)};
 handle_event({look_scene, Uid, DispatcherPid}, StateName, State) ->
@@ -300,9 +302,9 @@ handle_event({look_target, Uid, DispatcherPid, LookArgs}, StateName, #state{scen
     ContentList = case TargetSceneObject of
                       undefined ->
                           [{nls, no_such_target}, LookArgs, <<"\n">>];
-                      {npc, TargetNpcFsmId, _, _} ->
+                      #simple_npc_fsm{npc_fsm_id = TargetNpcFsmId} ->
                           npc_fsm:being_looked(TargetNpcFsmId, Uid);
-                      {player, TargetPlayerUid, _PlayerName, _Id} ->
+                      #simple_player{uid = TargetPlayerUid} ->
                           player_fsm:being_looked(TargetPlayerUid, Uid)
                   end,
     player_fsm:response_content(Uid, ContentList, DispatcherPid),
@@ -328,22 +330,22 @@ grab_target_scene_objects(SceneObjectList, TargetCharacterName, Sequence) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec grab_target_scene_objects(SceneObjectList, TargetCharacterName, Sequence, Counter) -> TargetSceneObject when
+-spec grab_target_scene_objects(SceneObjectList, TargetName, Sequence, Counter) -> TargetSceneObject when
     SceneObjectList :: [scene_object()],
-    TargetCharacterName :: scene_character_name(),
+    TargetName :: scene_character_name(),
     Sequence :: look:sequence(),
     Counter :: pos_integer(), % generic integer
     TargetSceneObject :: scene_object() | undefined.
-grab_target_scene_objects([{npc, _, TargetCharacterName, _} = SceneObject | _], TargetCharacterName, Sequence, Sequence) ->
+grab_target_scene_objects([#simple_npc_fsm{npc_type = TargetNpcType} = SceneObject | _], TargetNpcType, Sequence, Sequence) ->
     SceneObject;
-grab_target_scene_objects([{player, _, _, TargetCharacterName} = SceneObject | _], TargetCharacterName, Sequence, Sequence) ->
+grab_target_scene_objects([#simple_player{id = TargetPlayerId} = SceneObject | _], TargetPlayerId, Sequence, Sequence) ->
     SceneObject;
-grab_target_scene_objects([{npc, _, TargetCharacterName, _} | Tail], TargetCharacterName, Sequence, Counter) ->
-    grab_target_scene_objects(Tail, TargetCharacterName, Sequence, Counter + 1);
-grab_target_scene_objects([{player, _, _, TargetCharacterName} | Tail], TargetCharacterName, Sequence, Counter) ->
-    grab_target_scene_objects(Tail, TargetCharacterName, Sequence, Counter + 1);
-grab_target_scene_objects([_ | Tail], TargetCharacterName, Sequence, Counter) ->
-    grab_target_scene_objects(Tail, TargetCharacterName, Sequence, Counter);
+grab_target_scene_objects([#simple_npc_fsm{npc_type = TargetNpcType} | Tail], TargetNpcType, Sequence, Counter) ->
+    grab_target_scene_objects(Tail, TargetNpcType, Sequence, Counter + 1);
+grab_target_scene_objects([#simple_player{id = TargetPlayerId} | Tail], TargetPlayerId, Sequence, Counter) ->
+    grab_target_scene_objects(Tail, TargetPlayerId, Sequence, Counter + 1);
+grab_target_scene_objects([_ | Tail], TargetName, Sequence, Counter) ->
+    grab_target_scene_objects(Tail, TargetName, Sequence, Counter);
 grab_target_scene_objects([], _, _, _) ->
     undefined.
 
@@ -528,12 +530,12 @@ gen_character_name([], _, AccList) ->
         _ ->
             AccList
     end;
-gen_character_name([{npc, _, NpcType, NpcNameNlsKey} | Tail], CallerUid, AccSceneObjectNameList) ->
+gen_character_name([#simple_npc_fsm{npc_type = NpcType, npc_name_nls_key = NpcNameNlsKey} | Tail], CallerUid, AccSceneObjectNameList) ->
     NpcTypeForDisplay = re:replace(atom_to_list(NpcType), "_", " ", [global, {return, binary}]),
     gen_character_name(Tail, CallerUid, [{nls, NpcNameNlsKey}, <<" (">>, NpcTypeForDisplay, <<")">>, <<"\n">>] ++ AccSceneObjectNameList);
-gen_character_name([{player, CallerUid, _, _} | Tail], CallerUid, AccCharactersNameList) ->
+gen_character_name([#simple_player{uid = CallerUid} | Tail], CallerUid, AccCharactersNameList) ->
     gen_character_name(Tail, CallerUid, AccCharactersNameList);
-gen_character_name([{player, _, PlayerName, Id} | Tail], CallerUid, AccSceneObjectNameList) ->
+gen_character_name([#simple_player{name = PlayerName, id = Id} | Tail], CallerUid, AccSceneObjectNameList) ->
     gen_character_name(Tail, CallerUid, [PlayerName, <<" (">>, atom_to_binary(Id, utf8), <<")">>, <<"\n">>] ++ AccSceneObjectNameList).
 
 %%--------------------------------------------------------------------

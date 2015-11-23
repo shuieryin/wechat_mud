@@ -22,10 +22,27 @@
 -define(EMPTY_CONTENT, <<>>).
 -define(WECHAT_TOKEN, <<"collinguo">>).
 
--type wechat_get_params() :: #{signature => string() | binary(), timestamp => string() | binary(), nonce => string() | binary(), echostr => string() | binary()}.
--type wechat_post_params() :: #{'Content' => binary(), 'CreateTime' => binary(), 'FromUserName' => binary(), 'MsgId' => binary(), 'MsgType' => binary(), 'ToUserName' => binary()}.
+-type get_param() :: string() | binary(). % generic string % generic binary
+-type post_param() :: binary(). % generic binary
 -type short_command() :: '5' | l.
 -type command() :: lang | login | logout | look | rereg.
+
+-record(wechat_get_params, {
+    signature :: get_param(),
+    timestamp :: get_param(),
+    nonce :: get_param(),
+    echostr :: get_param()
+}).
+
+-record(wechat_post_params, {
+    'Content' :: post_param(),
+    'CreateTime' :: post_param(),
+    'FromUserName' :: post_param(),
+    'MsgId' :: post_param(),
+    'MsgType' :: post_param(),
+    'ToUserName' :: post_param(),
+    'Event' :: post_param()
+}).
 
 %%%===================================================================
 %%% API
@@ -64,17 +81,16 @@ start(Req) ->
                     ?EMPTY_CONTENT
             end;
         HeaderParams ->
-            ParamsMap = gen_get_params_map(size(HeaderParams) - 1, HeaderParams, #{}),
-%%             error_logger:info_msg("ParamsMap:~p~n", [ParamsMap]),
-            ValidationParamsMap = maps:with([signature, timestamp, nonce], ParamsMap),
-            case validate_signature(ValidationParamsMap) of
+            #wechat_get_params{signature = Signature, timestamp = TimeStamp, nonce = Nonce, echostr = EchoStr} = gen_get_params(HeaderParams),
+            ValidationParams = [Signature, TimeStamp, Nonce],
+            case validate_signature(ValidationParams) of
                 true ->
-                    case maps:is_key(echostr, ParamsMap) of
-                        false ->
+                    case EchoStr of
+                        undefined ->
                             process_request(Req);
                         _ ->
                             error_logger:info_msg("Connectivity success~n", []),
-                            maps:get(echostr, ParamsMap)
+                            EchoStr
                     end;
                 _ ->
                     ?EMPTY_CONTENT
@@ -137,35 +153,20 @@ return_content(DispatcherPid, ReturnContent) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec validate_signature(OriginalParamMap) -> IsValidSignature when
-    OriginalParamMap :: wechat_get_params(),
+-spec validate_signature(OriginalParams) -> IsValidSignature when
+    OriginalParams :: [binary()], % generic binary
     IsValidSignature :: boolean().
-validate_signature(#{signature := OriginalSignatureStr} = OriginalParamMap) ->
-    ParamList = maps:values(maps:without([signature], OriginalParamMap)),
-    GeneratedSignature = generate_signature(ParamList),
-    Signature = binary_to_list(OriginalSignatureStr),
+validate_signature([OriginalSignatureBin | ParamList] = OriginalParams) ->
+    SortedParamContent = lists:sort([?WECHAT_TOKEN | ParamList]),
+    GeneratedSignature = string:to_lower(sha1:hexstring(SortedParamContent)),
+    Signature = binary_to_list(OriginalSignatureBin),
     case GeneratedSignature == Signature of
         true ->
             true;
         _ ->
-            error_logger:error_msg("Validation signature failed:~nParamMap:~p~nGSignature:~p~nOSignature:~p~n", [OriginalParamMap, GeneratedSignature, Signature]),
+            error_logger:error_msg("Validation signature failed:~nParamMap:~p~nGSignature:~p~nOSignature:~p~n", [OriginalParams, GeneratedSignature, Signature]),
             false
     end.
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Signature generation based on wechat doc below:
-%% http://mp.weixin.qq.com/wiki/17/2d4265491f12608cd170a95559800f2d.html
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec generate_signature(OriginParamList) -> SignatureStr when
-    OriginParamList :: [string()],
-    SignatureStr :: string().
-generate_signature(OriginParamList) ->
-    ConcatedParamContent = [?WECHAT_TOKEN | OriginParamList],
-    SortedParamContent = lists:sort(ConcatedParamContent),
-    string:to_lower(sha1:hexstring(SortedParamContent)).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -206,11 +207,11 @@ process_request(Req) ->
         parse_failed ->
             error_logger:info_msg("Parse xml request failed:~tp~n", [Req]),
             ?EMPTY_CONTENT;
-        #{'MsgType' := MsgType, 'ToUserName' := PlatformId, 'FromUserName' := UidBin} = ReqParamsMap ->
-            error_logger:info_msg("ReqParamsMap:~tp~n", [ReqParamsMap]),
+        #wechat_post_params{'ToUserName' = PlatformId, 'FromUserName' = UidBin} = ReqParams ->
+            error_logger:info_msg("ReqParams:~tp~n", [ReqParams]),
 
             Uid = binary_to_atom(UidBin, utf8),
-            {RawInput, FuncForRegsiteredUser} = gen_action_from_message_type(MsgType, ReqParamsMap),
+            {RawInput, FuncForRegsiteredUser} = gen_action_from_message_type(ReqParams),
             ReturnContent =
                 case whereis(Uid) of % login_server:is_uid_logged_in(Uid)
                     undefined ->
@@ -279,15 +280,14 @@ process_request(Req) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec gen_action_from_message_type(MsgType, ReqParamsMap) -> {InputForUnregister, FuncForRegsiter} when
-    MsgType :: binary(),
-    ReqParamsMap :: wechat_post_params(),
+-spec gen_action_from_message_type(ReqParams) -> {InputForUnregister, FuncForRegsiter} when
+    ReqParams :: #wechat_post_params{},
     InputForUnregister :: binary() | no_reply | subscribe | unsubscribe,
     FuncForRegsiter :: function().
-gen_action_from_message_type(MsgType, ReqParamsMap) ->
+gen_action_from_message_type(#wechat_post_params{'MsgType' = MsgType} = ReqParams) ->
     case binary_to_atom(MsgType, utf8) of
         event ->
-            Event = binary_to_atom(maps:get('Event', ReqParamsMap), utf8),
+            Event = binary_to_atom(ReqParams#wechat_post_params.'Event', utf8),
             case Event of
                 subscribe ->
                     {subscribe, fun(_Uid) ->
@@ -303,8 +303,7 @@ gen_action_from_message_type(MsgType, ReqParamsMap) ->
                                end}
             end;
         text ->
-            % _MsgId = maps:get('MsgId', ReqParamsMap),
-            RawInput = maps:get('Content', ReqParamsMap),
+            RawInput = ReqParams#wechat_post_params.'Content',
             [ModuleNameBin | RawCommandArgs] = binary:split(RawInput, <<" ">>),
             {RawInput, fun(Uid) ->
                 handle_input(Uid, ModuleNameBin, RawCommandArgs)
@@ -402,9 +401,9 @@ compose_xml_response(UidBin, PlatformIdBin, ContentBin) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec parse_xml_request(Req) -> ReqParamsMap when
+-spec parse_xml_request(Req) -> ReqParams when
     Req :: cowboy_req:req(),
-    ReqParamsMap :: wechat_post_params() | parse_failed.
+    ReqParams :: #wechat_post_params{} | parse_failed.
 parse_xml_request(Req) ->
     {ok, Message, _} = cowboy_req:body(Req),
     case Message of
@@ -412,7 +411,24 @@ parse_xml_request(Req) ->
             parse_failed;
         _ ->
             {ok, {"xml", [], Params}, _} = erlsom:simple_form(Message),
-            unmarshall_params(Params, #{})
+            #{
+                'Content' := Content,
+                'CreateTime' := CreateTime,
+                'FromUserName' := FromUserName,
+                'MsgId' := MsgId,
+                'MsgType' := MsgType,
+                'ToUserName' := ToUserName
+            } = ParamsMap = unmarshall_params(Params, #{}),
+            Event = maps:get('Event', ParamsMap, undefined),
+            #wechat_post_params{
+                'Content' = Content,
+                'CreateTime' = CreateTime,
+                'FromUserName' = FromUserName,
+                'MsgId' = MsgId,
+                'MsgType' = MsgType,
+                'ToUserName' = ToUserName,
+                'Event' = Event
+            }
     end.
 
 %%--------------------------------------------------------------------
@@ -433,30 +449,44 @@ parse_xml_request(Req) ->
     SrcList :: [{ParamKey, [], [ParamValue]}],
     ParamKey :: string(),
     ParamValue :: string(),
-    ParamsMap :: wechat_post_params(),
+    ParamsMap :: map(), % generic map
     FinalParamsMap :: ParamsMap.
 unmarshall_params([], ParamsMap) ->
     ParamsMap;
+unmarshall_params([{"Content", [], [ParamValue]} | Tail], ParamsMap) ->
+    unmarshall_params(Tail, ParamsMap#{'Content' => unicode:characters_to_binary(string:to_lower(string:strip(ParamValue)))});
 unmarshall_params([{ParamKey, [], [ParamValue]} | Tail], ParamsMap) ->
-    unmarshall_params(Tail, maps:put(list_to_atom(ParamKey), unicode:characters_to_binary(string:strip(ParamValue)), ParamsMap)).
+    unmarshall_params(Tail, ParamsMap#{list_to_atom(ParamKey) => unicode:characters_to_binary(string:strip(ParamValue))}).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% This function generates request raw request params to params map.
+%% This function generates request raw request params to
+%% wechat_get_param record.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec gen_get_params_map(Pos, Bin, AccParamsMap) -> ParamsMap when
+-spec gen_get_params(binary()) -> #wechat_get_params{}.
+gen_get_params(HeaderParams) ->
+    gen_get_params(size(HeaderParams) - 1, HeaderParams, #{}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Implementation function for gen_get_params/1.
+%% @see gen_get_params/1.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec gen_get_params(Pos, Bin, AccParamsMap) -> Params when
     Pos :: integer(), % generic integer
     Bin :: binary(),
-    AccParamsMap :: wechat_get_params(),
-    ParamsMap :: AccParamsMap.
-gen_get_params_map(-1, _, ParamsMap) ->
-    ParamsMap;
-gen_get_params_map(Pos, Bin, ParamsMap) ->
+    AccParamsMap :: map(), % generic map
+    Params :: #wechat_get_params{}.
+gen_get_params(-1, _, #{signature := Signature, timestamp := TimeStamp, nonce := Nonce} = ParamsMap) ->
+    {wechat_get_params, Signature, TimeStamp, Nonce, maps:get(echostr, ParamsMap, undefined)};
+gen_get_params(Pos, Bin, ParamsMap) ->
     {ValueBin, CurPosByValue} = gen_get_param_value(binary:at(Bin, Pos), [], Pos - 1, Bin),
     {KeyBin, CurPosByKey} = gen_req_param_key(binary:at(Bin, CurPosByValue), [], CurPosByValue - 1, Bin),
-    gen_get_params_map(CurPosByKey, Bin, maps:put(binary_to_atom(KeyBin, unicode), ValueBin, ParamsMap)).
+    gen_get_params(CurPosByKey, Bin, maps:put(binary_to_atom(KeyBin, unicode), ValueBin, ParamsMap)).
 
 %%--------------------------------------------------------------------
 %% @doc

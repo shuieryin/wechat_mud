@@ -30,8 +30,10 @@
 -type csv_data() :: #{key() => csv_row_data()}.
 -type field_info() :: {key(), field_type()}.
 -type field_infos() :: [field_info()].
+-type csv_to_object() :: #{key() => csv_data()}.
 
--export_type([csv_data/0]).
+-export_type([csv_data/0,
+    csv_to_object/0]).
 
 %%%===================================================================
 %%% API

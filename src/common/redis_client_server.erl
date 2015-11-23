@@ -43,7 +43,10 @@
 -type redis_client() :: pid().
 -type key() :: term(). % generic term
 -type value() :: term(). % generic term
--type state() :: #{redis_client_pid => redis_client()}.
+
+-record(state, {
+    redis_client_pid :: redis_client()
+}).
 
 %%%===================================================================
 %%% API
@@ -187,12 +190,12 @@ clear_all() ->
     {stop, Reason} |
     ignore when
 
-    State :: state(),
+    State :: #state{},
     Reason :: term(). % generic term
 init([]) ->
     io:format("~p starting...", [?MODULE]),
 
-    State = connect_reids(#{}),
+    State = connect_reids(#state{}),
 
     io:format("started~n"),
     {ok, State}.
@@ -225,10 +228,10 @@ init([]) ->
     Value :: value(),
 
     From :: {pid(), Tag :: term()}, % generic term
-    State :: state(),
+    State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
-handle_call({get, Key}, _From, #{redis_client_pid := RedisClientPid} = State) ->
+handle_call({get, Key}, _From, #state{redis_client_pid = RedisClientPid} = State) ->
     Value = case eredis:q(RedisClientPid, ["GET", Key]) of
                 {ok, undefined} ->
                     undefined;
@@ -270,7 +273,7 @@ handle_call({del, Keys, IsSave}, _From, State) ->
     Keys :: [Key],
     Value :: value(),
     IsSave :: boolean(),
-    State :: state(),
+    State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
 handle_cast({set, Key, Value, IsSave}, State) ->
@@ -299,7 +302,7 @@ handle_cast({del, Keys, IsSave}, State) ->
     {stop, Reason, NewState} when
 
     Info :: term(), % generic term
-    State :: state(),
+    State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
 handle_info(_Info, State) ->
@@ -318,7 +321,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(Reason, State) -> ok when
     Reason :: (normal | shutdown | {shutdown, term()} | term()), % generic term
-    State :: state().
+    State :: #state{}.
 terminate(_Reason, _State) ->
     ok.
 
@@ -335,7 +338,7 @@ terminate(_Reason, _State) ->
     {error, Reason} when
 
     OldVsn :: term() | {down, term()}, % generic term
-    State :: state(),
+    State :: #state{},
     Extra :: term(), % generic term
     NewState :: State,
     Reason :: term(). % generic term
@@ -355,7 +358,7 @@ code_change(_OldVsn, State, _Extra) ->
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
     PDict :: [{Key :: term(), Value :: term()}], % generic term
-    State :: state(),
+    State :: #state{},
     Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_server:format_status(Opt, StatusData).
@@ -372,11 +375,11 @@ format_status(Opt, StatusData) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec connect_reids(State) -> UpdatedState when
-    State :: state(),
+    State :: #state{},
     UpdatedState :: State.
 connect_reids(State) ->
     RedisClientPid = connect_redis_loop(),
-    State#{redis_client_pid => RedisClientPid}.
+    State#state{redis_client_pid = RedisClientPid}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -392,7 +395,7 @@ connect_redis_loop() ->
     SelfPid = self(),
     spawn(fun() ->
         make_connection(SelfPid)
-    end),
+          end),
     receive
         {connected, SelfPid, RedisClientPid} ->
             RedisClientPid
@@ -400,7 +403,7 @@ connect_redis_loop() ->
         1000 ->
             spawn(fun() ->
                 make_connection(SelfPid)
-            end),
+                  end),
             connect_redis_loop()
     end.
 
@@ -426,8 +429,8 @@ make_connection(ParentPid) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec save(State) -> ok | fail when
-    State :: state().
-save(#{redis_client_pid := RedisClientPid}) ->
+    State :: #state{}.
+save(#state{redis_client_pid = RedisClientPid}) ->
     {ok, Result} = eredis:q(RedisClientPid, ["SAVE"]),
     case Result of
         <<"OK">> ->
@@ -448,9 +451,9 @@ save(#{redis_client_pid := RedisClientPid}) ->
     Key :: key(),
     Value :: value(),
     IsSave :: boolean(),
-    State :: state(),
+    State :: #state{},
     IsValueSet :: boolean().
-set(Key, Value, IsSave, #{redis_client_pid := RedisClientPid} = State) ->
+set(Key, Value, IsSave, #state{redis_client_pid = RedisClientPid} = State) ->
     IsValueSet =
         case eredis:q(RedisClientPid, ["SET", Key, term_to_binary(Value)]) of
             {ok, <<"OK">>} ->
@@ -477,8 +480,8 @@ set(Key, Value, IsSave, #{redis_client_pid := RedisClientPid} = State) ->
 -spec del(Keys, IsSave, State) -> boolean() when
     Keys :: [key()],
     IsSave :: boolean(),
-    State :: state().
-del(Keys, IsSave, #{redis_client_pid := RedisClientPid} = State) ->
+    State :: #state{}.
+del(Keys, IsSave, #state{redis_client_pid = RedisClientPid} = State) ->
     IsDel = case eredis:q(RedisClientPid, ["DEL" | Keys]) of
                 {ok, <<"OK">>} ->
                     true;

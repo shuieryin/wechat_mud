@@ -45,7 +45,6 @@
 -type gender() :: male | female.
 -type id() :: atom().
 -type name() :: nls_server:nls_object().
--type simple_player() :: {player, uid(), name(), id()}.
 -type mail_object() :: [nls_server:nls_object()].
 
 -include("../data_type/player_profile.hrl").
@@ -64,7 +63,7 @@
 
 -type state_name() :: state_name | non_battle.
 
--export_type([simple_player/0,
+-export_type([
     born_month/0,
     uid/0,
     gender/0,

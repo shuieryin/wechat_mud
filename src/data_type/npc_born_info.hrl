@@ -19,3 +19,9 @@
     hp :: integer(),
     dexterity :: integer()
 }).
+
+-record(simple_npc_fsm, {
+    npc_fsm_id :: npc_fsm_manager:npc_fsm_id(),
+    npc_type :: npc_fsm_manager:npc_type(),
+    npc_name_nls_key :: nls_server:key()
+}).

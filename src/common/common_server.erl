@@ -31,11 +31,18 @@
     format_status/2]).
 
 -define(SERVER, ?MODULE).
--define(R_COMMON_CONFIG, common_config).
 -define(DEFAULT_WECHAT_DEBUG_MODE, true).
--define(RUNTIME_DATAS, runtime_datas).
 
--type state() :: #{?R_COMMON_CONFIG => #{is_wechat_debug => boolean()}, ?RUNTIME_DATAS => csv_to_object:csv_to_object()}.
+-include("../data_type/npc_born_info.hrl").
+
+-record(common_config, {
+    is_wechat_debug :: boolean()
+}).
+
+-record(state, {
+    common_config :: #common_config{},
+    runtime_datas :: csv_to_object:csv_to_object()
+}).
 
 %%%===================================================================
 %%% API
@@ -62,7 +69,7 @@ start_link() ->
 %%--------------------------------------------------------------------
 -spec is_wechat_debug() -> boolean().
 is_wechat_debug() ->
-    gen_server:call(?MODULE, {is_wechat_debug}).
+    gen_server:call(?MODULE, is_wechat_debug).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -117,7 +124,7 @@ get_runtime_data(Phases) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec random_npc() -> NpcProfile when
-    NpcProfile :: npc_fsm_manager:npc_born_info().
+    NpcProfile :: #npc_born_info{}.
 random_npc() ->
     gen_server:call(?MODULE, random_npc).
 
@@ -142,23 +149,23 @@ random_npc() ->
     {stop, Reason} |
     ignore when
 
-    State :: state(),
+    State :: #state{},
     Reason :: term(). % generic term
 init([]) ->
     io:format("~p starting...", [?MODULE]),
 
     CommonConfig =
-        case redis_client_server:get(?R_COMMON_CONFIG) of
+        case redis_client_server:get(common_config) of
             undefined ->
-                NewConfig = #{},
-                redis_client_server:set(?R_COMMON_CONFIG, NewConfig, true),
+                NewConfig = #common_config{is_wechat_debug = ?DEFAULT_WECHAT_DEBUG_MODE},
+                redis_client_server:set(common_config, NewConfig, true),
                 NewConfig;
-            ReturnValue ->
-                ReturnValue
+            Config ->
+                Config
         end,
 
     RuntimeDatas = csv_to_object:traverse_files("priv/runtime"),
-    State = #{?R_COMMON_CONFIG => CommonConfig, ?RUNTIME_DATAS => RuntimeDatas},
+    State = #state{common_config = CommonConfig, runtime_datas = RuntimeDatas},
 
     io:format("started~n"),
     {ok, State}.
@@ -179,28 +186,26 @@ init([]) ->
     {stop, Reason, NewState} when
 
     Request ::
-    {is_wechat_debug} |
-    {set_wechat_debug, IsOn :: boolean()} |
+    is_wechat_debug |
+    {set_wechat_debug, IsWechatDebug} |
     {get_runtime_data, Phases :: [csv_to_object:key()]},
-    Reply :: IsWechatDebug | IsOn | TargetRuntimeData,
+    Reply :: IsWechatDebug | TargetRuntimeData,
 
     IsWechatDebug :: boolean(),
-    IsOn :: boolean(),
     TargetRuntimeData :: csv_to_object:csv_data(),
 
     From :: {pid(), Tag :: term()}, % generic term
-    State :: state(),
+    State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
-handle_call({is_wechat_debug}, _From, #{?R_COMMON_CONFIG := CommonConfigs} = State) ->
-    IsWechatDebug = maps:get(is_wechat_debug, CommonConfigs, ?DEFAULT_WECHAT_DEBUG_MODE),
+handle_call(is_wechat_debug, _From, #state{common_config = #common_config{is_wechat_debug = IsWechatDebug}} = State) ->
     {reply, IsWechatDebug, State};
-handle_call({set_wechat_debug, IsOn}, _From, #{?R_COMMON_CONFIG := CommonConfigs} = State) ->
-    {reply, IsOn, State#{?R_COMMON_CONFIG := CommonConfigs#{is_wechat_debug => IsOn}}};
-handle_call({get_runtime_data, Phases}, _From, #{?RUNTIME_DATAS := RuntimeDatasMap} = State) ->
+handle_call({set_wechat_debug, IsWechatDebug}, _From, #state{common_config = CommonConfigs} = State) ->
+    {reply, IsWechatDebug, State#state{common_config = CommonConfigs#common_config{is_wechat_debug = IsWechatDebug}}};
+handle_call({get_runtime_data, Phases}, _From, #state{runtime_datas = RuntimeDatasMap} = State) ->
     TargetRuntimeData = get_runtime_data(Phases, RuntimeDatasMap),
     {reply, TargetRuntimeData, State};
-handle_call(random_npc, _From, #{?RUNTIME_DATAS := #{npcs := NpcsRuntimeDataMap}} = State) ->
+handle_call(random_npc, _From, #state{runtime_datas = #{npc_born_info := NpcsRuntimeDataMap}} = State) ->
     RandomKey = cm:random_from_list(maps:keys(NpcsRuntimeDataMap)),
     #{RandomKey := RandomNpc} = NpcsRuntimeDataMap,
     {reply, RandomNpc, State}.
@@ -244,7 +249,7 @@ get_runtime_data([Phase | Tail], RuntimeDatasMap) ->
     {stop, Reason, NewState} when
 
     Request :: term(), % generic term
-    State :: state(),
+    State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
 handle_cast(_Request, State) ->
@@ -266,7 +271,7 @@ handle_cast(_Request, State) ->
     {stop, Reason, NewState} when
 
     Info :: term(), % generic term
-    State :: state(),
+    State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
 handle_info(_Info, State) ->
@@ -285,7 +290,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(Reason, State) -> ok when
     Reason :: (normal | shutdown | {shutdown, term()} | term()), % generic term
-    State :: state().
+    State :: #state{}.
 terminate(_Reason, _State) ->
     ok.
 
@@ -302,7 +307,7 @@ terminate(_Reason, _State) ->
     {error, Reason} when
 
     OldVsn :: term() | {down, term()}, % generic term
-    State :: state(),
+    State :: #state{},
     Extra :: term(), % generic term
     NewState :: State,
     Reason :: term(). % generic term
@@ -322,7 +327,7 @@ code_change(_OldVsn, State, _Extra) ->
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
     PDict :: [{Key :: term(), Value :: term()}], % generic term
-    State :: state(),
+    State :: #state{},
     Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_server:format_status(Opt, StatusData).

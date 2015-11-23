@@ -31,7 +31,7 @@
 -include("../data_type/npc_born_info.hrl").
 
 -record(state, {
-    npc_profile :: npc_fsm_manager:npc_born_info()
+    npc_profile :: #npc_born_info{}
 }).
 
 -type state_name() :: state_name.
