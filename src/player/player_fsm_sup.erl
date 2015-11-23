@@ -21,6 +21,8 @@
 %% Supervisor callbacks
 -export([init/1]).
 
+-include("../data_type/player_profile.hrl").
+
 -define(SERVER, ?MODULE).
 
 %%%===================================================================
@@ -44,7 +46,7 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 -spec add_child(PlayerProfile) -> supervisor:startchild_ret() when
-    PlayerProfile :: player_fsm:player_profile().
+    PlayerProfile :: #player_profile{}.
 add_child(PlayerProfile) ->
     supervisor:start_child(?MODULE, [PlayerProfile]).
 

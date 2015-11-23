@@ -37,14 +37,15 @@
     code_change/4,
     format_status/2]).
 
+-include("../data_type/player_profile.hrl").
+
 -import(command_dispatcher, [return_content/2]).
 
--define(STATE_NAMES, [{gender, gender_label}, {id, id_label}, {born_month, born_month_label}]).
 -define(BORN_SCENE, dream_board_nw).
 -define(ID_RULE_REGEX, "^[a-zA-Z0-9]{6,10}$").
 
--type state() :: player_fsm:player_profile().
 -type state_name() :: select_lang | input_id | input_gender | input_born_month | input_confirmation | state_name.
+-record(state, {self :: #player_profile{}, summary_content :: [nls_server:value()]}).
 
 %%%===================================================================
 %%% API
@@ -120,10 +121,10 @@ fsm_server_name(Uid) ->
     Uid :: player_fsm:uid(),
     Reason :: term(), % generic term
     StateName :: state_name(),
-    StateData :: state().
+    StateData :: #state{}.
 init(Uid) ->
     error_logger:info_msg("register fsm init~nUid:~p~n", [Uid]),
-    {ok, select_lang, #{uid => Uid}}.
+    {ok, select_lang, #state{self = #player_profile{uid = Uid}}}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -147,18 +148,18 @@ init(Uid) ->
     Request :: {Lang, DispatcherPid},
     Lang :: binary(),
     DispatcherPid :: pid(),
-    State :: state(),
+    State :: #state{},
     NextStateName :: state_name(),
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-select_lang({LangBin, DispatcherPid}, State) ->
+select_lang({LangBin, DispatcherPid}, #state{self = PlayerProfile} = State) ->
     {NextState, NewState, ContentList, Lang} =
         try
             CurLang = binary_to_atom(LangBin, utf8),
             case nls_server:is_valid_lang(CurLang) of
                 true ->
-                    {input_id, State#{lang => CurLang}, [{nls, please_input_id}], CurLang};
+                    {input_id, State#state{self = PlayerProfile#player_profile{lang = CurLang}}, [{nls, please_input_id}], CurLang};
                 _ ->
                     {select_lang, State, [{nls, select_lang}], zh}
             end
@@ -185,12 +186,12 @@ select_lang({LangBin, DispatcherPid}, State) ->
 
     RawId :: binary(),
     DispatcherPid :: pid(),
-    State :: state(),
+    State :: #state{},
     NextStateName :: state_name(),
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-input_id({RawId, DispatcherPid}, #{lang := Lang} = State) ->
+input_id({RawId, DispatcherPid}, #state{self = #player_profile{lang = Lang} = PlayerProfile} = State) ->
     % TODO: filter npc, items and prohibited names
     {MessageList, NextStateName, UpdatedState} =
         case re:run(RawId, ?ID_RULE_REGEX) of
@@ -202,7 +203,7 @@ input_id({RawId, DispatcherPid}, #{lang := Lang} = State) ->
                     true ->
                         {[{nls, id_already_exists}, <<"\n\n">>, {nls, please_input_id}], input_id, State};
                     _ ->
-                        {[{nls, please_input_gender}], input_gender, State#{id => Id}}
+                        {[{nls, please_input_gender}], input_gender, State#state{self = PlayerProfile#player_profile{id = Id}}}
                 end
         end,
     nls_server:response_content(MessageList, Lang, DispatcherPid),
@@ -224,7 +225,7 @@ input_id({RawId, DispatcherPid}, #{lang := Lang} = State) ->
 
     RawGender :: binary(),
     DispatcherPid :: pid(),
-    State :: state(),
+    State :: #state{},
     NextStateName :: state_name(),
     NextState :: State,
     NewState :: State,
@@ -233,7 +234,7 @@ input_gender({RawGender, DispatcherPid}, State) when RawGender == <<"m">> orelse
     input_gender(male, DispatcherPid, State);
 input_gender({RawGender, DispatcherPid}, State) when RawGender == <<"f">> orelse RawGender == <<"F">> ->
     input_gender(female, DispatcherPid, State);
-input_gender({Other, DispatcherPid}, #{lang := Lang} = State) ->
+input_gender({Other, DispatcherPid}, #state{self = #player_profile{lang = Lang}} = State) ->
     ErrorMessageNlsList =
         case Other of
             <<>> ->
@@ -243,9 +244,9 @@ input_gender({Other, DispatcherPid}, #{lang := Lang} = State) ->
         end,
     nls_server:response_content(ErrorMessageNlsList, Lang, DispatcherPid),
     {next_state, input_gender, State}.
-input_gender(Gender, DispatcherPid, #{lang := Lang} = State) ->
+input_gender(Gender, DispatcherPid, #state{self = #player_profile{lang = Lang} = PlayerProfile} = State) ->
     nls_server:response_content([{nls, please_input_born_month}], Lang, DispatcherPid),
-    {next_state, input_born_month, maps:put(gender, Gender, State)}.
+    {next_state, input_born_month, State#state{self = PlayerProfile#player_profile{gender = Gender}}}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -262,18 +263,18 @@ input_gender(Gender, DispatcherPid, #{lang := Lang} = State) ->
     {stop, Reason, NewState} when
     MonthBin :: binary(),
     DispatcherPid :: pid(),
-    State :: state(),
+    State :: #state{},
     NextStateName :: state_name(),
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-input_born_month({MonthBin, DispatcherPid}, #{lang := Lang} = State) ->
+input_born_month({MonthBin, DispatcherPid}, #state{self = #player_profile{lang = Lang} = PlayerProfile} = State) ->
     {NewStateName, NewState, ContentList} =
         case validate_month(MonthBin) of
             {ok, Month} ->
-                UpdatedState = maps:put(born_month, Month, State),
-                SummaryContent = gen_summary_content(?STATE_NAMES, [], UpdatedState),
-                {input_confirmation, UpdatedState#{summary_content => SummaryContent}, SummaryContent};
+                UpdatedPlayerProfile = PlayerProfile#player_profile{born_month = Month},
+                SummaryContent = gen_summary_content(UpdatedPlayerProfile),
+                {input_confirmation, State#state{self = UpdatedPlayerProfile, summary_content = SummaryContent}, SummaryContent};
             {false, MonthBin} ->
                 ErrorMessageNlsContent =
                     case MonthBin of
@@ -302,24 +303,24 @@ input_born_month({MonthBin, DispatcherPid}, #{lang := Lang} = State) ->
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
     DispatcherPid :: pid(),
-    State :: state(),
+    State :: #state{},
     Event :: binary(),
     NextStateName :: state_name(),
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-input_confirmation({Answer, DispatcherPid}, State) when Answer == <<"y">> orelse Answer == <<"Y">> ->
+input_confirmation({Answer, DispatcherPid}, #state{self = PlayerProfile} = State) when Answer == <<"y">> orelse Answer == <<"Y">> ->
     #{name_nls_key := StubNpcNameNlsKey, description_nls_key := DescriptionNlsKey, self_description_nls_key := SelfDescriptionNlsKey} = common_server:random_npc(),
 
-    State1 = State#{register_time => cm:timestamp(), scene => ?BORN_SCENE, name => {nls, StubNpcNameNlsKey}, description => {nls, DescriptionNlsKey}, self_description => {nls, SelfDescriptionNlsKey}},
-    State2 = maps:remove(summary_content, State1),
+    FinalPlayerProfile = PlayerProfile#player_profile{register_time = cm:timestamp(), scene = ?BORN_SCENE, name = {nls, StubNpcNameNlsKey}, description = {nls, DescriptionNlsKey}, self_description = {nls, SelfDescriptionNlsKey}},
+    UpdatedState = State#state{self = FinalPlayerProfile},
 
-    login_server:registration_done(State2, DispatcherPid),
-    {stop, normal, State2};
-input_confirmation({Answer, DispatcherPid}, #{lang := Lang, uid := Uid}) when Answer == <<"n">> orelse Answer == <<"N">> ->
+    login_server:registration_done(FinalPlayerProfile, DispatcherPid),
+    {stop, normal, UpdatedState};
+input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{lang = Lang, uid = Uid}}) when Answer == <<"n">> orelse Answer == <<"N">> ->
     nls_server:response_content([{nls, please_input_id}], Lang, DispatcherPid),
-    {next_state, input_id, #{uid => Uid, lang => Lang}};
-input_confirmation({Other, DispatcherPid}, #{lang := Lang, summary_content := SummaryContent} = State) ->
+    {next_state, input_id, #state{self = #player_profile{uid = Uid, lang = Lang}}};
+input_confirmation({Other, DispatcherPid}, #state{self = #player_profile{lang = Lang}, summary_content = SummaryContent} = State) ->
     ErrorMessageNlsContent
         = case Other of
               <<>> ->
@@ -347,7 +348,7 @@ input_confirmation({Other, DispatcherPid}, #{lang := Lang, summary_content := Su
     {stop, Reason, NewState} when
 
     Event :: term(), % generic term
-    State :: state(),
+    State :: #state{},
     NextStateName :: state_name(),
     NextState :: State,
     NewState :: State,
@@ -378,7 +379,7 @@ state_name(_Event, State) ->
     Reply :: ok,
 
     From :: {pid(), term()}, % generic term
-    State :: state(),
+    State :: #state{},
     NextStateName :: state_name(),
     NextState :: State,
     Reason :: normal | term(), % generic term
@@ -403,7 +404,7 @@ state_name(_Event, _From, State) ->
 
     Event :: term(), % generic term
     StateName :: state_name(),
-    StateData :: state(),
+    StateData :: #state{},
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
@@ -432,7 +433,7 @@ handle_event(_Event, StateName, State) ->
 
     From :: {pid(), Tag :: term()}, % generic term
     StateName :: state_name(),
-    StateData :: state(),
+    StateData :: #state{},
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
@@ -456,7 +457,7 @@ handle_sync_event(_Event, _From, StateName, State) ->
 
     Info :: term(), % generic term
     StateName :: state_name(),
-    StateData :: state(),
+    StateData :: #state{},
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: normal | term(). % generic term
@@ -477,7 +478,7 @@ handle_info(_Info, StateName, State) ->
 -spec terminate(Reason, StateName, StateData) -> ok when
     Reason :: normal | done | shutdown | {shutdown, term()} | term(), % generic term
     StateName :: state_name(),
-    StateData :: state().
+    StateData :: #state{}.
 terminate(_Reason, _StateName, _StateData) ->
     ok.
 
@@ -491,7 +492,7 @@ terminate(_Reason, _StateName, _StateData) ->
 -spec code_change(OldVsn, StateName, StateData, Extra) -> {ok, NextStateName, NewStateData} when
     OldVsn :: term() | {down, term()}, % generic term
     StateName :: state_name(),
-    StateData :: state(),
+    StateData :: #state{},
     Extra :: term(), % generic term
     NextStateName :: state_name(),
     NewStateData :: StateData.
@@ -511,7 +512,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
     PDict :: [{Key :: term(), Value :: term()}], % generic term
-    State :: state(),
+    State :: #state{},
     Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_fsm:format_status(Opt, StatusData).
@@ -549,18 +550,36 @@ validate_month(MonthBin) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec gen_summary_content(StateNames, AccContent, State) -> Content when
-    StateNames :: [{Key, DescNlsKey}],
-    Key :: atom(), % generic atom
-    DescNlsKey :: nls_server:key(),
+-spec gen_summary_content(PlayerProfile) -> Content when
+    PlayerProfile :: #player_profile{},
+    Content :: [nls_server:value()].
+gen_summary_content(PlayerProfile) ->
+    [_ | RecordValues] = tuple_to_list(PlayerProfile),
+    RecordFieldNames = record_info(fields, player_profile),
+    lists:reverse([{nls, is_confirmed}, <<"\n">> | gen_summary_content(RecordFieldNames, RecordValues, [])]).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Implementation for function gen_summary_content/1.
+%% @see gen_summary_content/1.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec gen_summary_content(FieldNames, Values, AccContent) -> Content when
+    FieldNames :: [atom()], % generic atom
+    Values :: [term()], % generic term
     AccContent :: [nls_server:value()],
-    State :: state(),
     Content :: AccContent.
-gen_summary_content([], AccContent, _) ->
-    [AccContent, <<"\n">>, {nls, is_confirmed}];
-gen_summary_content([{Key, DescNlsKey} | Tail], AccContent, State) ->
-    Value = gen_summary_convert_value(Key, maps:get(Key, State)),
-    gen_summary_content(Tail, [AccContent, {nls, DescNlsKey}, Value, <<"\n">>], State).
+gen_summary_content([FieldName | RestFieldNames], [Value | RestValues], AccSummary)
+    when FieldName == id;
+    FieldName == gender;
+    FieldName == born_month ->
+    UpdatedAccSummary = [<<"\n">>, gen_summary_convert_value(FieldName, Value), {nls, list_to_atom(atom_to_list(FieldName) ++ "_label")} | AccSummary],
+    gen_summary_content(RestFieldNames, RestValues, UpdatedAccSummary);
+gen_summary_content([_ | RestFieldNames], [_ | RestValues], AccSummary) ->
+    gen_summary_content(RestFieldNames, RestValues, AccSummary);
+gen_summary_content([], [], AccSummary) ->
+    AccSummary.
 
 %%--------------------------------------------------------------------
 %% @doc

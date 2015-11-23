@@ -291,7 +291,7 @@ handle_event({look_target, Uid, DispatcherPid, LookArgs}, StateName, #{?SCENE_OB
                     {match, _} ->
                         {binary_to_atom(cm:binary_join(lists:reverse(Rest), <<"_">>), utf8), binary_to_integer(RawSequence)};
                     _ ->
-                        {binary_to_atom(re:replace(LookArgs, <<" ">>, <<"_">>, [global, {return, list}]), utf8), 1}
+                        {binary_to_atom(re:replace(LookArgs, <<" ">>, <<"_">>, [global, {return, binary}]), utf8), 1}
                 end
         end,
     TargetSceneObject = grab_target_scene_objects(SceneObjectList, Target, Sequence),

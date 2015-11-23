@@ -41,6 +41,8 @@
     code_change/3,
     format_status/2]).
 
+-include("../data_type/player_profile.hrl").
+
 -define(SERVER, ?MODULE).
 
 -type uid_set() :: gb_sets:iter(player_fsm:uid()).
@@ -114,7 +116,7 @@ register_uid(DispatcherPid, Uid) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec registration_done(PlayerProfile, DispatcherPid) -> ok when
-    PlayerProfile :: player_fsm:player_profile(),
+    PlayerProfile :: #player_profile{},
     DispatcherPid :: pid().
 registration_done(PlayerProfile, DispatcherPid) ->
     gen_server:cast(?MODULE, {registration_done, PlayerProfile, DispatcherPid}).
@@ -279,19 +281,24 @@ handle_call({is_uid_logged_in, Uid}, _From, #{?LOGGED_IN_UIDS_SET := LoggedUidsS
     Request :: {registration_done, PlayerProfile, DispatcherPid} | {register_uid, DispatcherPid, Uid} | {login, DispatcherPid, Uid},
     DispatcherPid :: pid(),
     Uid :: player_fsm:uid(),
-    PlayerProfile :: player_fsm:player_profile(),
+    PlayerProfile :: #player_profile{},
     State :: state(),
     NewState :: State,
     Reason :: term(). % generic term
-handle_cast({registration_done, #{uid := Uid, id := Id, born_month := BornMonth} = PlayerProfile, DispatcherPid}, #{?REGISTERING_UIDS_SET := RegisteringUidsSet, ?R_REGISTERED_UIDS_SET := RegisteredUidsSet, ?R_REGISTERED_IDS_SET := RegisteredIdsSet, ?BORN_TYPES := BornTypesMap} = State) ->
+handle_cast({registration_done, #player_profile{uid = Uid, id = Id, born_month = BornMonth} = PlayerProfile, DispatcherPid}, #{?REGISTERING_UIDS_SET := RegisteringUidsSet, ?R_REGISTERED_UIDS_SET := RegisteredUidsSet, ?R_REGISTERED_IDS_SET := RegisteredIdsSet, ?BORN_TYPES := BornTypesMap} = State) ->
     UpdatedRegisteredUidsSet = gb_sets:add(Uid, RegisteredUidsSet),
     redis_client_server:async_set(?R_REGISTERED_UIDS_SET, UpdatedRegisteredUidsSet, false),
 
-    UpdatedRegisteredIdsSet = gb_sets:add(Id, RegisteredIdsSet),
+    UpdatedRegisteredIdsSet = gb_sets:add(Id, case redis_client_server:get(Uid) of
+                                                  #player_profile{id = ExistingId} ->
+                                                      gb_sets:delete(ExistingId, RegisteredIdsSet);
+                                                  _ ->
+                                                      RegisteredIdsSet
+                                              end),
     redis_client_server:async_set(?R_REGISTERED_IDS_SET, UpdatedRegisteredIdsSet, false),
 
     BornType = maps:get(BornMonth, BornTypesMap),
-    redis_client_server:set(Uid, PlayerProfile#{born_type => BornType}, true),
+    redis_client_server:set(Uid, PlayerProfile#player_profile{born_type = BornType}, true),
 
     UpdatedState = State#{
         ?R_REGISTERED_UIDS_SET := UpdatedRegisteredUidsSet,
@@ -317,7 +324,7 @@ handle_cast({login, DispatcherPid, Uid}, #{?LOGGED_IN_UIDS_SET := LoggedInUidsSe
     UpdatedLoggedInUidsSet =
         case gb_sets:is_element(Uid, LoggedInUidsSet) of
             false ->
-                #{scene := CurSceneName, name := PlayerName, id := Id} = PlayerProfile = redis_client_server:get(Uid),
+                #player_profile{scene = CurSceneName, name = PlayerName, id = Id} = PlayerProfile = redis_client_server:get(Uid),
                 player_fsm_sup:add_child(PlayerProfile),
                 scene_fsm:enter(CurSceneName, Uid, PlayerName, Id, DispatcherPid),
                 gb_sets:add(Uid, LoggedInUidsSet);

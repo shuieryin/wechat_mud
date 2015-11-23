@@ -38,6 +38,8 @@
     code_change/4,
     format_status/2]).
 
+-include("../data_type/player_profile.hrl").
+
 -define(SERVER, ?MODULE).
 
 -type uid() :: atom().
@@ -48,10 +50,11 @@
 -type simple_player() :: {player, uid(), name(), id()}.
 -type mail_object() :: [nls_server:nls_object()].
 
--type mailbox() ::
-#{battle => [mail_object()],
-scene => [mail_object()],
-other => [mail_object()]}.
+-record(mailbox, {
+    battle :: [mail_object()],
+    scene :: [mail_object()],
+    other :: [mail_object()]
+}).
 
 -type born_type_info() ::
 #{born_type => born_month(),
@@ -60,31 +63,21 @@ defence => integer(),
 hp => integer(),
 dexterity => integer()}.
 
--type avatar_profile() ::
-#{name => name(),
-description => [nls_server:nls_object()]}.
+-record(state, {
+    self :: #player_profile{},
+    mail_box :: #mailbox{},
+    lang_map :: nls_server:lang_map()
+}).
 
--type player_profile() ::
-#{uid => uid(),
-id => id(),
-name => name(),
-description => nls_server:nls_object(),
-self_description => nls_server:nls_object(),
-born_month => born_month(),
-born_type => born_type_info(),
-gender => gender(),
-lang => nls_server:support_lang(),
-register_time => pos_integer(),
-scene => scene_fsm:scene_name(),
-avatar_profile => avatar_profile() | undefined}.
-
--type state() :: #{self => player_profile(), mail_box => mailbox(), lang_map => nls_server:lang_map()}.
 -type state_name() :: state_name | non_battle.
 
 -export_type([born_type_info/0,
-    player_profile/0,
     simple_player/0,
-    born_month/0]).
+    born_month/0,
+    uid/0,
+    gender/0,
+    id/0,
+    name/0]).
 
 %%%===================================================================
 %%% API
@@ -101,8 +94,8 @@ avatar_profile => avatar_profile() | undefined}.
 %% @end
 %%--------------------------------------------------------------------
 -spec start_link(PlayerProfile) -> gen:start_ret() when
-    PlayerProfile :: player_profile().
-start_link(#{uid := Uid} = PlayerProfile) ->
+    PlayerProfile :: #player_profile{}.
+start_link(#player_profile{uid = Uid} = PlayerProfile) ->
     gen_fsm:start_link({local, Uid}, ?MODULE, PlayerProfile, []).
 
 %%--------------------------------------------------------------------
@@ -251,14 +244,14 @@ logout(Uid) ->
     {stop, Reason} |
     ignore when
 
-    PlayerProfile :: player_profile(),
+    PlayerProfile :: #player_profile{},
     StateName :: state_name(),
-    StateData :: state(),
+    StateData :: #state{},
     Reason :: term(). % generic term
-init(#{lang := Lang} = PlayerProfile) ->
+init(#player_profile{lang = Lang} = PlayerProfile) ->
     LangMap = nls_server:get_lang_map(Lang),
     error_logger:info_msg("Player fsm initialized:~p~n", [PlayerProfile]),
-    {ok, non_battle, #{self => PlayerProfile, lang_map => LangMap}}.
+    {ok, non_battle, #state{self = PlayerProfile, lang_map = LangMap}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -277,7 +270,7 @@ init(#{lang := Lang} = PlayerProfile) ->
     {stop, Reason, NewState} when
 
     Event :: term(), % generic term
-    State :: state(),
+    State :: #state{},
     NextStateName :: state_name(),
     NextState :: State,
     NewState :: State,
@@ -308,7 +301,7 @@ state_name(_Event, State) ->
     Reply :: ok,
 
     From :: {pid(), term()}, % generic term
-    State :: state(),
+    State :: #state{},
     NextStateName :: state_name(),
     NextState :: State,
     Reason :: normal | term(), % generic term
@@ -348,40 +341,41 @@ state_name(_Event, _From, State) ->
     TargetLang :: nls_server:support_lang(),
 
     StateName :: state_name(),
-    StateData :: state(),
+    StateData :: #state{},
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_event({go_direction, DispatcherPid, Direction}, StateName, #{self := #{scene := CurSceneName, uid := Uid, name := PlayerName, id := Id} = PlayerProfile} = State) ->
+handle_event({go_direction, DispatcherPid, Direction}, StateName, #state{self = #player_profile{scene = CurSceneName, uid = Uid, name = PlayerName, id = Id} = PlayerProfile, lang_map = LangMap} = State) ->
     TargetSceneName =
         case scene_fsm:go_direction(CurSceneName, Uid, Direction) of
             undefined ->
+                do_response_content(LangMap, [{nls, invalid_exit}], DispatcherPid),
                 CurSceneName;
             NewSceneName ->
                 scene_fsm:enter(NewSceneName, Uid, PlayerName, Id, DispatcherPid),
                 NewSceneName
         end,
 
-    {next_state, StateName, State#{self := PlayerProfile#{scene := TargetSceneName}}};
-handle_event({look_scene, DispatcherPid}, StateName, #{self := #{scene := CurSceneName, uid := Uid}} = State) ->
+    {next_state, StateName, State#state{self = PlayerProfile#player_profile{scene = TargetSceneName}}};
+handle_event({look_scene, DispatcherPid}, StateName, #state{self = #player_profile{scene = CurSceneName, uid = Uid}} = State) ->
     scene_fsm:look_scene(CurSceneName, Uid, DispatcherPid),
     {next_state, StateName, State};
-handle_event({look_target, DispatcherPid, LookArgs}, StateName, #{self := #{scene := CurSceneName, uid := Uid}} = State) ->
+handle_event({look_target, DispatcherPid, LookArgs}, StateName, #state{self = #player_profile{scene = CurSceneName, uid = Uid}} = State) ->
     scene_fsm:look_target(CurSceneName, Uid, DispatcherPid, LookArgs),
     {next_state, StateName, State};
-handle_event({response_content, NlsObjectList, DispatcherPid}, StateName, #{lang_map := LangMap} = State) ->
+handle_event({response_content, NlsObjectList, DispatcherPid}, StateName, #state{lang_map = LangMap} = State) ->
     do_response_content(LangMap, NlsObjectList, DispatcherPid),
     {next_state, StateName, State};
-handle_event(leave_scene, StateName, #{self := #{scene := CurSceneName, uid := Uid}} = State) ->
+handle_event(leave_scene, StateName, #state{self = #player_profile{scene = CurSceneName, uid = Uid}} = State) ->
     scene_fsm:leave(CurSceneName, Uid),
     {next_state, StateName, State};
-handle_event({switch_lang, DispatcherPid, TargetLang}, StateName, #{self := #{uid := Uid} = PlayerProfile} = State) ->
+handle_event({switch_lang, DispatcherPid, TargetLang}, StateName, #state{self = #player_profile{uid = Uid} = PlayerProfile} = State) ->
     TargetLangMap = nls_server:get_lang_map(TargetLang),
     do_response_content(TargetLangMap, [{nls, lang_switched}], DispatcherPid),
-    UpdatedPlayerProfile = PlayerProfile#{lang := TargetLang},
+    UpdatedPlayerProfile = PlayerProfile#player_profile{lang = TargetLang},
     redis_client_server:async_set(Uid, UpdatedPlayerProfile, true),
-    {next_state, StateName, State#{self := UpdatedPlayerProfile, lang_map := TargetLangMap}};
-handle_event(logout, _StateName, #{self := #{scene := CurSceneName, uid := Uid} = PlayerProfile} = State) ->
+    {next_state, StateName, State#state{self = UpdatedPlayerProfile, lang_map = TargetLangMap}};
+handle_event(logout, _StateName, #state{self = #player_profile{scene = CurSceneName, uid = Uid} = PlayerProfile} = State) ->
     scene_fsm:leave(CurSceneName, Uid),
     error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
     redis_client_server:set(Uid, PlayerProfile, true),
@@ -412,13 +406,13 @@ handle_event(logout, _StateName, #{self := #{scene := CurSceneName, uid := Uid} 
 
     From :: {pid(), Tag :: term()}, % generic term
     StateName :: state_name(),
-    StateData :: state(),
+    StateData :: #state{},
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_sync_event(get_lang, _From, StateName, #{self := #{lang := Lang}} = State) ->
+handle_sync_event(get_lang, _From, StateName, #state{self = #player_profile{lang = Lang}} = State) ->
     {reply, Lang, StateName, State};
-handle_sync_event({being_looked, SrcUid}, _From, StateName, #{self := #{uid := Uid, description := Description, self_description := SelfDescription}} = State) ->
+handle_sync_event({being_looked, SrcUid}, _From, StateName, #state{self = #player_profile{uid = Uid, description = Description, self_description = SelfDescription}} = State) ->
     ContentList = if
                       SrcUid == Uid ->
                           [SelfDescription, <<"\n">>];
@@ -443,7 +437,7 @@ handle_sync_event({being_looked, SrcUid}, _From, StateName, #{self := #{uid := U
 
     Info :: term(), % generic term
     StateName :: state_name(),
-    StateData :: state(),
+    StateData :: #state{},
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: normal | term(). % generic term
@@ -464,7 +458,7 @@ handle_info(_Info, StateName, State) ->
 -spec terminate(Reason, StateName, StateData) -> ok when
     Reason :: normal | shutdown | {shutdown, term()} | term(), % generic term
     StateName :: state_name(),
-    StateData :: state().
+    StateData :: #state{}.
 terminate(_Reason, _StateName, _StateData) ->
     ok.
 
@@ -478,7 +472,7 @@ terminate(_Reason, _StateName, _StateData) ->
 -spec code_change(OldVsn, StateName, StateData, Extra) -> {ok, NextStateName, NewStateData} when
     OldVsn :: term() | {down, term()}, % generic term
     StateName :: state_name(),
-    StateData :: state(),
+    StateData :: #state{},
     Extra :: term(), % generic term
     NextStateName :: StateName,
     NewStateData :: StateData.
@@ -498,7 +492,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
     PDict :: [{Key :: term(), Value :: term()}], % generic term
-    State :: state(),
+    State :: #state{},
     Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_fsm:format_status(Opt, StatusData).
