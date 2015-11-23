@@ -9,16 +9,16 @@
 
 %% gen_server callbacks
 -export([init/1,
-         handle_call/3,
-         handle_cast/2,
-         handle_info/2,
-         terminate/2,
-         code_change/3,
-         format_status/2]).
+    handle_call/3,
+    handle_cast/2,
+    handle_info/2,
+    terminate/2,
+    code_change/3,
+    format_status/2]).
 
 -define(SERVER, ?MODULE).
 
--type state() :: map().
+-record(state, {}).
 
 %%%===================================================================
 %%% API
@@ -56,7 +56,7 @@ start_link() ->
     ignore when
 
     Args :: term(),
-    State :: state(),
+    State :: #state{},
     Reason :: term(). % generic term
 init([]) ->
     {ok, #{}}.
@@ -78,9 +78,9 @@ init([]) ->
 
     Request :: term(),  % generic term
     Reply :: ok,
-    
+
     From :: {pid(), Tag :: term()}, % generic term
-    State :: state(),
+    State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
 handle_call(_Request, _From, State) ->
@@ -99,7 +99,7 @@ handle_call(_Request, _From, State) ->
     {stop, Reason, NewState} when
 
     Request :: term(), % generic term
-    State :: state(),
+    State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
 handle_cast(_Request, State) ->
@@ -121,7 +121,7 @@ handle_cast(_Request, State) ->
     {stop, Reason, NewState} when
 
     Info :: term(), % generic term
-    State :: state(),
+    State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
 handle_info(_Info, State) ->
@@ -140,7 +140,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(Reason, State) -> ok when
     Reason :: (normal | shutdown | {shutdown, term()} | term()), % generic term
-    State :: state().
+    State :: #state{}.
 terminate(_Reason, _State) ->
     ok.
 
@@ -157,7 +157,7 @@ terminate(_Reason, _State) ->
     {error, Reason} when
 
     OldVsn :: term() | {down, term()}, % generic term
-    State :: state(),
+    State :: #state{},
     Extra :: term(), % generic term
     NewState :: State,
     Reason :: term(). % generic term
@@ -177,7 +177,7 @@ code_change(_OldVsn, State, _Extra) ->
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
     PDict :: [{Key :: term(), Value :: term()}], % generic term
-    State :: state(),
+    State :: #state{},
     Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_server:format_status(Opt, StatusData).
