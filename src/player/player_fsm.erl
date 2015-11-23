@@ -38,8 +38,6 @@
     code_change/4,
     format_status/2]).
 
--include("../data_type/player_profile.hrl").
-
 -define(SERVER, ?MODULE).
 
 -type uid() :: atom().
@@ -50,18 +48,13 @@
 -type simple_player() :: {player, uid(), name(), id()}.
 -type mail_object() :: [nls_server:nls_object()].
 
+-include("../data_type/player_profile.hrl").
+
 -record(mailbox, {
     battle :: [mail_object()],
     scene :: [mail_object()],
     other :: [mail_object()]
 }).
-
--type born_type_info() ::
-#{born_type => born_month(),
-attack => integer(),
-defence => integer(),
-hp => integer(),
-dexterity => integer()}.
 
 -record(state, {
     self :: #player_profile{},
@@ -71,8 +64,7 @@ dexterity => integer()}.
 
 -type state_name() :: state_name | non_battle.
 
--export_type([born_type_info/0,
-    simple_player/0,
+-export_type([simple_player/0,
     born_month/0,
     uid/0,
     gender/0,

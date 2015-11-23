@@ -13,6 +13,14 @@
     description :: [nls_server:nls_object()]
 }).
 
+-record(born_type_info, {
+    born_type :: player_fsm:born_month(),
+    attack :: integer(),
+    defence :: integer(),
+    hp :: integer(),
+    dexterity :: integer()
+}).
+
 -record(player_profile, {
     uid :: player_fsm:uid(),
     id :: player_fsm:id(),
@@ -20,7 +28,7 @@
     description :: nls_server:nls_object(),
     self_description :: nls_server:nls_object(),
     born_month :: player_fsm:born_month(),
-    born_type :: player_fsm:born_type_info(),
+    born_type :: #born_type_info{},
     gender :: player_fsm:gender(),
     lang :: nls_server:support_lang(),
     register_time :: pos_integer(),

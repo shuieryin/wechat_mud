@@ -37,19 +37,23 @@
     code_change/4,
     format_status/2]).
 
--define(SCENE_INFO, scene_info).
--define(SCENE_OBJECT_LIST, scene_object_list).
+-include("../data_type/scene_info.hrl").
 
 -type scene_object() :: player_fsm:simple_player() | npc_fsm_manager:simple_npc_fsm().
 -type scene_character_name() :: npc_fsm_manager:npc_type() | player_fsm:uid().
 -type scene_name() :: atom(). % generic atom
 -type exit() :: north | east | south | west | northeast | southeast | southwest | northwest.
 -type exits_map() :: #{exit() => nls_server:key()}.
--type scene_info() :: #{id => scene_name(), exits => exits_map(), title => nls_server:key(), desc => nls_server:key(), npcs => [npc_fsm_manager:npc_spec()]}.
--type state() :: #{?SCENE_INFO => scene_info(), ?SCENE_OBJECT_LIST => [scene_object()]}.
+
+-record(state, {
+    scene_info :: #scene_info{},
+    scene_object_list :: [scene_object()]
+}).
+
 -type state_name() :: state_name.
 
--export_type([scene_name/0]).
+-export_type([scene_name/0,
+    exits_map/0]).
 
 %%%===================================================================
 %%% API
@@ -65,10 +69,9 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link(Request) -> gen:start_ret() when
-    Request :: SceneInfo,
-    SceneInfo :: scene_info().
-start_link(#{id := SceneName} = SceneInfo) ->
+-spec start_link(SceneInfo) -> gen:start_ret() when
+    SceneInfo :: #scene_info{}.
+start_link(#scene_info{id = SceneName} = SceneInfo) ->
     gen_fsm:start_link({local, SceneName}, ?MODULE, SceneInfo, []).
 
 %%--------------------------------------------------------------------
@@ -170,16 +173,15 @@ look_target(CurSceneName, Uid, DispatcherPid, LookArgs) ->
     {stop, Reason} |
     ignore when
 
-    SceneInfo :: scene_info(),
+    SceneInfo :: #scene_info{},
     StateName :: state_name(),
-    StateData :: state(),
+    StateData :: #state{},
     Reason :: term(). % generic term
-init(#{id := SceneName, npcs := NpcsSpec} = SceneInfo) ->
+init(#scene_info{id = SceneName, npcs = NpcsSpec} = SceneInfo) ->
     io:format("scene server ~p starting...", [SceneName]),
 
-%%    NlsMap = load_nls_file(string:tokens(NlsFileNames, ","), #{}),
     SceneNpcFsmList = npc_fsm_manager:new_npcs(NpcsSpec),
-    State = #{?SCENE_INFO => SceneInfo, ?SCENE_OBJECT_LIST => SceneNpcFsmList},
+    State = #state{scene_info = SceneInfo, scene_object_list = SceneNpcFsmList},
 
     io:format("started~n"),
     {ok, state_name, State}.
@@ -201,7 +203,7 @@ init(#{id := SceneName, npcs := NpcsSpec} = SceneInfo) ->
     {stop, Reason, NewState} when
 
     Event :: term(), % generic term
-    State :: state(),
+    State :: #state{},
     NextStateName :: state_name(),
     NextState :: State,
     NewState :: State,
@@ -232,7 +234,7 @@ state_name(_Event, State) ->
     Reply :: ok,
 
     From :: {pid(), term()}, % generic term
-    State :: state(),
+    State :: #state{},
     NextStateName :: state_name(),
     NextState :: State,
     Reason :: normal | term(), % generic term
@@ -268,19 +270,19 @@ state_name(_Event, _From, State) ->
     LookArgs :: binary(),
 
     StateName :: state_name(),
-    StateData :: state(),
+    StateData :: #state{},
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_event({enter, Uid, PlayerName, Id, DispatcherPid}, StateName, #{?SCENE_OBJECT_LIST := SceneObjectList} = State) ->
+handle_event({enter, Uid, PlayerName, Id, DispatcherPid}, StateName, #state{scene_object_list = SceneObjectList} = State) ->
     ok = show_scene(State, Uid, DispatcherPid),
-    {next_state, StateName, State#{?SCENE_OBJECT_LIST := [{player, Uid, PlayerName, Id} | SceneObjectList]}};
+    {next_state, StateName, State#state{scene_object_list = [{player, Uid, PlayerName, Id} | SceneObjectList]}};
 handle_event({leave, Uid}, StateName, State) ->
     {next_state, StateName, remove_scene_object(Uid, State)};
 handle_event({look_scene, Uid, DispatcherPid}, StateName, State) ->
     ok = show_scene(State, Uid, DispatcherPid),
     {next_state, StateName, State};
-handle_event({look_target, Uid, DispatcherPid, LookArgs}, StateName, #{?SCENE_OBJECT_LIST := SceneObjectList} = State) ->
+handle_event({look_target, Uid, DispatcherPid, LookArgs}, StateName, #state{scene_object_list = SceneObjectList} = State) ->
     [RawSequence | Rest] = lists:reverse(re:split(LookArgs, <<" ">>)),
     {Target, Sequence} =
         case Rest of
@@ -353,10 +355,10 @@ grab_target_scene_objects([], _, _, _) ->
 %%--------------------------------------------------------------------
 -spec remove_scene_object(SceneObjectKey, State) -> UpdatedState when
     SceneObjectKey :: npc_fsm_manager:npc_fsm_id() | player_fsm:uid(),
-    State :: state(),
+    State :: #state{},
     UpdatedState :: State.
-remove_scene_object(SceneObjectKey, #{?SCENE_OBJECT_LIST := SceneObjectList} = State) ->
-    State#{?SCENE_OBJECT_LIST := lists:keydelete(SceneObjectKey, 2, SceneObjectList)}.
+remove_scene_object(SceneObjectKey, #state{scene_object_list = SceneObjectList} = State) ->
+    State#state{scene_object_list = lists:keydelete(SceneObjectKey, 2, SceneObjectList)}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -384,11 +386,11 @@ remove_scene_object(SceneObjectKey, #{?SCENE_OBJECT_LIST := SceneObjectList} = S
 
     From :: {pid(), Tag :: term()}, % generic term
     StateName :: state_name(),
-    StateData :: state(),
+    StateData :: #state{},
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_sync_event({go_direction, Uid, TargetDirection}, _From, StateName, #{?SCENE_INFO := #{exits := ExitsMap}} = State) ->
+handle_sync_event({go_direction, Uid, TargetDirection}, _From, StateName, #state{scene_info = #scene_info{exits = ExitsMap}} = State) ->
     {TargetSceneName, UpdatedState} =
         case maps:get(TargetDirection, ExitsMap, undefined) of
             undefined ->
@@ -415,7 +417,7 @@ handle_sync_event({go_direction, Uid, TargetDirection}, _From, StateName, #{?SCE
 
     Info :: term(), % generic term
     StateName :: state_name(),
-    StateData :: state(),
+    StateData :: #state{},
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: normal | term(). % generic term
@@ -435,7 +437,7 @@ handle_info(_Info, StateName, State) ->
 -spec terminate(Reason, StateName, StateData) -> ok when
     Reason :: normal | shutdown | {shutdown, term()} | term(), % generic term
     StateName :: state_name(),
-    StateData :: state().
+    StateData :: #state{}.
 terminate(_Reason, _StateName, _State) ->
     ok.
 
@@ -449,7 +451,7 @@ terminate(_Reason, _StateName, _State) ->
 -spec code_change(OldVsn, StateName, StateData, Extra) -> {ok, NextStateName, NewStateData} when
     OldVsn :: term() | {down, term()}, % generic term
     StateName :: state_name(),
-    StateData :: state(),
+    StateData :: #state{},
     Extra :: term(), % generic term
     NextStateName :: state_name(),
     NewStateData :: StateData.
@@ -469,7 +471,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
     PDict :: [{Key :: term(), Value :: term()}], % generic term
-    State :: state(),
+    State :: #state{},
     Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_fsm:format_status(Opt, StatusData).
@@ -543,9 +545,9 @@ gen_character_name([{player, _, PlayerName, Id} | Tail], CallerUid, AccSceneObje
 %%--------------------------------------------------------------------
 -spec show_scene(State, Uid, DispatcherPid) -> ok when
     DispatcherPid :: pid(),
-    State :: state(),
+    State :: #state{},
     Uid :: player_fsm:uid().
-show_scene(#{?SCENE_INFO := #{exits := ExitsMap, title := SceneTitle, desc := SceneDesc}, ?SCENE_OBJECT_LIST :=  SceneObjectList}, Uid, DispatcherPid) ->
+show_scene(#state{scene_info = #scene_info{exits = ExitsMap, title = SceneTitle, desc = SceneDesc}, scene_object_list = SceneObjectList}, Uid, DispatcherPid) ->
     ContentList = lists:flatten([
         {nls, SceneTitle},
         <<"\n\n">>,

@@ -23,6 +23,8 @@
 
 -define(SERVER, ?MODULE).
 
+-include("../data_type/npc_born_info.hrl").
+
 %%%===================================================================
 %%% API functions
 %%%===================================================================
@@ -44,7 +46,7 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 -spec add_child(NpcProfile) -> supervisor:startchild_ret() when
-    NpcProfile :: npc_fsm_manager:npc_born_info().
+    NpcProfile :: #npc_born_info{}.
 add_child(NpcProfile) ->
     supervisor:start_child(?MODULE, [NpcProfile]).
 

@@ -37,14 +37,15 @@
     code_change/4,
     format_status/2]).
 
--include("../data_type/player_profile.hrl").
-
 -import(command_dispatcher, [return_content/2]).
 
 -define(BORN_SCENE, dream_board_nw).
 -define(ID_RULE_REGEX, "^[a-zA-Z0-9]{6,10}$").
 
 -type state_name() :: select_lang | input_id | input_gender | input_born_month | input_confirmation | state_name.
+
+-include("../data_type/player_profile.hrl").
+
 -record(state, {self :: #player_profile{}, summary_content :: [nls_server:value()]}).
 
 %%%===================================================================

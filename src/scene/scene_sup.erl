@@ -21,6 +21,8 @@
 %% Supervisor callbacks
 -export([init/1]).
 
+-include("../data_type/scene_info.hrl").
+
 -define(SERVER, ?MODULE).
 
 %% Nls files root path
@@ -29,7 +31,7 @@
 %% Unique scene file extension
 -define(FILE_EXTENSION, ".csv").
 
--type scene_child() :: {scene_fsm:scene_name(), {scene_fsm, start_link, [scene_fsm:scene_info()]}, supervisor:restart(), supervisor:shutdown(), supervisor:worker(), [scene_fsm]}.
+-type scene_child() :: {scene_fsm:scene_name(), {scene_fsm, start_link, [#scene_info{}]}, supervisor:restart(), supervisor:shutdown(), supervisor:worker(), [scene_fsm]}.
 
 %%%===================================================================
 %%% API functions
@@ -90,9 +92,10 @@ gen_scene_child_list() ->
     Shutdown = 2000,
     Type = worker,
 
-    ChildFun = fun(SceneValuesMap) ->
-        populate_scene_child(SceneValuesMap, Restart, Shutdown, Type)
-    end,
+    ChildFun =
+        fun(SceneValues) ->
+            populate_scene_child(SceneValues, Restart, Shutdown, Type)
+        end,
 
     ScenesMap = csv_to_object:traverse_merge_files(?SCENE_NLS_PATH, ChildFun),
     maps:values(ScenesMap).
@@ -103,11 +106,18 @@ gen_scene_child_list() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec populate_scene_child(SceneInfo, Restart, Shutdown, Type) -> SceneChild when
-    SceneInfo :: scene_fsm:scene_info(),
+-spec populate_scene_child(SceneValues, Restart, Shutdown, Type) -> SceneChild when
+    SceneValues :: [csv_to_object:value()],
     Restart :: supervisor:restart(),
     Shutdown :: supervisor:shutdown(),
     Type :: supervisor:worker(),
     SceneChild :: scene_child().
-populate_scene_child(#{id := Id} = SceneInfo, Restart, Shutdown, Type) ->
-    {Id, {scene_fsm, start_link, [SceneInfo]}, Restart, Shutdown, Type, [scene_fsm]}.
+populate_scene_child([_CityName | SceneValues], Restart, Shutdown, Type) ->
+    [Verify | _] = SceneValues,
+    case Verify of
+        undefined ->
+            undefined;
+        _ ->
+            #scene_info{id = Id} = SceneInfo = list_to_tuple([scene_info | SceneValues]),
+            {Id, {scene_fsm, start_link, [SceneInfo]}, Restart, Shutdown, Type, [scene_fsm]}
+    end.

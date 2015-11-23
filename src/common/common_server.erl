@@ -104,9 +104,9 @@ turn_off_wechat_debug() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_runtime_data(Phases) -> RuntimeDataMap when
+-spec get_runtime_data(Phases) -> RuntimeData when
     Phases :: [csv_to_object:key()],
-    RuntimeDataMap :: csv_to_object:csv_data().
+    RuntimeData :: csv_to_object:csv_data() | csv_to_object:csv_row_data().
 get_runtime_data(Phases) ->
     gen_server:call(?MODULE, {get_runtime_data, Phases}).
 

@@ -28,20 +28,22 @@
     format_status/2]).
 
 -define(SERVER, ?MODULE).
--define(NPC_FSMS_MAP, nps_fsms_map).
 
 -type npc_fsm_id() :: atom(). % generic atom
 -type npc_type() :: dog | little_boy.
 -type npc_amount() :: pos_integer(). % generic integer
 -type npc_spec() :: {npc_type(), npc_amount()}.
--type npc_born_info() :: #{npc_id => atom(), name_nls_key => atom(), description_nls_key => atom(), self_description_nls_key => atom(), attack => integer(), defence => integer(), hp => integer(), dexterity => integer()}.
 -type npc_fsm() :: #{npc_fsm_id() => npc_fsm_id()}.
 -type simple_npc_fsm() :: {npc, npc_fsm_manager:npc_fsm_id(), npc_fsm_manager:npc_type(), nls_server:key()}.
--type state() :: #{?NPC_FSMS_MAP => npc_fsm()}.
+
+-include("../data_type/npc_born_info.hrl").
+
+-record(state, {
+    npc_fsms_map :: npc_fsm()
+}).
 
 -export_type([npc_type/0,
     npc_spec/0,
-    npc_born_info/0,
     simple_npc_fsm/0]).
 
 %%%===================================================================
@@ -65,9 +67,9 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 -spec new_npcs(NpcsSpec) -> SceneNpcFsmList when
-    NpcsSpec :: [npc_spec()],
+    NpcsSpec :: [npc_spec()] | undefined,
     SceneNpcFsmList :: [simple_npc_fsm()].
-new_npcs([]) ->
+new_npcs(undefined) ->
     [];
 new_npcs(NpcsSpec) ->
     {SceneNpcFsmList, NpcFsmMap} = traverse_npcspec(NpcsSpec),
@@ -95,10 +97,10 @@ new_npcs(NpcsSpec) ->
     {stop, Reason} |
     ignore when
 
-    State :: state(),
+    State :: #state{},
     Reason :: term(). % generic term
 init([]) ->
-    {ok, #{?NPC_FSMS_MAP => #{}}}.
+    {ok, #state{npc_fsms_map = #{}}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -119,7 +121,7 @@ init([]) ->
     Reply :: ok,
 
     From :: {pid(), Tag :: term()}, % generic term
-    State :: state(),
+    State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
 handle_call(_Request, _From, State) ->
@@ -139,12 +141,12 @@ handle_call(_Request, _From, State) ->
 
     Request :: {new_npcs, NewNpcFsmsMap},
     NewNpcFsmsMap :: npc_fsm(),
-    State :: state(),
+    State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
-handle_cast({new_npcs, NewNpcFsmsMap}, #{?NPC_FSMS_MAP := NpcFsmsMap} = State) ->
+handle_cast({new_npcs, NewNpcFsmsMap}, #state{npc_fsms_map = NpcFsmsMap} = State) ->
     UpdatedNpcFsmsMap = maps:merge(NpcFsmsMap, NewNpcFsmsMap),
-    {noreply, State#{?NPC_FSMS_MAP := UpdatedNpcFsmsMap}}.
+    {noreply, State#state{npc_fsms_map = UpdatedNpcFsmsMap}}.
 
 
 %%--------------------------------------------------------------------
@@ -163,7 +165,7 @@ handle_cast({new_npcs, NewNpcFsmsMap}, #{?NPC_FSMS_MAP := NpcFsmsMap} = State) -
     {stop, Reason, NewState} when
 
     Info :: term(), % generic term
-    State :: state(),
+    State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
 handle_info(_Info, State) ->
@@ -182,7 +184,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(Reason, State) -> ok when
     Reason :: (normal | shutdown | {shutdown, term()} | term()), % generic term
-    State :: state().
+    State :: #state{}.
 terminate(_Reason, _State) ->
     ok.
 
@@ -199,7 +201,7 @@ terminate(_Reason, _State) ->
     {error, Reason} when
 
     OldVsn :: term() | {down, term()}, % generic term
-    State :: state(),
+    State :: #state{},
     Extra :: term(), % generic term
     NewState :: State,
     Reason :: term(). % generic term
@@ -219,7 +221,7 @@ code_change(_OldVsn, State, _Extra) ->
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
     PDict :: [{Key :: term(), Value :: term()}], % generic term
-    State :: state(),
+    State :: #state{},
     Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_server:format_status(Opt, StatusData).
@@ -240,6 +242,7 @@ format_status(Opt, StatusData) ->
     SceneNpcFsmList :: [simple_npc_fsm()],
     NpcFsmMap :: #{npc_fsm_id() => npc_fsm_id()}.
 traverse_npcspec(NpcsSpec) ->
+    io:format("NpcsSpec:~p~n", [NpcsSpec]),
     traverse_npcspec(NpcsSpec, [], #{}).
 
 %%--------------------------------------------------------------------
@@ -258,7 +261,7 @@ traverse_npcspec(NpcsSpec) ->
 traverse_npcspec([], AccNpcFsmList, AccNpcFsmMap) ->
     {AccNpcFsmList, AccNpcFsmMap};
 traverse_npcspec([{NpcType, Amount} | Tail], AccNpcFsmList, AccNpcFsmMap) ->
-    NpcBornProfile = common_server:get_runtime_data([npcs, NpcType]),
+    NpcBornProfile = common_server:get_runtime_data([npc_born_info, NpcType]),
     {UpdatedAccNpcFsmList, UpdatedAccNpcFsmMap} = new_npc(Amount, NpcBornProfile, AccNpcFsmList, AccNpcFsmMap),
     traverse_npcspec(Tail, UpdatedAccNpcFsmList, UpdatedAccNpcFsmMap).
 
@@ -270,15 +273,15 @@ traverse_npcspec([{NpcType, Amount} | Tail], AccNpcFsmList, AccNpcFsmMap) ->
 %%--------------------------------------------------------------------
 -spec new_npc(Amount, NpcBornProfile, AccNpcFsmList, AccOverallNpcFsmMap) -> {NpcFsmList, OverallNpcFsmMap} when
     Amount :: npc_amount(),
-    NpcBornProfile :: npc_born_info(),
+    NpcBornProfile :: #npc_born_info{},
     AccNpcFsmList :: [simple_npc_fsm()],
     AccOverallNpcFsmMap :: #{npc_fsm_id() => npc_fsm_id()},
     NpcFsmList :: AccNpcFsmList,
     OverallNpcFsmMap :: AccOverallNpcFsmMap.
 new_npc(0, _, AccNpcFsmList, AccOverallNpcFsmMap) ->
     {AccNpcFsmList, AccOverallNpcFsmMap};
-new_npc(Amount, #{npc_id := NpcType, name_nls_key := NameNlsKey} = NpcBornProfile, AccNpcFsmList, AccOverallNpcFsmMap) ->
+new_npc(Amount, #npc_born_info{npc_id = NpcType, name_nls_key = NameNlsKey} = NpcBornProfile, AccNpcFsmList, AccOverallNpcFsmMap) ->
     NpcFsmId = list_to_atom(uuid:uuid_to_string(uuid:get_v4())),
-    NpcProfile = NpcBornProfile#{npc_fsm_id => NpcFsmId},
+    NpcProfile = NpcBornProfile#npc_born_info{npc_fsm_id = NpcFsmId},
     npc_fsm_sup:add_child(NpcProfile),
     new_npc(Amount - 1, NpcBornProfile, [{npc, NpcFsmId, NpcType, NameNlsKey} | AccNpcFsmList], AccOverallNpcFsmMap#{NpcFsmId => NpcFsmId}).

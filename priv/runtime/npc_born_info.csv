@@ -1,0 +1,3 @@
+npc_fsm_id:atom,npc_id:atom,name_nls_key:atom,description_nls_key:atom,self_description_nls_key:atom,attack:integer,defence:integer,hp:integer,dexterity:integer
+dog,dog,npc_dog,npc_dog_desc,self_npc_dog_desc,30,50,200,7
+little_boy,little_boy,npc_little_boy,npc_little_boy_desc,self_npc_little_boy_desc,10,10,100,3

@@ -1,0 +1,21 @@
+%%%-------------------------------------------------------------------
+%%% @author shuieryin
+%%% @copyright (C) 2015, Shuieryin
+%%% @doc
+%%%
+%%% @end
+%%% Created : 23. Nov 2015 3:08 PM
+%%%-------------------------------------------------------------------
+-author("shuieryin").
+
+-record(npc_born_info, {
+    npc_fsm_id :: npc_fsm_manager:npc_fsm_id(),
+    npc_id :: atom(),
+    name_nls_key :: atom(),
+    description_nls_key :: atom(),
+    self_description_nls_key :: atom(),
+    attack :: integer(),
+    defence :: integer(),
+    hp :: integer(),
+    dexterity :: integer()
+}).

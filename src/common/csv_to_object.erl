@@ -26,10 +26,10 @@
 -type value() :: term(). % generic term
 -type field_type() :: atom(). % generic atom
 -type csv_line() :: string().
--type csv_row_data() :: #{key() => value()}.
+-type csv_row_data() :: tuple(). % generic tuple
 -type csv_data() :: #{key() => csv_row_data()}.
 -type field_info() :: {key(), field_type()}.
--type keys_map() :: #{Pos :: non_neg_integer() => field_info()}. % generic integer
+-type field_infos() :: [field_info()].
 
 -export_type([csv_data/0]).
 
@@ -111,10 +111,7 @@ traverse_files(FolderPath, RowFun) ->
     FilePath :: file:filename(),
     MapFromFile :: csv_data().
 parse_file(FilePath) ->
-    {ok, File} = file:open(FilePath, [read]),
-    {ok, MapFromFile} = ecsv:process_csv_file_with(File, fun traverse_rows/2, {0, fun default_row_fun/1}),
-    ok = file:close(File),
-    MapFromFile.
+    parse_file(FilePath, fun default_row_fun/1).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -125,11 +122,12 @@ parse_file(FilePath) ->
 %%--------------------------------------------------------------------
 -spec parse_file(FilePath, RowFun) -> MapFromFile when
     FilePath :: file:filename(),
-    RowFun :: function,
+    RowFun :: function(),
     MapFromFile :: csv_data().
 parse_file(FilePath, RowFun) ->
     {ok, File} = file:open(FilePath, [read]),
-    {ok, MapFromFile} = ecsv:process_csv_file_with(File, fun traverse_rows/2, {0, RowFun}),
+    RecordName = list_to_atom(filename:rootname(filename:basename(FilePath))),
+    {ok, MapFromFile} = ecsv:process_csv_file_with(File, fun traverse_rows/2, {0, RowFun, RecordName}),
     ok = file:close(File),
     MapFromFile.
 
@@ -143,45 +141,51 @@ parse_file(FilePath, RowFun) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec traverse_rows(NewRowData, State) -> KeyValuesMap when
+-spec traverse_rows(NewRowData, State) -> RowValuesMap when
     NewRowData :: {newline, [csv_line()]} | {eof},
     RowFun :: function(),
-    KeyValuesMap :: csv_row_data(),
+    RowValuesMap :: csv_data(),
     Counter :: non_neg_integer(), % generic integer
-    KeysMap :: keys_map(),
-    AccRowValuesMap :: csv_row_data(),
-    State :: {Counter, RowFun, KeysMap, AccRowValuesMap} | {0, RowFun} | {_, _, _, KeyValuesMap}.
-traverse_rows({newline, NewRow}, {Counter, RowFun, #{0 := {FieldName, _}} = KeysMap, AccRowValuesMap}) ->
-    case traverse_column(NewRow, KeysMap, #{}, 0) of
-        invalid_row ->
-            {Counter + 1, RowFun, KeysMap, AccRowValuesMap};
-        CurRowValuesMap ->
-            CurRowKey = maps:get(FieldName, CurRowValuesMap),
-            CurRowValue = RowFun(CurRowValuesMap),
-            {Counter + 1, RowFun, KeysMap, AccRowValuesMap#{CurRowKey => CurRowValue}}
-    end;
-traverse_rows({newline, NewRow}, {0, RowFun}) ->
-    KeysMap = gen_keysmap(NewRow, #{}, 0),
-    {1, RowFun, KeysMap, #{}};
-traverse_rows({eof}, {_, _, _, RowValuesMap}) ->
+    FieldInfos :: field_infos(),
+    AccRowValuesMap :: RowValuesMap,
+    RecordName :: atom(), % generic atom
+    State :: {Counter, RowFun, FieldInfos, AccRowValuesMap, RecordName} | {0, RowFun, RecordName} | {_, _, _, RowValuesMap, _}.
+traverse_rows({newline, NewRow}, {Counter, RowFun, FieldInfos, AccRowValuesMap, RecordName}) ->
+    [_, CurRowKey | _] = CurRowValues = traverse_column(NewRow, FieldInfos, [RecordName]),
+    UpdatedAccRowValuesMap =
+        case CurRowKey of
+            undefined ->
+                AccRowValuesMap;
+            _ ->
+                case RowFun(CurRowValues) of
+                    undefined ->
+                        AccRowValuesMap;
+                    ConvertedCurRowValues ->
+                        AccRowValuesMap#{CurRowKey => ConvertedCurRowValues}
+                end
+        end,
+    {Counter + 1, RowFun, FieldInfos, UpdatedAccRowValuesMap, RecordName};
+traverse_rows({newline, NewRow}, {0, RowFun, RecordName}) ->
+    FieldInfos = gen_fieldinfos(NewRow, []),
+    {1, RowFun, FieldInfos, #{}, RecordName};
+traverse_rows({eof}, {_, _, _, RowValuesMap, _}) ->
     RowValuesMap.
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Generates keys map from first row
+%% Generates field infos from first row
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec gen_keysmap(NewRow, KeysMap, Pos) -> FinalKeysMap when
+-spec gen_fieldinfos(NewRow, AccFieldInfos) -> FieldInfos when
     NewRow :: [csv_line()],
-    KeysMap :: keys_map(),
-    Pos :: non_neg_integer(), % generic integer
-    FinalKeysMap :: KeysMap.
-gen_keysmap([], KeysMap, _) ->
-    KeysMap;
-gen_keysmap([RawKeyStr | Tail], KeysMap, Pos) ->
-    FieldInfo = get_field_name_type(RawKeyStr),
-    gen_keysmap(Tail, KeysMap#{Pos => FieldInfo}, Pos + 1).
+    AccFieldInfos :: field_infos(),
+    FieldInfos :: AccFieldInfos.
+gen_fieldinfos([], AccFieldInfos) ->
+    lists:reverse(AccFieldInfos);
+gen_fieldinfos([RawFieldInfoStr | Tail], AccFieldInfos) ->
+    FieldInfo = get_field_name_type(RawFieldInfoStr),
+    gen_fieldinfos(Tail, [FieldInfo | AccFieldInfos]).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -192,23 +196,19 @@ gen_keysmap([RawKeyStr | Tail], KeysMap, Pos) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec traverse_column(RowData, KeysMap, ValuesMap, Pos) -> FinalValuesMap when
+-spec traverse_column(RowData, FieldInfos, AccValues) -> FinalValues when
     RowData :: [csv_line()],
-    KeysMap :: keys_map(),
-    ValuesMap :: csv_row_data(),
-    Pos :: non_neg_integer(), % generic integer
-    FinalValuesMap :: ValuesMap | invalid_row.
-traverse_column([[] | _], _, _, 0) ->
-    invalid_row;
-traverse_column([], _, ValuesMap, _) ->
-    ValuesMap;
-traverse_column([RawValue | TailValues], KeysMap, ValuesMap, Pos) ->
-    {FieldName, FieldType} = maps:get(Pos, KeysMap),
+    FieldInfos :: field_infos(),
+    AccValues :: [value()],
+    FinalValues :: AccValues.
+traverse_column([], _, AccValues) ->
+    lists:reverse(AccValues);
+traverse_column([RawValue | TailValues], [{_, FieldType} | TailFieldInfos], AccValues) ->
     Value =
         try
             case RawValue of
                 [] ->
-                    RawValue;
+                    undefined;
                 _ ->
                     case FieldType of
                         atom ->
@@ -227,11 +227,10 @@ traverse_column([RawValue | TailValues], KeysMap, ValuesMap, Pos) ->
             end
         catch
             Type:Report ->
-                error_logger:error_report(Type, Report),
+                error_logger:error_msg("Type:~p~nReport:~p~n", [Type, Report]),
                 RawValue
         end,
-    UpdatedValuesMap = ValuesMap#{FieldName => Value},
-    traverse_column(TailValues, KeysMap, UpdatedValuesMap, Pos + 1).
+    traverse_column(TailValues, TailFieldInfos, [Value | AccValues]).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -239,8 +238,10 @@ traverse_column([RawValue | TailValues], KeysMap, ValuesMap, Pos) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
-default_row_fun(RowValuesMap) ->
-    RowValuesMap.
+-spec default_row_fun(RowValues) -> csv_row_data() when
+    RowValues :: [value()].
+default_row_fun(RowValues) ->
+    list_to_tuple(RowValues).
 
 %%--------------------------------------------------------------------
 %% @doc

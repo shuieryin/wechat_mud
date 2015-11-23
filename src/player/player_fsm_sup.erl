@@ -21,9 +21,9 @@
 %% Supervisor callbacks
 -export([init/1]).
 
--include("../data_type/player_profile.hrl").
-
 -define(SERVER, ?MODULE).
+
+-include("../data_type/player_profile.hrl").
 
 %%%===================================================================
 %%% API functions

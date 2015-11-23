@@ -26,12 +26,6 @@
     logout/2,
     is_id_registered/1]).
 
--define(R_REGISTERED_UIDS_SET, registered_uids_set).
--define(R_REGISTERED_IDS_SET, registered_ids_set).
--define(REGISTERING_UIDS_SET, registration_uids_set).
--define(LOGGED_IN_UIDS_SET, logged_in_uids_set).
--define(BORN_TYPES, born_types).
-
 %% gen_server callbacks
 -export([init/1,
     handle_call/3,
@@ -41,12 +35,21 @@
     code_change/3,
     format_status/2]).
 
--include("../data_type/player_profile.hrl").
-
 -define(SERVER, ?MODULE).
 
--type uid_set() :: gb_sets:iter(player_fsm:uid()).
--type state() :: #{?REGISTERING_UIDS_SET => uid_set(), ?R_REGISTERED_UIDS_SET => uid_set(), ?LOGGED_IN_UIDS_SET => uid_set(), ?BORN_TYPES => #{player_fsm:born_month() => player_fsm:born_type_info()}}.
+-type uid_set() :: gb_sets:set(player_fsm:uid()).
+-type id_set() :: gb_sets:set(player_fsm:id()).
+
+-include("../data_type/player_profile.hrl").
+
+-record(state, {
+    registration_uids_set :: uid_set(),
+    registered_uids_set :: uid_set(),
+    logged_in_uids_set :: uid_set(),
+    registering_uids_set :: uid_set(),
+    registered_ids_set :: id_set(),
+    born_types :: #{player_fsm:born_month() => #born_type_info{}}
+}).
 
 %%%===================================================================
 %%% API
@@ -187,34 +190,38 @@ logout(DispatcherPid, Uid) ->
     {stop, Reason} |
     ignore when
 
-    State :: state(),
+    State :: #state{},
     Reason :: term(). % generic term
 init([]) ->
     io:format("~p starting...", [?MODULE]),
     RegisteredUidsSet =
-        case redis_client_server:get(?R_REGISTERED_UIDS_SET) of
+        case redis_client_server:get(registered_uids_set) of
             undefined ->
                 NewRegisteredUidsSet = gb_sets:new(),
-                redis_client_server:set(?R_REGISTERED_UIDS_SET, NewRegisteredUidsSet, true),
+                redis_client_server:set(registered_uids_set, NewRegisteredUidsSet, true),
                 NewRegisteredUidsSet;
-            UidSet ->
-                error_logger:info_msg("Registered uid list:~p~n", [UidSet]),
-                UidSet
+            UidsSet ->
+                UidsSet
         end,
 
     RegisteredIdsSet =
-        case redis_client_server:get(?R_REGISTERED_IDS_SET) of
+        case redis_client_server:get(registered_ids_set) of
             undefined ->
                 NewRegisteredIdsSet = gb_sets:new(),
-                redis_client_server:set(?R_REGISTERED_UIDS_SET, NewRegisteredIdsSet, true),
+                redis_client_server:set(registered_uids_set, NewRegisteredIdsSet, true),
                 NewRegisteredIdsSet;
-            IdSet ->
-                error_logger:info_msg("Registered uid list:~p~n", [IdSet]),
-                IdSet
+            IdsSet ->
+                IdsSet
         end,
 
     BornTypesMap = common_server:get_runtime_data([born_types]),
-    State = #{?REGISTERING_UIDS_SET => gb_sets:new(), ?R_REGISTERED_UIDS_SET => RegisteredUidsSet, ?R_REGISTERED_IDS_SET => RegisteredIdsSet, ?LOGGED_IN_UIDS_SET => gb_sets:new(), ?BORN_TYPES => BornTypesMap},
+    State = #state{
+        registering_uids_set = gb_sets:new(),
+        registered_uids_set = RegisteredUidsSet,
+        registered_ids_set = RegisteredIdsSet,
+        logged_in_uids_set = gb_sets:new(),
+        born_types = BornTypesMap
+    },
 
     io:format("started~n"),
     {ok, State}.
@@ -244,26 +251,26 @@ init([]) ->
     IsUserLoggedIn :: boolean(),
 
     From :: {pid(), Tag :: term()}, % generic term
-    State :: state(),
+    State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
-handle_call({is_uid_registered, Uid}, _From, #{?R_REGISTERED_UIDS_SET := RegisteredUidsSet} = State) ->
+handle_call({is_uid_registered, Uid}, _From, #state{registered_uids_set = RegisteredUidsSet} = State) ->
     {reply, gb_sets:is_element(Uid, RegisteredUidsSet), State};
-handle_call({is_id_registered, Id}, _From, #{?R_REGISTERED_IDS_SET := RegisteredIdsSet} = State) ->
+handle_call({is_id_registered, Id}, _From, #{registered_ids_set := RegisteredIdsSet} = State) ->
     {reply, gb_sets:is_element(Id, RegisteredIdsSet), State};
-handle_call({is_in_registration, Uid}, _From, #{?REGISTERING_UIDS_SET := RegisteringUidsSet} = State) ->
+handle_call({is_in_registration, Uid}, _From, #state{registering_uids_set = RegisteringUidsSet} = State) ->
     Result = gb_sets:is_element(Uid, RegisteringUidsSet),
     {reply, Result, State};
-handle_call({delete_user, Uid}, _From, #{?R_REGISTERED_UIDS_SET := RegisteredUidsSet} = State) ->
+handle_call({delete_user, Uid}, _From, #state{registered_uids_set = RegisteredUidsSet} = State) ->
     LoggedOutState = logout(internal, Uid, State),
     ok = cm:until_process_terminated(Uid, 20),
     UpdatedRegisteredUidsSet = gb_sets:delete(Uid, RegisteredUidsSet),
 
     redis_client_server:async_del([Uid], false),
-    redis_client_server:async_set(?R_REGISTERED_UIDS_SET, UpdatedRegisteredUidsSet, true),
+    redis_client_server:async_set(registered_uids_set, UpdatedRegisteredUidsSet, true),
 
-    {reply, ok, LoggedOutState#{?R_REGISTERED_UIDS_SET := UpdatedRegisteredUidsSet}};
-handle_call({is_uid_logged_in, Uid}, _From, #{?LOGGED_IN_UIDS_SET := LoggedUidsSet} = State) ->
+    {reply, ok, LoggedOutState#state{registered_uids_set = UpdatedRegisteredUidsSet}};
+handle_call({is_uid_logged_in, Uid}, _From, #state{logged_in_uids_set = LoggedUidsSet} = State) ->
     {reply, gb_sets:is_element(Uid, LoggedUidsSet), State}.
 
 %%--------------------------------------------------------------------
@@ -282,12 +289,12 @@ handle_call({is_uid_logged_in, Uid}, _From, #{?LOGGED_IN_UIDS_SET := LoggedUidsS
     DispatcherPid :: pid(),
     Uid :: player_fsm:uid(),
     PlayerProfile :: #player_profile{},
-    State :: state(),
+    State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
-handle_cast({registration_done, #player_profile{uid = Uid, id = Id, born_month = BornMonth} = PlayerProfile, DispatcherPid}, #{?REGISTERING_UIDS_SET := RegisteringUidsSet, ?R_REGISTERED_UIDS_SET := RegisteredUidsSet, ?R_REGISTERED_IDS_SET := RegisteredIdsSet, ?BORN_TYPES := BornTypesMap} = State) ->
+handle_cast({registration_done, #player_profile{uid = Uid, id = Id, born_month = BornMonth} = PlayerProfile, DispatcherPid}, #state{registering_uids_set = RegisteringUidsSet, registered_uids_set = RegisteredUidsSet, registered_ids_set = RegisteredIdsSet, born_types = BornTypesMap} = State) ->
     UpdatedRegisteredUidsSet = gb_sets:add(Uid, RegisteredUidsSet),
-    redis_client_server:async_set(?R_REGISTERED_UIDS_SET, UpdatedRegisteredUidsSet, false),
+    redis_client_server:async_set(registered_uids_set, UpdatedRegisteredUidsSet, false),
 
     UpdatedRegisteredIdsSet = gb_sets:add(Id, case redis_client_server:get(Uid) of
                                                   #player_profile{id = ExistingId} ->
@@ -295,15 +302,15 @@ handle_cast({registration_done, #player_profile{uid = Uid, id = Id, born_month =
                                                   _ ->
                                                       RegisteredIdsSet
                                               end),
-    redis_client_server:async_set(?R_REGISTERED_IDS_SET, UpdatedRegisteredIdsSet, false),
+    redis_client_server:async_set(registered_ids_set, UpdatedRegisteredIdsSet, false),
 
     BornType = maps:get(BornMonth, BornTypesMap),
     redis_client_server:set(Uid, PlayerProfile#player_profile{born_type = BornType}, true),
 
-    UpdatedState = State#{
-        ?R_REGISTERED_UIDS_SET := UpdatedRegisteredUidsSet,
-        ?R_REGISTERED_IDS_SET := UpdatedRegisteredIdsSet,
-        ?REGISTERING_UIDS_SET => gb_sets:del_element(Uid, RegisteringUidsSet)
+    UpdatedState = State#state{
+        registered_uids_set = UpdatedRegisteredUidsSet,
+        registered_ids_set = UpdatedRegisteredIdsSet,
+        registering_uids_set = gb_sets:del_element(Uid, RegisteringUidsSet)
     },
 
     login(DispatcherPid, Uid),
@@ -313,14 +320,13 @@ handle_cast({register_uid, DispatcherPid, Uid}, State) ->
         case register_fsm_sup:add_child(DispatcherPid, Uid) of
             {ok, _} ->
                 error_logger:info_msg("Started register fsm successfully.~nUid:~p~n", [Uid]),
-                RegisteringUidsSet = maps:get(?REGISTERING_UIDS_SET, State),
-                State#{?REGISTERING_UIDS_SET := gb_sets:add(Uid, RegisteringUidsSet)};
+                State#state{registering_uids_set = gb_sets:add(Uid, State#state.registering_uids_set)};
             {error, Reason} ->
                 error_logger:error_msg("Failed to start register fsm.~nUid:~p~nReason:~p~n", [Uid, Reason]),
                 State
         end,
     {noreply, UpdatedState};
-handle_cast({login, DispatcherPid, Uid}, #{?LOGGED_IN_UIDS_SET := LoggedInUidsSet} = State) ->
+handle_cast({login, DispatcherPid, Uid}, #state{logged_in_uids_set = LoggedInUidsSet} = State) ->
     UpdatedLoggedInUidsSet =
         case gb_sets:is_element(Uid, LoggedInUidsSet) of
             false ->
@@ -333,7 +339,7 @@ handle_cast({login, DispatcherPid, Uid}, #{?LOGGED_IN_UIDS_SET := LoggedInUidsSe
                 LoggedInUidsSet
         end,
 
-    {noreply, State#{?LOGGED_IN_UIDS_SET := UpdatedLoggedInUidsSet}};
+    {noreply, State#state{logged_in_uids_set = UpdatedLoggedInUidsSet}};
 handle_cast({logout, DispatcherPid, Uid}, State) ->
     UpdatedState = logout(internal, Uid, State),
     player_fsm:response_content(Uid, [{nls, already_logout}], DispatcherPid),
@@ -355,7 +361,7 @@ handle_cast({logout, DispatcherPid, Uid}, State) ->
     {stop, Reason, NewState} when
 
     Info :: term(), % generic term
-    State :: state(),
+    State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
 handle_info(_Info, State) ->
@@ -374,7 +380,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(Reason, State) -> ok when
     Reason :: (normal | shutdown | {shutdown, term()} | term()), % generic term
-    State :: state().
+    State :: #state{}.
 terminate(_Reason, _State) ->
     ok.
 
@@ -391,7 +397,7 @@ terminate(_Reason, _State) ->
     {error, Reason} when
 
     OldVsn :: term() | {down, term()}, % generic term
-    State :: state(),
+    State :: #state{},
     Extra :: term(), % generic term
     NewState :: State,
     Reason :: term(). % generic term
@@ -411,7 +417,7 @@ code_change(_OldVsn, State, _Extra) ->
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
     PDict :: [{Key :: term(), Value :: term()}], % generic term
-    State :: state(),
+    State :: #state{},
     Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_server:format_status(Opt, StatusData).
@@ -431,9 +437,9 @@ format_status(Opt, StatusData) ->
 %%--------------------------------------------------------------------
 -spec logout(internal, Uid, State) -> UpdatedState when
     Uid :: player_fsm:uid(),
-    State :: state(),
+    State :: #state{},
     UpdatedState :: State.
-logout(internal, Uid, #{?LOGGED_IN_UIDS_SET := LoggedInUidsSet} = State) ->
+logout(internal, Uid, #state{logged_in_uids_set = LoggedInUidsSet} = State) ->
     UpdatedLoggedInUidsSet =
         case gb_sets:is_element(Uid, LoggedInUidsSet) of
             false ->
@@ -442,4 +448,4 @@ logout(internal, Uid, #{?LOGGED_IN_UIDS_SET := LoggedInUidsSet} = State) ->
                 spawn(player_fsm, logout, [Uid]),
                 gb_sets:del_element(Uid, LoggedInUidsSet)
         end,
-    State#{?LOGGED_IN_UIDS_SET := UpdatedLoggedInUidsSet}.
+    State#state{logged_in_uids_set = UpdatedLoggedInUidsSet}.
