@@ -1,0 +1,6 @@
+language: erlang
+script: make
+notifications:
+  email: shuieryin@gmail.com
+otp_release:
+  - 18.1
