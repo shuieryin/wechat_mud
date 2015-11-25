@@ -22,6 +22,4 @@ reset:
 	git reset --hard origin/master
 
 ct:
-	#@cd _build/default/rel/wechat_mud
-	ct_run -suite wechat_mud_SUITE -logdir ./logs -pa ./_build/default/lib/proper/src
-	#@cd ../../../..
+	rebar3 ct
