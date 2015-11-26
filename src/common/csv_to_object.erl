@@ -13,11 +13,13 @@
 -author("shuieryin").
 
 %% API
--export([traverse_merge_files/2,
+-export([
+    traverse_merge_files/2,
     traverse_files/1,
     traverse_files/2,
     parse_file/1,
-    parse_file/2]).
+    parse_file/2
+]).
 
 -define(FILE_EXTENSION, ".csv").
 -define(NAME_TYPE_SEPARATOR, ":").

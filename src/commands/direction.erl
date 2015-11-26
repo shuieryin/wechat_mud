@@ -12,8 +12,10 @@
 -author("shuieryin").
 
 %% API
--export([exec/3,
-    parse_direction/1]).
+-export([
+    exec/3,
+    parse_direction/1
+]).
 
 -type directions() :: east | south | west | north | northeast | southeast | southwest | northwest.
 -export_type([directions/0]).

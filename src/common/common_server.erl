@@ -14,21 +14,25 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0,
+-export([
+    start_link/0,
     is_wechat_debug/0,
     turn_on_wechat_debug/0,
     turn_off_wechat_debug/0,
     get_runtime_data/1,
-    random_npc/0]).
+    random_npc/0
+]).
 
 %% gen_server callbacks
--export([init/1,
+-export([
+    init/1,
     handle_call/3,
     handle_cast/2,
     handle_info/2,
     terminate/2,
     code_change/3,
-    format_status/2]).
+    format_status/2
+]).
 
 -define(SERVER, ?MODULE).
 -define(DEFAULT_WECHAT_DEBUG_MODE, true).

@@ -16,7 +16,8 @@
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/1,
+-export([
+    start_link/1,
     logout/1,
     go_direction/3,
     look_scene/2,
@@ -25,10 +26,12 @@
     leave_scene/1,
     switch_lang/3,
     look_target/3,
-    being_looked/2]).
+    being_looked/2
+]).
 
 %% gen_fsm callbacks
--export([init/1,
+-export([
+    init/1,
     state_name/2,
     state_name/3,
     handle_event/3,
@@ -36,7 +39,8 @@
     handle_info/3,
     terminate/3,
     code_change/4,
-    format_status/2]).
+    format_status/2
+]).
 
 -define(SERVER, ?MODULE).
 

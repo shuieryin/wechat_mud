@@ -12,7 +12,8 @@
 -author("Shuieryin").
 
 %% API
--export([is_module_exist/1,
+-export([
+    is_module_exist/1,
     type_of/1,
     timestamp/0,
     hot_code_replace/1,
@@ -26,11 +27,16 @@
     remove_last_newline/1,
     random_from_list/1,
     observer/0,
-    binary_join/2]).
+    binary_join/2,
+    sort/1
+]).
 
 -type valid_type() :: atom | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple.
 
 -define(OBSERVER_NODE, 'collin@192.168.1.110').
+
+-include_lib("proper/include/proper.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 %%%===================================================================
 %%% API
@@ -280,6 +286,10 @@ binary_join(List, Sep) ->
         <<>>,
         List
     ).
+
+sort([]) -> [];
+sort([P | Xs]) ->
+    sort([X || X <- Xs, X < P]) ++ [P] ++ sort([X || X <- Xs, P < X]).
 
 %%%===================================================================
 %%% Internal functions

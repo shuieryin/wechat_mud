@@ -19,15 +19,18 @@
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/1,
+-export([
+    start_link/1,
     enter/5,
     leave/2,
     go_direction/3,
     look_scene/3,
-    look_target/4]).
+    look_target/4
+]).
 
 %% gen_fsm callbacks
--export([init/1,
+-export([
+    init/1,
     state_name/2,
     state_name/3,
     handle_event/3,
@@ -35,7 +38,8 @@
     handle_info/3,
     terminate/3,
     code_change/4,
-    format_status/2]).
+    format_status/2
+]).
 
 -include("../data_type/scene_info.hrl").
 -include("../data_type/npc_born_info.hrl").

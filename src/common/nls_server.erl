@@ -19,7 +19,8 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0,
+-export([
+    start_link/0,
     is_valid_lang/1,
     response_content/3,
     get_nls_content/2,
@@ -28,16 +29,19 @@
     do_response_content/4,
     do_response_content/3,
     get_lang_map/1,
-    merge_nls_map/2]).
+    merge_nls_map/2
+]).
 
 %% gen_server callbacks
--export([init/1,
+-export([
+    init/1,
     handle_call/3,
     handle_cast/2,
     handle_info/2,
     terminate/2,
     code_change/3,
-    format_status/2]).
+    format_status/2
+]).
 
 %% Nls files root path
 -define(NLS_PATH, "priv/nls_server").

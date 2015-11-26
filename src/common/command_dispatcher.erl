@@ -14,9 +14,11 @@
 -author("Shuieryin").
 
 %% API
--export([start/1,
+-export([
+    start/1,
     pending_content/3,
-    return_content/2]).
+    return_content/2
+]).
 
 -define(MAX_CONTENT_SIZE, 2048).
 -define(EMPTY_CONTENT, <<>>).

@@ -14,8 +14,10 @@
 -author("shuieryin").
 
 %% API
--export([exec/2,
-    exec/3]).
+-export([
+    exec/2,
+    exec/3
+]).
 
 -type sequence() :: pos_integer(). % generic integer
 -type target() :: atom(). % generic atom

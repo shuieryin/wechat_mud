@@ -15,7 +15,8 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0,
+-export([
+    start_link/0,
     is_uid_registered/1,
     is_in_registration/1,
     register_uid/2,
@@ -24,16 +25,19 @@
     login/2,
     is_uid_logged_in/1,
     logout/2,
-    is_id_registered/1]).
+    is_id_registered/1
+]).
 
 %% gen_server callbacks
--export([init/1,
+-export([
+    init/1,
     handle_call/3,
     handle_cast/2,
     handle_info/2,
     terminate/2,
     code_change/3,
-    format_status/2]).
+    format_status/2
+]).
 
 -define(SERVER, ?MODULE).
 

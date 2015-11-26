@@ -14,11 +14,13 @@
 -author("shuieryin").
 
 %% API
--export([start_link/1,
+-export([
+    start_link/1,
     init/2,
     websocket_handle/3,
     websocket_info/3,
-    websocket_terminate/3]).
+    websocket_terminate/3
+]).
 
 -import(ezwebframe_mochijson2, [encode/1, decode/1]).
 

@@ -16,7 +16,8 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0,
+-export([
+    start_link/0,
     reconnect_redis/0,
     get/1,
     set/3,
@@ -25,16 +26,19 @@
     async_save/0,
     del/2,
     async_del/2,
-    clear_all/0]).
+    clear_all/0
+]).
 
 %% gen_server callbacks
--export([init/1,
+-export([
+    init/1,
     handle_call/3,
     handle_cast/2,
     handle_info/2,
     terminate/2,
     code_change/3,
-    format_status/2]).
+    format_status/2
+]).
 
 -define(SERVER, ?MODULE).
 -define(HOST, "127.0.0.1").

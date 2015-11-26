@@ -17,14 +17,16 @@
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/2,
+-export([
+    start_link/2,
     input/3,
     select_lang/2,
     input_id/2,
     input_gender/2,
     input_born_month/2,
     input_confirmation/2,
-    fsm_server_name/1]).
+    fsm_server_name/1
+]).
 
 %% gen_fsm callbacks
 -export([init/1,
