@@ -201,7 +201,8 @@ hot_code_upgrade() ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Terminate redis-server and the erlang server.
+%% Terminate redis-server and the erlang server properly by committing
+%% all possible states.
 %%
 %% @end
 %%--------------------------------------------------------------------
