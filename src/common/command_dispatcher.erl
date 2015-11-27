@@ -78,7 +78,7 @@ start(Req) ->
             case IsWechatDebug of
                 true ->
                     process_request(Req);
-                _ ->
+                false ->
                     error_logger:error_msg("Validation params empty~n", []),
                     ?EMPTY_CONTENT
             end;
@@ -94,7 +94,7 @@ start(Req) ->
                             error_logger:info_msg("Connectivity success~n", []),
                             EchoStr
                     end;
-                _ ->
+                false ->
                     ?EMPTY_CONTENT
             end
     end.
@@ -165,7 +165,7 @@ validate_signature([OriginalSignatureBin | ParamList] = OriginalParams) ->
     case GeneratedSignature == Signature of
         true ->
             true;
-        _ ->
+        false ->
             error_logger:error_msg("Validation signature failed:~nParamMap:~p~nGSignature:~p~nOSignature:~p~n", [OriginalParams, GeneratedSignature, Signature]),
             false
     end.
@@ -222,7 +222,7 @@ process_request(Req) ->
                                 case login_server:is_uid_registered(Uid) of
                                     false ->
                                         pending_content(login_server, register_uid, [Uid]);
-                                    _ ->
+                                    true ->
                                         if
                                             <<"login">> == RawInput orelse <<"rereg">> == RawInput orelse subscribe == RawInput ->
                                                 FuncForRegsiteredUser(Uid);
@@ -346,7 +346,7 @@ handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
             case is_command_exist(RawModuleName) of
                 true ->
                     {RawModuleName, RawCommandArgs};
-                _ ->
+                false ->
                     case direction:parse_direction(RawModuleName) of
                         undefined ->
                             throw(not_direction);
@@ -363,7 +363,7 @@ handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
         case erlang:function_exported(ModuleName, exec, Arity + 2) of
             true ->
                 pending_content(ModuleName, exec, Args);
-            _ ->
+            false ->
                 nls_server:get_nls_content([{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(binary_to_list(ModuleNameBin) ++ "_help")}], player_fsm:get_lang(Uid))
         end
     catch

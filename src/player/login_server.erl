@@ -339,7 +339,7 @@ handle_cast({login, DispatcherPid, Uid}, #state{logged_in_uids_set = LoggedInUid
                 player_fsm_sup:add_child(PlayerProfile),
                 scene_fsm:enter(CurSceneName, Uid, PlayerName, Id, DispatcherPid),
                 gb_sets:add(Uid, LoggedInUidsSet);
-            _ ->
+            true ->
                 player_fsm:response_content(Uid, [{nls, already_login}], DispatcherPid),
                 LoggedInUidsSet
         end,
@@ -449,7 +449,7 @@ logout(internal, Uid, #state{logged_in_uids_set = LoggedInUidsSet} = State) ->
         case gb_sets:is_element(Uid, LoggedInUidsSet) of
             false ->
                 LoggedInUidsSet;
-            _ ->
+            true ->
                 spawn(player_fsm, logout, [Uid]),
                 gb_sets:del_element(Uid, LoggedInUidsSet)
         end,

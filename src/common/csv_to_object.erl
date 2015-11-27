@@ -58,7 +58,7 @@ traverse_merge_files(FolderPath, RowFun) ->
             case filename:extension(FileName) == ?FILE_EXTENSION of
                 true ->
                     maps:merge(AccMap, parse_file(filename:join(FolderPath, FileName), RowFun));
-                _ ->
+                false ->
                     AccMap
             end
         end,
@@ -97,7 +97,7 @@ traverse_files(FolderPath, RowFun) ->
                     Key = list_to_atom(filename:rootname(FileName)),
                     ValuesMap = parse_file(filename:join(FolderPath, FileName), RowFun),
                     AccMap#{Key => ValuesMap};
-                _ ->
+                false ->
                     AccMap
             end
         end,

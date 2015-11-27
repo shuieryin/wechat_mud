@@ -164,7 +164,7 @@ select_lang({LangBin, DispatcherPid}, #state{self = PlayerProfile} = State) ->
             case nls_server:is_valid_lang(CurLang) of
                 true ->
                     {input_id, State#state{self = PlayerProfile#player_profile{lang = CurLang}}, [{nls, please_input_id}], CurLang};
-                _ ->
+                false ->
                     {select_lang, State, [{nls, select_lang}], zh}
             end
         catch
@@ -206,7 +206,7 @@ input_id({RawId, DispatcherPid}, #state{self = #player_profile{lang = Lang} = Pl
                 case login_server:is_id_registered(Id) of
                     true ->
                         {[{nls, id_already_exists}, <<"\n\n">>, {nls, please_input_id}], input_id, State};
-                    _ ->
+                    false ->
                         {[{nls, please_input_gender}], input_gender, State#state{self = PlayerProfile#player_profile{id = Id}}}
                 end
         end,

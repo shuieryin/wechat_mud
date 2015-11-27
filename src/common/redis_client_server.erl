@@ -469,7 +469,7 @@ set(Key, Value, IsSave, #state{redis_client_pid = RedisClientPid} = State) ->
     case IsSave of
         true ->
             save(State);
-        _ ->
+        false ->
             ok
     end,
     IsValueSet.
@@ -496,7 +496,7 @@ del(Keys, IsSave, #state{redis_client_pid = RedisClientPid} = State) ->
     case IsSave of
         true ->
             save(State);
-        _ ->
+        false ->
             ok
     end,
     IsDel.

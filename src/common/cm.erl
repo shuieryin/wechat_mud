@@ -148,7 +148,7 @@ until_process_terminated(PidOrName, DetectPeriodInMilli) ->
     IsTerminatedFun = case is_pid(PidOrName) of
                           true ->
                               fun() -> process_info(PidOrName) end;
-                          _ ->
+                          false ->
                               fun() -> whereis(PidOrName) end
                       end,
     until_process_terminated(IsTerminatedFun(), IsTerminatedFun, DetectPeriodInMilli).
@@ -315,7 +315,7 @@ increase_vsn([CurDepthVersionNumStr | Tail], VersionDepth, Increment, CurDepth, 
         case CurDepth =:= VersionDepth of
             true ->
                 integer_to_list(list_to_integer(CurDepthVersionNumStr) + Increment);
-            _ ->
+            false ->
                 CurDepthVersionNumStr
         end,
     increase_vsn(Tail, VersionDepth, Increment, CurDepth + 1, [UpdatedVersionNum | AccVersion]).

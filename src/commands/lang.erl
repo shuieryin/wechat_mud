@@ -43,7 +43,7 @@ exec(DispatcherPid, Uid, RawTargetLang) ->
             case nls_server:is_valid_lang(TargetLang) of
                 true ->
                     player_fsm:switch_lang(DispatcherPid, Uid, TargetLang);
-                _ ->
+                false ->
                     player_fsm:response_content(Uid, [{nls, invalid_lang}, atom_to_binary(TargetLang, utf8), <<"\n\n">>, {nls, lang_help}], DispatcherPid)
             end
     end.

@@ -459,7 +459,7 @@ gen_keysmap([RawKey | Tail], KeysMap, Pos, ValuesMap) ->
                            case maps:is_key(Key, ValuesMap) of
                                false ->
                                    ValuesMap#{Key => #{}};
-                               _ ->
+                               true ->
                                    ValuesMap
                            end
                    end,
