@@ -22,7 +22,7 @@
     gen_doc/0,
     increase_vsn/3,
     hot_code_upgrade/0,
-    quit/0,
+    q/0,
     first_to_lower/1,
     remove_last_newline/1,
     random_from_list/1,
@@ -206,8 +206,8 @@ hot_code_upgrade() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec quit() -> no_return().
-quit() ->
+-spec q() -> no_return().
+q() ->
     os:cmd("redis-cli shutdown"),
     init:stop().
 
