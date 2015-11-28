@@ -1,4 +1,4 @@
-FROM shuieryin/erlang:latest
+FROM shuieryin/erlang:18.1
 
 MAINTAINER Collin Guo <shuieryin@gmail.com>
 
