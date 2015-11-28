@@ -19,9 +19,9 @@ RUN  git clone https://github.com/shuieryin/wechat_mud.git \
 
 CMD ["/usr/sbin/init"]
 #Create container with ssh:
-#	docker run --privileged -ti -v /sys/fs/cgroup:/sys/fs/cgroup:ro --name=wechat_mud --hostname=wechat_mud -p 13579:13579 -p 14369:4369 -p 32:22 shuieryin/wechat_mud
+#	docker run --privileged -ti -v /sys/fs/cgroup:/sys/fs/cgroup:ro --name=wechat_mud --hostname=wechat_mud -p 13579:13579 -p 14369:4369 -p 32:22 shuieryin/wechat_mud:0.1.2
 #Change root password:
 #	docker exec -ti wechat_mud passwd
 
 #Create container without ssh:
-#	docker run -ti --name=wechat_mud --hostname=wechat_mud -p 13579:13579 -p 4369:4369 -v /home/collin/workspaces/wechat_mud:/root/workspaces/wechat_mud shuieryin/wechat_mud /bin/bash
+#	docker run -ti --name=wechat_mud --hostname=wechat_mud -p 13579:13579 -p 4369:4369 -v /home/collin/workspaces/wechat_mud:/root/workspaces/wechat_mud shuieryin/wechat_mud:0.1.2 /bin/bash
