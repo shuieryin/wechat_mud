@@ -23,18 +23,10 @@
 ]).
 
 -export([
-    prop_ordered/1,
-    prop_same_length/1,
-    prop_same_length_conditional_check/1,
-    prop_same_length_no_dupls/1,
-    prop_equiv_usort/1
+    rst/1
 ]).
 
--include_lib("proper/include/proper.hrl").
--include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
-
--define(SORT_TEST(Input, Test, Opts), ?assert(proper:quickcheck(?FORALL(_I, Input, Test), Opts))).
 
 %%%===================================================================
 %%% API
@@ -49,67 +41,37 @@
 suite() ->
     [].
 
-all() -> [{group, test_group1}].
+all() ->
+    [
+        {group, servers}
+    ].
 
 groups() ->
     [{
-        test_group1,
-        [],
+        servers,
+        [parallel, {repeat, 2}],
         [
-            prop_ordered,
-            prop_same_length,
-            prop_same_length_conditional_check,
-            prop_same_length_no_dupls,
-            prop_equiv_usort
+            rst
         ]
     }].
 
-% {on_output, fun ct:pal/2}
-prop_ordered(_Config) ->
-    ?SORT_TEST(
-        list(integer()),
-        ordered(cm:sort(_I)),
-        []
-    ).
-
-prop_same_length(_Config) ->
-    ?SORT_TEST(
-        list_no_dupls(integer()), % list(integer()),
-        length(_I) =:= length(cm:sort(_I)),
-        50
-    ).
-
-prop_same_length_conditional_check(_Config) ->
-    ?SORT_TEST(
-        list(integer()),
-        ?IMPLIES(no_duplicates(_I), length(_I) =:= length(cm:sort(_I))),
-        []
-    ).
-
-prop_same_length_no_dupls(_Config) ->
-    ?SORT_TEST(
-        list_no_dupls(integer()),
-        length(_I) =:= length(cm:sort(_I)),
-        []
-    ).
-
-prop_equiv_usort(_Config) ->
-    ?SORT_TEST(
-        list(integer()),
-        cm:sort(_I) =:= lists:usort(_I),
-        []
-    ).
+rst(Cfg) -> redis_server_test:test(Cfg).
 
 %%%===================================================================
 %%% Init states
 %%%===================================================================
 init_per_suite(Config) ->
-%%    Result = os:cmd("cd ../..; make run"),
-%%    ct:pal("==========================Started:~n"),
+    spawn(
+        fun() ->
+            os:cmd("redis-server")
+        end),
     Config.
 
 end_per_suite(_Config) ->
-%%    ct:pal("==========================Stopped:~n"),
+    spawn(
+        fun() ->
+            os:cmd("redis-cli shutdown")
+        end),
     ok.
 
 init_per_group(_GroupName, Config) ->
@@ -119,28 +81,9 @@ end_per_group(_GroupName, _Config) ->
     ok.
 
 init_per_testcase(_TestCase, Config) ->
+    redis_client_server:start_link(),
     Config.
 
 end_per_testcase(_TestCase, _Config) ->
+    redis_client_server:stop(),
     ok.
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
-no_duplicates([]) -> true;
-no_duplicates([A | T]) ->
-    not lists:member(A, T) andalso no_duplicates(T).
-
-ordered([]) -> true;
-ordered([_]) -> true;
-ordered([A, B | T]) -> A =< B andalso ordered([B | T]).
-
-list_no_dupls(T) ->
-    ?LET(_I, list(T), remove_duplicates(_I)).
-
-remove_duplicates([]) -> [];
-remove_duplicates([A | T]) ->
-    case lists:member(A, T) of
-        true -> remove_duplicates(T);
-        false -> [A | remove_duplicates(T)]
-    end.
