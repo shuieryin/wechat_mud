@@ -22,10 +22,6 @@
     suite/0
 ]).
 
--export([
-    rst/1
-]).
-
 -include_lib("common_test/include/ct.hrl").
 
 %%%===================================================================
@@ -46,16 +42,20 @@ all() ->
         {group, servers}
     ].
 
+-export([
+    test1/1
+]).
+
 groups() ->
     [{
         servers,
         [parallel, {repeat, 2}],
         [
-            rst
+            test1
         ]
     }].
 
-rst(Cfg) -> redis_server_test:test(Cfg).
+test1(Cfg) -> redis_server_test:test(Cfg).
 
 %%%===================================================================
 %%% Init states
