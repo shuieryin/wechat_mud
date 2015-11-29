@@ -2,7 +2,7 @@ sudo: false
 install: true
 language: erlang
 before_install: ./rebar3 dialyzer
-script: make
+script: make; make ct
 notifications:
   email: shuieryin@gmail.com
 otp_release:
