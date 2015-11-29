@@ -26,7 +26,8 @@
     async_save/0,
     del/2,
     async_del/2,
-    clear_all/0
+    clear_all/0,
+    stop/0
 ]).
 
 %% gen_server callbacks
@@ -173,6 +174,16 @@ clear_all() ->
     eredis:q(RedisClientPid, ["FLUSHDB"]),
     eredis:q(RedisClientPid, ["SAVE"]).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Stop server.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec stop() -> ok.
+stop() ->
+    gen_server:cast(?SERVER, stop).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -272,11 +283,13 @@ handle_call({del, Keys, IsSave}, _From, State) ->
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: {set, Key, Value, IsSave} | {del, Keys, IsSave} | save,
+    Request :: {set, Key, Value, IsSave} | {del, Keys, IsSave} | save | stop,
+
     Key :: key(),
     Keys :: [Key],
     Value :: value(),
     IsSave :: boolean(),
+
     State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
@@ -288,7 +301,9 @@ handle_cast(save, State) ->
     {noreply, State};
 handle_cast({del, Keys, IsSave}, State) ->
     del(Keys, IsSave, State),
-    {noreply, State}.
+    {noreply, State};
+handle_cast(stop, State) ->
+    {stop, normal, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -487,7 +502,7 @@ set(Key, Value, IsSave, #state{redis_client_pid = RedisClientPid} = State) ->
     State :: #state{}.
 del(Keys, IsSave, #state{redis_client_pid = RedisClientPid} = State) ->
     IsDel = case eredis:q(RedisClientPid, ["DEL" | Keys]) of
-                {ok, <<"OK">>} ->
+                {ok, _} -> % <<"OK">>
                     true;
                 {Type, Reason} ->
                     error_logger:error_msg("Redis del value failed~n Type:~p, Reason:~p~n", [Type, Reason]),

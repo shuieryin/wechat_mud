@@ -17,7 +17,8 @@
 %% API
 -export([
     start_link/0,
-    new_npcs/1
+    new_npcs/1,
+    stop/0
 ]).
 
 %% gen_server callbacks
@@ -61,6 +62,16 @@
 -spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Stop server.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec stop() -> ok.
+stop() ->
+    gen_server:cast(?SERVER, stop).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -141,14 +152,18 @@ handle_call(_Request, _From, State) ->
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: {new_npcs, NewNpcFsmsMap},
+    Request :: {new_npcs, NewNpcFsmsMap} | stop,
+
     NewNpcFsmsMap :: npc_fsm(),
+
     State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
 handle_cast({new_npcs, NewNpcFsmsMap}, #state{npc_fsms_map = NpcFsmsMap} = State) ->
     UpdatedNpcFsmsMap = maps:merge(NpcFsmsMap, NewNpcFsmsMap),
-    {noreply, State#state{npc_fsms_map = UpdatedNpcFsmsMap}}.
+    {noreply, State#state{npc_fsms_map = UpdatedNpcFsmsMap}};
+handle_cast(stop, State) ->
+    {stop, normal, State}.
 
 
 %%--------------------------------------------------------------------

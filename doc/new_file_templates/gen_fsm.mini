@@ -6,7 +6,8 @@
 
 %% API
 -export([
-    start_link/0
+    start_link/0,
+    stop/0
 ]).
 
 %% gen_fsm callbacks
@@ -42,6 +43,16 @@
 -spec start_link() -> gen:start_ret().
 start_link() ->
     gen_fsm:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Stop fsm server.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec stop() -> ok.
+stop() ->
+    gen_fsm:send_all_state_event(?SERVER, stop).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -136,14 +147,17 @@ state_name(_Event, _From, State) ->
     {next_state, NextStateName, NewStateData} |
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
-    Event :: term(), % generic term
+
+    Event :: term() | stop, % generic term
     StateName :: state_name(),
     StateData :: #state{},
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
 handle_event(_Event, StateName, State) ->
-    {next_state, StateName, State}.
+    {next_state, StateName, State};
+handle_event(stop, _StateName, State) ->
+    {stop, normal, State}.
 
 %%--------------------------------------------------------------------
 %% @private

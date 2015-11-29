@@ -25,7 +25,8 @@
     login/2,
     is_uid_logged_in/1,
     logout/2,
-    is_id_registered/1
+    is_id_registered/1,
+    stop/0
 ]).
 
 %% gen_server callbacks
@@ -68,6 +69,16 @@
 -spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Stop server.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec stop() -> ok.
+stop() ->
+    gen_server:cast(?SERVER, stop).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -289,7 +300,12 @@ handle_call({is_uid_logged_in, Uid}, _From, #state{logged_in_uids_set = LoggedUi
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: {registration_done, PlayerProfile, DispatcherPid} | {register_uid, DispatcherPid, Uid} | {login, DispatcherPid, Uid},
+    Request ::
+    {registration_done, PlayerProfile, DispatcherPid} |
+    {register_uid, DispatcherPid, Uid} |
+    {login, DispatcherPid, Uid} |
+    stop,
+
     DispatcherPid :: pid(),
     Uid :: player_fsm:uid(),
     PlayerProfile :: #player_profile{},
@@ -348,7 +364,9 @@ handle_cast({login, DispatcherPid, Uid}, #state{logged_in_uids_set = LoggedInUid
 handle_cast({logout, DispatcherPid, Uid}, State) ->
     UpdatedState = logout(internal, Uid, State),
     player_fsm:response_content(Uid, [{nls, already_logout}], DispatcherPid),
-    {noreply, UpdatedState}.
+    {noreply, UpdatedState};
+handle_cast(stop, State) ->
+    {stop, normal, State}.
 
 %%--------------------------------------------------------------------
 %% @private

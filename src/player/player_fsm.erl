@@ -42,8 +42,6 @@
     format_status/2
 ]).
 
--define(SERVER, ?MODULE).
-
 -type uid() :: atom().
 -type born_month() :: 1..12.
 -type gender() :: male | female.
@@ -326,7 +324,8 @@ state_name(_Event, _From, State) ->
     {response_content, NlsObjectList, DispatcherPid} |
     leave_scene |
     {switch_lang, DispatcherPid, TargetLang} |
-    {logout, NotifyOkPid},
+    {logout, NotifyOkPid} |
+    stop,
 
     NlsObjectList :: [nls_server:nls_object()],
     DispatcherPid :: pid(),
@@ -374,6 +373,8 @@ handle_event(logout, _StateName, #state{self = #player_profile{scene = CurSceneN
     scene_fsm:leave(CurSceneName, Uid),
     error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
     redis_client_server:set(Uid, PlayerProfile, true),
+    {stop, normal, State};
+handle_event(stop, _StateName, State) ->
     {stop, normal, State}.
 
 %%--------------------------------------------------------------------

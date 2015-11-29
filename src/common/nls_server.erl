@@ -40,7 +40,8 @@
     handle_info/2,
     terminate/2,
     code_change/3,
-    format_status/2
+    format_status/2,
+    stop/0
 ]).
 
 %% Nls files root path
@@ -84,6 +85,16 @@
 -spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Stop server.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec stop() -> ok.
+stop() ->
+    gen_server:cast(?SERVER, stop).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -278,7 +289,8 @@ load_nls_file(NlsFileName, AccNlsMap) ->
     {get, NlsKey, Lang} |
     {is_valid_lang, Lang} |
     {get_nls_content, NlsObjectList, Lang} |
-    {get_lang_map, Lang},
+    {get_lang_map, Lang} |
+    stop,
 
     Reply :: State | ContentList | IsValidLang | NlsValue,
 
@@ -330,7 +342,9 @@ handle_cast({response_content, NlsObjectList, Lang, DispatcherPid}, State) ->
 handle_cast({show_langs, DispatcherPid, Lang}, State) ->
     LangsNls = lists:reverse([[atom_to_binary(LangName, utf8), <<"\n">>] || LangName <- maps:keys(State)]),
     do_response_content(Lang, State, lists:flatten([{nls, possible_lang}, <<"\n">>, LangsNls]), DispatcherPid),
-    {noreply, State}.
+    {noreply, State};
+handle_cast(stop, State) ->
+    {stop, normal, State}.
 
 %%--------------------------------------------------------------------
 %% @private

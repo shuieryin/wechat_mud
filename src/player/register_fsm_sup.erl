@@ -17,7 +17,8 @@
 %% API
 -export([
     start_link/0,
-    add_child/2
+    add_child/2,
+    stop/0
 ]).
 
 %% Supervisor callbacks
@@ -38,6 +39,16 @@
 -spec start_link() -> supervisor:startchild_ret().
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Stop supervisor.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec stop() -> ok.
+stop() ->
+    exit(whereis(?SERVER), normal).
 
 %%--------------------------------------------------------------------
 %% @doc
