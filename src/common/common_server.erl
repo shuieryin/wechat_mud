@@ -21,7 +21,7 @@
     turn_off_wechat_debug/0,
     get_runtime_data/1,
     random_npc/0,
-    quit/0
+    stop/0
 ]).
 
 %% gen_server callbacks
@@ -62,6 +62,16 @@
 -spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Stop server.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec stop() -> ok.
+stop() ->
+    gen_server:cast(?SERVER, stop).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -132,16 +142,6 @@ get_runtime_data(Phases) ->
     NpcProfile :: #npc_born_info{}.
 random_npc() ->
     gen_server:call(?MODULE, random_npc).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Randomly select an npc profile.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec quit() -> ok.
-quit() ->
-    gen_server:cast(?MODULE, quit).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -263,14 +263,13 @@ get_runtime_data([Phase | Tail], RuntimeDatasMap) ->
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: quit,
+    Request :: stop,
 
     State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
-handle_cast(quit, State) ->
-    cm:q(),
-    {noreply, State}.
+handle_cast(stop, State) ->
+    {stop, normal, State}.
 
 %%--------------------------------------------------------------------
 %% @private

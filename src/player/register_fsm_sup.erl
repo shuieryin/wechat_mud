@@ -46,7 +46,7 @@ start_link() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec stop() -> ok.
+-spec stop() -> true.
 stop() ->
     exit(whereis(?SERVER), normal).
 
