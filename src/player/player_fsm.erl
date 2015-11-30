@@ -343,7 +343,7 @@ handle_event({go_direction, DispatcherPid, Direction}, StateName, #state{self = 
     TargetSceneName =
         case scene_fsm:go_direction(CurSceneName, Uid, Direction) of
             undefined ->
-                do_response_content(LangMap, [{nls, invalid_exit}], DispatcherPid),
+                nls_server:do_response_content(LangMap, [{nls, invalid_exit}], DispatcherPid),
                 CurSceneName;
             NewSceneName ->
                 scene_fsm:enter(NewSceneName, Uid, PlayerName, Id, DispatcherPid),
@@ -358,14 +358,14 @@ handle_event({look_target, DispatcherPid, LookArgs}, StateName, #state{self = #p
     scene_fsm:look_target(CurSceneName, Uid, DispatcherPid, LookArgs),
     {next_state, StateName, State};
 handle_event({response_content, NlsObjectList, DispatcherPid}, StateName, #state{lang_map = LangMap} = State) ->
-    do_response_content(LangMap, NlsObjectList, DispatcherPid),
+    nls_server:do_response_content(LangMap, NlsObjectList, DispatcherPid),
     {next_state, StateName, State};
 handle_event(leave_scene, StateName, #state{self = #player_profile{scene = CurSceneName, uid = Uid}} = State) ->
     scene_fsm:leave(CurSceneName, Uid),
     {next_state, StateName, State};
 handle_event({switch_lang, DispatcherPid, TargetLang}, StateName, #state{self = #player_profile{uid = Uid} = PlayerProfile} = State) ->
     TargetLangMap = nls_server:get_lang_map(TargetLang),
-    do_response_content(TargetLangMap, [{nls, lang_switched}], DispatcherPid),
+    nls_server:do_response_content(TargetLangMap, [{nls, lang_switched}], DispatcherPid),
     UpdatedPlayerProfile = PlayerProfile#player_profile{lang = TargetLang},
     redis_client_server:async_set(Uid, UpdatedPlayerProfile, true),
     {next_state, StateName, State#state{self = UpdatedPlayerProfile, lang_map = TargetLangMap}};
@@ -494,19 +494,5 @@ format_status(Opt, StatusData) ->
     gen_fsm:format_status(Opt, StatusData).
 
 %%%===================================================================
-%%% Internal functions
+%%% Internal functions (N/A)
 %%%===================================================================
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Implementation function for response_content/3.
-%% @see response_content/3.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec do_response_content(LangMap, NlsObjectList, DispatcherPid) -> ok when
-    LangMap :: nls_server:lang_map(),
-    NlsObjectList :: [nls_server:nls_object()],
-    DispatcherPid :: pid().
-do_response_content(LangMap, NlsObjectList, DispatcherPid) ->
-    nls_server:do_response_content(LangMap, NlsObjectList, DispatcherPid).

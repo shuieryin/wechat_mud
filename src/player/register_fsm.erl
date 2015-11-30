@@ -71,8 +71,7 @@
     Uid :: player_fsm:uid(),
     DispatcherPid :: pid().
 start_link(DispatcherPid, Uid) ->
-    nls_server:response_content([{nls, select_lang}], zh, DispatcherPid),
-    gen_fsm:start_link({local, fsm_server_name(Uid)}, ?MODULE, Uid, []).
+    gen_fsm:start_link({local, fsm_server_name(Uid)}, ?MODULE, {Uid, DispatcherPid}, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -126,9 +125,11 @@ fsm_server_name(Uid) ->
     Reason :: term(), % generic term
     StateName :: state_name(),
     StateData :: #state{}.
-init(Uid) ->
+init({Uid, DispatcherPid}) ->
     error_logger:info_msg("register fsm init~nUid:~p~n", [Uid]),
-    {ok, select_lang, #state{self = #player_profile{uid = Uid}}}.
+    State = #state{self = #player_profile{uid = Uid}},
+    nls_server:response_content([{nls, select_lang}], zh, DispatcherPid),
+    {ok, select_lang, State}.
 
 %%--------------------------------------------------------------------
 %% @doc

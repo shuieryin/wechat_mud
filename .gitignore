@@ -11,5 +11,6 @@ deps
 _build
 rebar.lock
 config/wechat_mud.appup
+log
 logs
 doc/edoc

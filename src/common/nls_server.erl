@@ -25,11 +25,10 @@
     response_content/3,
     get_nls_content/2,
     show_langs/2,
-    read_nls_file/2,
-    do_response_content/4,
     do_response_content/3,
     get_lang_map/1,
-    merge_nls_map/2
+    start/0,
+    stop/0
 ]).
 
 %% gen_server callbacks
@@ -40,8 +39,7 @@
     handle_info/2,
     terminate/2,
     code_change/3,
-    format_status/2,
-    stop/0
+    format_status/2
 ]).
 
 %% Nls files root path
@@ -85,6 +83,16 @@
 -spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Starts server by setting module name as server name without link.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec start() -> gen:start_ret().
+start() ->
+    gen_server:start({local, ?SERVER}, ?MODULE, [], []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -140,7 +148,7 @@ is_valid_lang(Lang) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Shows possible langauge abbreviations.
+%% Shows possible language abbreviations.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -149,22 +157,6 @@ is_valid_lang(Lang) ->
     Lang :: support_lang().
 show_langs(DispatcherPid, Lang) ->
     gen_server:cast(?SERVER, {show_langs, DispatcherPid, Lang}).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Reads nls values from csv file and return nls map.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec read_nls_file(NlsFileName, AccNlsMap) -> NlsMap when
-    NlsFileName :: file:name_all(),
-    AccNlsMap :: state(),
-    NlsMap :: AccNlsMap.
-read_nls_file(NlsFileName, AccNlsMap) ->
-    {ok, NlsFile} = file:open(NlsFileName, [read]),
-    {ok, NlsMap} = ecsv:process_csv_file_with(NlsFile, fun read_line/2, {0, AccNlsMap}),
-    ok = file:close(NlsFile),
-    NlsMap.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -208,20 +200,6 @@ do_response_content(LangMap, NlsObjectList, DispatcherPid) ->
     LangMap :: lang_map().
 get_lang_map(Lang) ->
     gen_server:call(?SERVER, {get_lang_map, Lang}).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Merge two nls maps.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec merge_nls_map(NlsMap1, NlsMap2) -> NlsMap when
-    NlsMap1 :: state(),
-    NlsMap2 :: NlsMap1,
-    NlsMap :: NlsMap1.
-merge_nls_map(NlsMap1, NlsMap2) ->
-    Langs = maps:keys(NlsMap1),
-    merge_nls_map(Langs, NlsMap1, NlsMap2, #{}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -531,19 +509,16 @@ fill_in_nls([NonNlsKey | Tail], LangMap, AccContentList) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% See parent function merge_nls_map/2.
-%% @see merge_nls_map/2.
+%% Reads nls values from csv file and return nls map.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec merge_nls_map(Langs, NlsMap1, NlsMap2, AccNlsMap) -> NlsMap when
-    Langs :: [nls_server:support_lang()],
-    NlsMap1 :: nls_server:state(),
-    NlsMap2 :: NlsMap1,
-    AccNlsMap :: NlsMap1,
-    NlsMap :: NlsMap1.
-merge_nls_map([CurLang | Tail], NlsMap1, NlsMap2, AccNlsMap) ->
-    CurLangMap = maps:merge(maps:get(CurLang, NlsMap1, #{}), maps:get(CurLang, NlsMap2, #{})),
-    merge_nls_map(Tail, NlsMap1, NlsMap2, AccNlsMap#{CurLang => CurLangMap});
-merge_nls_map([], _, _, AccNlsMap) ->
-    AccNlsMap.
+-spec read_nls_file(NlsFileName, AccNlsMap) -> NlsMap when
+    NlsFileName :: file:name_all(),
+    AccNlsMap :: state(),
+    NlsMap :: AccNlsMap.
+read_nls_file(NlsFileName, AccNlsMap) ->
+    {ok, NlsFile} = file:open(NlsFileName, [read]),
+    {ok, NlsMap} = ecsv:process_csv_file_with(NlsFile, fun read_line/2, {0, AccNlsMap}),
+    ok = file:close(NlsFile),
+    NlsMap.

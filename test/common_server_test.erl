@@ -27,45 +27,23 @@
 -include_lib("wechat_mud_test.hrl").
 -include_lib("wechat_mud/src/data_type/npc_born_info.hrl").
 
--define(RANDOM_RUNTIME_FILENAME,
-    begin
-        {ok, FileNameList} = file:list_dir(filename:join(code:priv_dir(wechat_mud), "runtime")),
-        list_to_atom(filename:rootname(?ONE_OF(FileNameList)))
-    end).
-
--define(RUNTIME_DATA_INSTRUCTION, ?ONE_OF([
-
-    [?RANDOM_RUNTIME_FILENAME],
-
-    begin
-        FileName = ?RANDOM_RUNTIME_FILENAME,
-        CertainData = common_server:get_runtime_data(FileName),
-        DataKeys = maps:keys(CertainData),
-        RecordKey = ?ONE_OF(DataKeys),
-        [FileName, RecordKey]
-    end
-
-])).
-
 %%%===================================================================
 %%% API
 %%%===================================================================
 
 test(_Config) ->
-    common_server:start_link(),
-    ?GT(),
-    common_server:stop().
+    ?GT().
+
+initial_state() ->
+    {}.
 
 command(_ModelState) ->
     oneof([
         {call, ?SERVER, turn_on_wechat_debug, []},
         {call, ?SERVER, turn_off_wechat_debug, []},
-        {call, ?SERVER, get_runtime_data, ?RUNTIME_DATA_INSTRUCTION},
+        {call, ?SERVER, get_runtime_data, random_runtime_data_instruction()},
         {call, ?SERVER, random_npc, []}
     ]).
-
-initial_state() ->
-    {}.
 
 next_state(ModelState, _Var, {call, ?SERVER, _Action, _Args}) ->
     ModelState.
@@ -89,7 +67,26 @@ postcondition(_ModelState, {call, ?SERVER, random_npc, []}, #npc_born_info{npc_f
     NewNpcFsmId == NpcFsmId.
 
 %%%===================================================================
-%%% Internal functions (N/A)
+%%% Internal functions
 %%%===================================================================
 record_not_undefined(Record) ->
     0 == length([Field || Field <- tuple_to_list(Record), undefined == Field]).
+
+random_runtime_data_instruction() ->
+    ?ONE_OF([
+
+        [random_runtime_filename()],
+
+        begin
+            FileName = random_runtime_filename(),
+            CertainData = common_server:get_runtime_data(FileName),
+            DataKeys = maps:keys(CertainData),
+            RecordKey = ?ONE_OF(DataKeys),
+            [FileName, RecordKey]
+        end
+
+    ]).
+
+random_runtime_filename() ->
+    {ok, FileNameList} = file:list_dir(filename:join(code:priv_dir(wechat_mud), "runtime")),
+    list_to_atom(filename:rootname(?ONE_OF(FileNameList))).

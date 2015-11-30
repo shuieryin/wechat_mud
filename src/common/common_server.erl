@@ -22,6 +22,7 @@
     get_runtime_data/1,
     get_runtime_data/2,
     random_npc/0,
+    start/0,
     stop/0
 ]).
 
@@ -63,6 +64,16 @@
 -spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Starts server by setting module name as server name without link.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec start() -> gen:start_ret().
+start() ->
+    gen_server:start({local, ?SERVER}, ?MODULE, [], []).
 
 %%--------------------------------------------------------------------
 %% @doc

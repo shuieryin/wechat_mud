@@ -24,7 +24,8 @@
 
 -export([
     redis_server_test/1,
-    common_server_test/1
+    common_server_test/1,
+    nls_server_test/1
 ]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -50,15 +51,17 @@ all() ->
 groups() ->
     [{
         servers,
-        [parallel, {repeat, 2}],
+        [{repeat, 2}], % parallel
         [
             redis_server_test,
-            common_server_test
+            common_server_test,
+            nls_server_test
         ]
     }].
 
 redis_server_test(Cfg) -> redis_server_test:test(Cfg).
 common_server_test(Cfg) -> common_server_test:test(Cfg).
+nls_server_test(Cfg) -> nls_server_test:test(Cfg).
 
 %%%===================================================================
 %%% Init states
@@ -69,9 +72,13 @@ init_per_suite(Config) ->
             os:cmd("redis-server")
         end),
     redis_client_server:start(),
+    common_server:start(),
+    nls_server:start(),
     Config.
 
 end_per_suite(_Config) ->
+    nls_server:stop(),
+    common_server:stop(),
     redis_client_server:stop(),
     spawn(
         fun() ->

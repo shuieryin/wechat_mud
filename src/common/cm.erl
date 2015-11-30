@@ -28,7 +28,7 @@
     random_from_list/1,
     observer/0,
     binary_join/2,
-    sort/1
+    type_values/2
 ]).
 
 -type valid_type() :: atom | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple.
@@ -86,6 +86,7 @@ type_of(X) when is_pid(X) -> pid;
 type_of(X) when is_port(X) -> port;
 type_of(X) when is_reference(X) -> reference;
 type_of(X) when is_atom(X) -> atom;
+type_of(X) when is_map(X) -> map;
 type_of(_X) -> unknown.
 
 %%--------------------------------------------------------------------
@@ -290,9 +291,33 @@ binary_join(List, Sep) ->
         List
     ).
 
-sort([]) -> [];
-sort([P | Xs]) ->
-    sort([X || X <- Xs, X < P]) ++ [P] ++ sort([X || X <- Xs, P < X]).
+%%--------------------------------------------------------------------
+%% @doc
+%% Get type values if split by "|".
+%% For example:
+%%          Given type in nls_server: -type support_lang() :: zh | en.
+%%          [zh, en] = type_values(nls_server, support_lang).
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec type_values(ModuleName, TypeName) -> TypeValues when
+    ModuleName :: module(),
+    TypeName :: atom(), % generic atom
+    TypeValues :: term(). % generic term
+type_values(ModuleName, TypeName) ->
+    ModulePath = module_src_path(ModuleName),
+    {ok, AbstractCode} = dialyzer_utils:get_abstract_code_from_src(ModulePath),
+    {ok, TypeDict} = dialyzer_utils:get_record_and_type_info(AbstractCode),
+
+    TypeKey = {type, TypeName, 0},
+    case dict:is_key(TypeKey, TypeDict) of
+        true ->
+            {{ModuleName, {ModulePath, _}, {type, _, _, TypeList}, []}, any}
+                = dict:fetch({type, TypeName, 0}, TypeDict),
+            [TypeAtom || {_, _, TypeAtom} <- TypeList];
+        false ->
+            undefined
+    end.
 
 %%%===================================================================
 %%% Internal functions
@@ -322,3 +347,30 @@ increase_vsn([CurDepthVersionNumStr | Tail], VersionDepth, Increment, CurDepth, 
                 CurDepthVersionNumStr
         end,
     increase_vsn(Tail, VersionDepth, Increment, CurDepth + 1, [UpdatedVersionNum | AccVersion]).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Get source path by module name.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec module_src_path(ModuleName) -> SrcPath when
+    ModuleName :: module(),
+    SrcPath :: file:filename().
+module_src_path(ModuleName) ->
+    get_module_src_path(ModuleName:module_info(compile)).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Implementation function of module_src_path/1.
+%% @see module_src_path/1.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec get_module_src_path(SourceCompileInfo) -> SrcPath when
+    SourceCompileInfo :: beam_lib:compinfo_entry(),
+    SrcPath :: string().
+get_module_src_path([{source, SrcPath} | _]) ->
+    SrcPath;
+get_module_src_path([_ | Rest]) ->
+    get_module_src_path(Rest).
