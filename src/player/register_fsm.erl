@@ -115,13 +115,14 @@ fsm_server_name(Uid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec init(Uid) ->
+-spec init({Uid, DispatcherPid}) ->
     {ok, StateName, StateData} |
     {ok, StateName, StateData, timeout() | hibernate} |
     {stop, Reason} |
     ignore when
 
     Uid :: player_fsm:uid(),
+    DispatcherPid :: pid(),
     Reason :: term(), % generic term
     StateName :: state_name(),
     StateData :: #state{}.

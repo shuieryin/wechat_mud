@@ -368,7 +368,7 @@ module_src_path(ModuleName) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec get_module_src_path(SourceCompileInfo) -> SrcPath when
-    SourceCompileInfo :: beam_lib:compinfo_entry(),
+    SourceCompileInfo :: any() | beam_lib:compinfo_entry(),
     SrcPath :: string().
 get_module_src_path([{source, SrcPath} | _]) ->
     SrcPath;
