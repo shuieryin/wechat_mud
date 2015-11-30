@@ -33,7 +33,9 @@ test(_Config) ->
     ?assert(proper:quickcheck(?FORALL(_Cmds, commands(?MODULE),
         ?TRAPEXIT(
             begin
+                common_server:start_link(),
                 {History, State, Result} = run_commands(?MODULE, _Cmds),
+                common_server:stop(),
                 ?WHENFAIL(ct:pal("History: ~w~nState: ~w~nResult: ~w~n",
                     [History, State, Result]),
                     aggregate(command_names(_Cmds), Result =:= ok)
