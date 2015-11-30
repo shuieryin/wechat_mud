@@ -22,6 +22,10 @@
     suite/0
 ]).
 
+-export([
+    test1/1
+]).
+
 -include_lib("common_test/include/ct.hrl").
 
 %%%===================================================================
@@ -41,10 +45,6 @@ all() ->
     [
         {group, servers}
     ].
-
--export([
-    test1/1
-]).
 
 groups() ->
     [{
