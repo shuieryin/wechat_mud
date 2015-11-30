@@ -28,9 +28,6 @@
 
 -define(SERVER, ?MODULE).
 
-%% Nls files root path
--define(SCENE_NLS_PATH, "priv/scene").
-
 %% Unique scene file extension
 -define(FILE_EXTENSION, ".csv").
 
@@ -110,7 +107,8 @@ gen_scene_child_list() ->
             populate_scene_child(SceneValues, Restart, Shutdown, Type)
         end,
 
-    ScenesMap = csv_to_object:traverse_merge_files(?SCENE_NLS_PATH, ChildFun),
+    SceneNlsPath = filename:join(code:priv_dir(wechat_mud), "scene"),
+    ScenesMap = csv_to_object:traverse_merge_files(SceneNlsPath, ChildFun),
     maps:values(ScenesMap).
 
 %%--------------------------------------------------------------------

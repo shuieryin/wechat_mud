@@ -248,8 +248,10 @@ remove_last_newline(SrcList) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec random_from_list(SrcList) -> Element when
-    Element :: term(), % generic term
+    Element :: term() | undefined, % generic term
     SrcList :: [Element].
+random_from_list([]) ->
+    undefined;
 random_from_list(SrcList) ->
     ListSize = length(SrcList),
     RandomPos = random:uniform(ListSize),

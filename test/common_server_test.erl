@@ -22,57 +22,74 @@
     test/1
 ]).
 
--include_lib("proper/include/proper.hrl").
--include_lib("eunit/include/eunit.hrl").
+-define(SERVER, common_server).
+
+-include_lib("wechat_mud_test.hrl").
+-include_lib("wechat_mud/src/data_type/npc_born_info.hrl").
+
+-define(RANDOM_RUNTIME_FILENAME,
+    begin
+        {ok, FileNameList} = file:list_dir(filename:join(code:priv_dir(wechat_mud), "runtime")),
+        list_to_atom(filename:rootname(?ONE_OF(FileNameList)))
+    end).
+
+-define(RUNTIME_DATA_INSTRUCTION, ?ONE_OF([
+
+    [?RANDOM_RUNTIME_FILENAME],
+
+    begin
+        FileName = ?RANDOM_RUNTIME_FILENAME,
+        CertainData = common_server:get_runtime_data(FileName),
+        DataKeys = maps:keys(CertainData),
+        RecordKey = ?ONE_OF(DataKeys),
+        [FileName, RecordKey]
+    end
+
+])).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 
 test(_Config) ->
-    ?assert(proper:quickcheck(?FORALL(_Cmds, commands(?MODULE),
-        ?TRAPEXIT(
-            begin
-                common_server:start_link(),
-                {History, State, Result} = run_commands(?MODULE, _Cmds),
-                common_server:stop(),
-                ?WHENFAIL(ct:pal("History: ~w~nState: ~w~nResult: ~w~n",
-                    [History, State, Result]),
-                    aggregate(command_names(_Cmds), Result =:= ok)
-                )
-            end
-        )
-    ), 100)).
+    common_server:start_link(),
+    ?GT(),
+    common_server:stop().
 
 command(_ModelState) ->
-    RandomInteger = binary_to_atom(integer_to_binary(random:uniform(100000)), utf8),
     oneof([
-        {call, redis_client_server, set, [RandomInteger, RandomInteger, false]},
-        {call, redis_client_server, async_set, [RandomInteger, RandomInteger, false]}
+        {call, ?SERVER, turn_on_wechat_debug, []},
+        {call, ?SERVER, turn_off_wechat_debug, []},
+        {call, ?SERVER, get_runtime_data, ?RUNTIME_DATA_INSTRUCTION},
+        {call, ?SERVER, random_npc, []}
     ]).
-
-assert_redis_set(Key, OriValue) ->
-    Value = redis_client_server:get(Key),
-    ?assert(Value =:= OriValue),
-    redis_client_server:del([Key], false),
-    DeletedValue = redis_client_server:get(Key),
-    ?assert(undefined == DeletedValue),
-    true.
 
 initial_state() ->
     {}.
 
-next_state(ModelState, _Var, {call, redis_client_server, _Action, _Args}) ->
+next_state(ModelState, _Var, {call, ?SERVER, _Action, _Args}) ->
     ModelState.
 
-precondition(_ModelState, {call, redis_client_server, _Action, _Args}) ->
+precondition(_ModelState, {call, ?SERVER, _Action, _Args}) ->
     true.
 
-postcondition(_ModelState, {call, redis_client_server, set, [Key, OriValue, _]}, _Result) ->
-    assert_redis_set(Key, OriValue);
-postcondition(_ModelState, {call, redis_client_server, async_set, [Key, OriValue, _]}, _Result) ->
-    assert_redis_set(Key, OriValue).
+postcondition(_ModelState, {call, ?SERVER, turn_on_wechat_debug, []}, _Result) ->
+    common_server:is_wechat_debug();
+postcondition(_ModelState, {call, ?SERVER, turn_off_wechat_debug, []}, _Result) ->
+    not common_server:is_wechat_debug();
+postcondition(_ModelState, {call, ?SERVER, get_runtime_data, Args}, Result) ->
+    case length(Args) of
+        1 ->
+            0 == length([any || Record <- maps:values(Result), not record_not_undefined(Record)]);
+        2 ->
+            record_not_undefined(Result)
+    end;
+postcondition(_ModelState, {call, ?SERVER, random_npc, []}, #npc_born_info{npc_fsm_id = NpcFsmId}) ->
+    #npc_born_info{npc_fsm_id = NewNpcFsmId} = common_server:get_runtime_data(npc_born_info, NpcFsmId),
+    NewNpcFsmId == NpcFsmId.
 
 %%%===================================================================
 %%% Internal functions (N/A)
 %%%===================================================================
+record_not_undefined(Record) ->
+    0 == length([Field || Field <- tuple_to_list(Record), undefined == Field]).

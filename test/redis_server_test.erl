@@ -22,53 +22,43 @@
     test/1
 ]).
 
--include_lib("proper/include/proper.hrl").
--include_lib("eunit/include/eunit.hrl").
+-define(SERVER, redis_client_server).
+
+-include_lib("wechat_mud_test.hrl").
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 
 test(_Config) ->
-    ?assert(proper:quickcheck(?FORALL(_Cmds, commands(?MODULE),
-        ?TRAPEXIT(
-            begin
-                {History, State, Result} = run_commands(?MODULE, _Cmds),
-                ?WHENFAIL(ct:pal("History: ~w~nState: ~w~nResult: ~w~n",
-                    [History, State, Result]),
-                    aggregate(command_names(_Cmds), Result =:= ok)
-                )
-            end
-        )
-    ), 100)).
+    ?GEN_TEST(100).
 
 command(_ModelState) ->
     RandomInteger = binary_to_atom(integer_to_binary(random:uniform(100000)), utf8),
     oneof([
-        {call, redis_client_server, set, [RandomInteger, RandomInteger, false]},
-        {call, redis_client_server, async_set, [RandomInteger, RandomInteger, false]}
+        {call, ?SERVER, set, [RandomInteger, RandomInteger, false]},
+        {call, ?SERVER, async_set, [RandomInteger, RandomInteger, false]}
     ]).
 
 assert_redis_set(Key, OriValue) ->
-    Value = redis_client_server:get(Key),
-    ?assert(Value =:= OriValue),
-    redis_client_server:del([Key], false),
-    DeletedValue = redis_client_server:get(Key),
-    ?assert(undefined == DeletedValue),
-    true.
+    Value = ?SERVER:get(Key),
+    Value = OriValue,
+    ?SERVER:del([Key], false),
+    DeletedValue = ?SERVER:get(Key),
+    undefined == DeletedValue.
 
 initial_state() ->
     {}.
 
-next_state(ModelState, _Var, {call, redis_client_server, _Action, _Args}) ->
+next_state(ModelState, _Var, {call, ?SERVER, _Action, _Args}) ->
     ModelState.
 
-precondition(_ModelState, {call, redis_client_server, _Action, _Args}) ->
+precondition(_ModelState, {call, ?SERVER, _Action, _Args}) ->
     true.
 
-postcondition(_ModelState, {call, redis_client_server, set, [Key, OriValue, _]}, _Result) ->
+postcondition(_ModelState, {call, ?SERVER, set, [Key, OriValue, _]}, _Result) ->
     assert_redis_set(Key, OriValue);
-postcondition(_ModelState, {call, redis_client_server, async_set, [Key, OriValue, _]}, _Result) ->
+postcondition(_ModelState, {call, ?SERVER, async_set, [Key, OriValue, _]}, _Result) ->
     assert_redis_set(Key, OriValue).
 
 %%%===================================================================

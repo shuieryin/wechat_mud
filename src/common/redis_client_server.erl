@@ -27,6 +27,7 @@
     del/2,
     async_del/2,
     clear_all/0,
+    start/0,
     stop/0
 ]).
 
@@ -66,6 +67,16 @@
 -spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Starts server by setting module name as server name without link.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec start() -> gen:start_ret().
+start() ->
+    gen_server:start({local, ?SERVER}, ?MODULE, [], []).
 
 %%--------------------------------------------------------------------
 %% @doc

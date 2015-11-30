@@ -229,7 +229,7 @@ init([]) ->
                 IdsSet
         end,
 
-    BornTypesMap = common_server:get_runtime_data([born_type_info]),
+    BornTypesMap = common_server:get_runtime_data(born_type_info),
     State = #state{
         registering_uids_set = gb_sets:new(),
         registered_uids_set = RegisteredUidsSet,

@@ -23,7 +23,8 @@
 ]).
 
 -export([
-    test1/1
+    redis_server_test/1,
+    common_server_test/1
 ]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -51,11 +52,13 @@ groups() ->
         servers,
         [parallel, {repeat, 2}],
         [
-            test1
+            redis_server_test,
+            common_server_test
         ]
     }].
 
-test1(Cfg) -> redis_server_test:test(Cfg).
+redis_server_test(Cfg) -> redis_server_test:test(Cfg).
+common_server_test(Cfg) -> common_server_test:test(Cfg).
 
 %%%===================================================================
 %%% Init states
@@ -65,9 +68,11 @@ init_per_suite(Config) ->
         fun() ->
             os:cmd("redis-server")
         end),
+    redis_client_server:start(),
     Config.
 
 end_per_suite(_Config) ->
+    redis_client_server:stop(),
     spawn(
         fun() ->
             os:cmd("redis-cli shutdown")
@@ -81,9 +86,7 @@ end_per_group(_GroupName, _Config) ->
     ok.
 
 init_per_testcase(_TestCase, Config) ->
-    redis_client_server:start_link(),
     Config.
 
 end_per_testcase(_TestCase, _Config) ->
-    redis_client_server:stop(),
     ok.

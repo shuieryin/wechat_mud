@@ -45,7 +45,7 @@
 ]).
 
 %% Nls files root path
--define(NLS_PATH, "priv/nls_server").
+-define(NLS_PATH, filename:join(code:priv_dir(wechat_mud), "nls_server")).
 
 %% Common nls file name
 -define(COMMON_NLS, "common.csv").
@@ -246,9 +246,10 @@ merge_nls_map(NlsMap1, NlsMap2) ->
 init([]) ->
     io:format("nls server starting..."),
 
-    {ok, FileNameList} = file:list_dir(?NLS_PATH),
+    NlsPath = filename:join(code:priv_dir(wechat_mud), "nls_server"),
+    {ok, FileNameList} = file:list_dir(NlsPath),
 
-    CommonNlsFilePath = filename:append(?NLS_PATH, ?COMMON_NLS),
+    CommonNlsFilePath = filename:append(NlsPath, ?COMMON_NLS),
     CommonNlsMap = read_nls_file(CommonNlsFilePath, #{}),
     NlsMap = lists:foldl(fun load_nls_file/2, CommonNlsMap, FileNameList),
 

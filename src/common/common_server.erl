@@ -20,6 +20,7 @@
     turn_on_wechat_debug/0,
     turn_off_wechat_debug/0,
     get_runtime_data/1,
+    get_runtime_data/2,
     random_npc/0,
     stop/0
 ]).
@@ -114,6 +115,20 @@ turn_off_wechat_debug() ->
 
 %%--------------------------------------------------------------------
 %% @doc
+%% Retrieves runtime data by file name.
+%% For example retriving specific:
+%%      csv file:                   [csv_file_name]
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec get_runtime_data(FileName) -> RuntimeData when
+    FileName :: csv_to_object:key(),
+    RuntimeData :: csv_to_object:csv_data().
+get_runtime_data(DataName) ->
+    gen_server:call(?MODULE, {get_runtime_data, [DataName]}).
+
+%%--------------------------------------------------------------------
+%% @doc
 %% Retrieves runtime data by phase list.
 %% For example retriving specific:
 %%      csv file:                   [csv_file_name]
@@ -126,11 +141,13 @@ turn_off_wechat_debug() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_runtime_data(Phases) -> RuntimeData when
-    Phases :: [csv_to_object:key()],
-    RuntimeData :: csv_to_object:csv_data() | csv_to_object:csv_row_data().
-get_runtime_data(Phases) ->
-    gen_server:call(?MODULE, {get_runtime_data, Phases}).
+-spec get_runtime_data(DataName, RecordName) -> RuntimeRecord when
+    DataName :: csv_to_object:key(),
+    RecordName :: DataName,
+    RuntimeRecord :: csv_to_object:csv_row_data().
+get_runtime_data(DataName, RecordName) ->
+    gen_server:call(?MODULE, {get_runtime_data, [DataName, RecordName]}).
+
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -179,7 +196,8 @@ init([]) ->
                 Config
         end,
 
-    RuntimeDatas = csv_to_object:traverse_files("priv/runtime"),
+    RuntimeFilePath = filename:join(code:priv_dir(wechat_mud), "runtime"),
+    RuntimeDatas = csv_to_object:traverse_files(RuntimeFilePath),
     State = #state{common_config = CommonConfig, runtime_datas = RuntimeDatas},
 
     io:format("started~n"),
@@ -218,7 +236,7 @@ handle_call(is_wechat_debug, _From, #state{common_config = #common_config{is_wec
 handle_call({set_wechat_debug, IsWechatDebug}, _From, #state{common_config = CommonConfigs} = State) ->
     {reply, IsWechatDebug, State#state{common_config = CommonConfigs#common_config{is_wechat_debug = IsWechatDebug}}};
 handle_call({get_runtime_data, Phases}, _From, #state{runtime_datas = RuntimeDatasMap} = State) ->
-    TargetRuntimeData = get_runtime_data(Phases, RuntimeDatasMap),
+    TargetRuntimeData = runtime_data(Phases, RuntimeDatasMap),
     {reply, TargetRuntimeData, State};
 handle_call(random_npc, _From, #state{runtime_datas = #{npc_born_info := NpcsRuntimeDataMap}} = State) ->
     RandomKey = cm:random_from_list(maps:keys(NpcsRuntimeDataMap)),
@@ -228,27 +246,35 @@ handle_call(random_npc, _From, #state{runtime_datas = #{npc_born_info := NpcsRun
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Get runtime data by phases, for details see get_runtime_data/1
+%% Retrieves runtime data by phase list.
+%% For example retriving specific:
+%%      csv file:                   [csv_file_name]
+%%      row of csv file:            [csv_file_name | row_id]
+%%      field of row of csv file:   [csv_file_name | row_id | field_name]
+%%
+%% The element types of each phase has to be map type except csv_file_name
+%% and the last phase name. It returns undefined once field not found when
+%% traversing phase list.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_runtime_data(Phases, RuntimeDatasMap) -> TargetRuntimeData when
+-spec runtime_data(Phases, RuntimeDatasMap) -> TargetRuntimeData when
     Phases :: [csv_to_object:key()],
     RuntimeDatasMap :: csv_to_object:csv_to_object(),
     TargetRuntimeData :: term(). % generic term
-get_runtime_data([Phase | []], RuntimeDatasMap) ->
+runtime_data([Phase | []], RuntimeDatasMap) ->
     case maps:get(Phase, RuntimeDatasMap, undefined) of
         undefined ->
             undefined;
         TargetRuntimeData ->
             TargetRuntimeData
     end;
-get_runtime_data([Phase | Tail], RuntimeDatasMap) ->
+runtime_data([Phase | Tail], RuntimeDatasMap) ->
     case maps:get(Phase, RuntimeDatasMap, undefined) of
         undefined ->
             undefined;
         DeeperMap ->
-            get_runtime_data(Tail, DeeperMap)
+            runtime_data(Tail, DeeperMap)
     end.
 
 %%--------------------------------------------------------------------
