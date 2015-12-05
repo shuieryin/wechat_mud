@@ -34,7 +34,7 @@
 
 -type valid_type() :: atom | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple.
 
--define(OBSERVER_NODE, 'collin@192.168.1.110').
+-define(OBSERVER_NODE, 'macbook@192.168.1.110').
 
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").

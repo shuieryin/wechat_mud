@@ -22,7 +22,7 @@
 
 -define(MAX_CONTENT_SIZE, 2048).
 -define(EMPTY_CONTENT, <<>>).
--define(WECHAT_TOKEN, <<"collinguo">>).
+-define(WECHAT_TOKEN, <<"wechat_mud">>).
 
 -type get_param() :: string() | binary(). % generic string % generic binary
 -type post_param() :: binary(). % generic binary
@@ -292,13 +292,15 @@ gen_action_from_message_type(#wechat_post_params{'MsgType' = MsgType} = ReqParam
             Event = binary_to_atom(ReqParams#wechat_post_params.'Event', utf8),
             case Event of
                 subscribe ->
-                    {subscribe, fun(_Uid) ->
-                        nls_server:get_nls_content([{nls, welcome_back}], zh)
-                                end};
+                    {subscribe,
+                        fun(_Uid) ->
+                            nls_server:get_nls_content([{nls, welcome_back}], zh)
+                        end};
                 unsubscribe ->
-                    {unsubscribe, fun(Uid) ->
-                        handle_input(Uid, <<"logout">>, [])
-                                  end};
+                    {unsubscribe,
+                        fun(Uid) ->
+                            handle_input(Uid, <<"logout">>, [])
+                        end};
                 _ ->
                     {no_reply, fun(_Uid) ->
                         ?EMPTY_CONTENT
@@ -307,13 +309,15 @@ gen_action_from_message_type(#wechat_post_params{'MsgType' = MsgType} = ReqParam
         text ->
             RawInput = ReqParams#wechat_post_params.'Content',
             [ModuleNameBin | RawCommandArgs] = binary:split(RawInput, <<" ">>),
-            {RawInput, fun(Uid) ->
-                handle_input(Uid, ModuleNameBin, RawCommandArgs)
-                       end};
+            {RawInput,
+                fun(Uid) ->
+                    handle_input(Uid, ModuleNameBin, RawCommandArgs)
+                end};
         _ ->
-            {<<>>, fun(Uid) ->
-                nls_server:get_nls_content([{nls, message_type_not_support}], player_fsm:get_lang(Uid))
-                   end}
+            {<<>>,
+                fun(Uid) ->
+                    nls_server:get_nls_content([{nls, message_type_not_support}], player_fsm:get_lang(Uid))
+                end}
     end.
 
 %%--------------------------------------------------------------------
