@@ -25,7 +25,9 @@
     input_gender/2,
     input_born_month/2,
     input_confirmation/2,
-    fsm_server_name/1
+    fsm_server_name/1,
+    current_player_profile/1,
+    start/2
 ]).
 
 %% gen_fsm callbacks
@@ -75,6 +77,19 @@ start_link(DispatcherPid, Uid) ->
 
 %%--------------------------------------------------------------------
 %% @doc
+%% Same as start_link/2 but without link.
+%% @see start_link/2.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec start(DispatcherPid, Uid) -> gen:start_ret() when
+    Uid :: player_fsm:uid(),
+    DispatcherPid :: pid().
+start(DispatcherPid, Uid) ->
+    gen_fsm:start({local, fsm_server_name(Uid)}, ?MODULE, {Uid, DispatcherPid}, []).
+
+%%--------------------------------------------------------------------
+%% @doc
 %% Executes states with player inputs. This function is called in
 %% spawn_link(M, F, A) by command_dispatcher:pending_content/3.
 %% @see command_dispatcher:pending_content/3.
@@ -87,6 +102,18 @@ start_link(DispatcherPid, Uid) ->
     DispatcherPid :: pid().
 input(DispatcherPid, Uid, Input) ->
     gen_fsm:send_event(fsm_server_name(Uid), {Input, DispatcherPid}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Get player profile of the current state.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec current_player_profile(Uid) -> CurrentPlayerProfile when
+    Uid :: player_fsm:uid(),
+    CurrentPlayerProfile :: #player_profile{}.
+current_player_profile(Uid) ->
+    gen_fsm:sync_send_all_state_event(fsm_server_name(Uid), current_player_profile).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -127,7 +154,7 @@ fsm_server_name(Uid) ->
     StateName :: state_name(),
     StateData :: #state{}.
 init({Uid, DispatcherPid}) ->
-    error_logger:info_msg("register fsm init~nUid:~p~n", [Uid]),
+%%    error_logger:info_msg("register fsm init~nUid:~p~n", [Uid]),
     State = #state{self = #player_profile{uid = Uid}},
     nls_server:response_content([{nls, select_lang}], zh, DispatcherPid),
     {ok, select_lang, State}.
@@ -434,8 +461,8 @@ handle_event(_Event, StateName, State) ->
     {stop, Reason, Reply, NewStateData} |
     {stop, Reason, NewStateData} when
 
-    Event :: term(), % generic term
-    Reply :: ok,
+    Event :: current_player_profile,
+    Reply :: #player_profile{},
 
     From :: {pid(), Tag :: term()}, % generic term
     StateName :: state_name(),
@@ -443,9 +470,8 @@ handle_event(_Event, StateName, State) ->
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_sync_event(_Event, _From, StateName, State) ->
-    Reply = ok,
-    {reply, Reply, StateName, State}.
+handle_sync_event(current_player_profile, _From, StateName, #state{self = CurrentPlayerProfile} = State) ->
+    {reply, CurrentPlayerProfile, StateName, State}.
 
 %%--------------------------------------------------------------------
 %% @private

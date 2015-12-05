@@ -18,6 +18,7 @@
 -export([
     start_link/0,
     add_child/1,
+    start/0,
     stop/0
 ]).
 
@@ -41,6 +42,16 @@
 -spec start_link() -> supervisor:startchild_ret().
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Starts the supervisor without link.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec start() -> supervisor:startlink_ret().
+start() ->
+    gen_server:start({local, ?SERVER}, supervisor, {{local, ?SERVER}, ?MODULE, []}, []).
 
 %%--------------------------------------------------------------------
 %% @doc

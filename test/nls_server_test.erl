@@ -38,11 +38,12 @@
 %%%===================================================================
 
 test(_Config) ->
-    ?GT().
+    ?ST().
 
 initial_state() ->
     ValidLangs = cm:type_values(?SERVER, support_lang),
     NlsKeys = ?SERVER:get_lang_map(?ONE_OF(ValidLangs)),
+
     #state{
         valid_langs = ValidLangs,
         test_langs = ValidLangs ++ [kr, jp],
@@ -68,7 +69,6 @@ postcondition(#state{valid_langs = ValidLangs}, {call, ?SERVER, is_valid_lang, [
 postcondition(_ModelState, {call, ?SERVER, get_lang_map, _Args}, Result) ->
     map == cm:type_of(Result);
 postcondition(_ModelState, {call, ?SERVER, get_nls_content, _Args}, Result) ->
-    io:format("get_nls_content:~ts", [Result]),
     Type = cm:type_of(list_to_binary(Result)),
     bitstring == Type.
 

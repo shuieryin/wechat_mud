@@ -28,7 +28,8 @@
     random_from_list/1,
     observer/0,
     binary_join/2,
-    type_values/2
+    type_values/2,
+    uuid/0
 ]).
 
 -type valid_type() :: atom | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple.
@@ -318,6 +319,16 @@ type_values(ModuleName, TypeName) ->
         false ->
             undefined
     end.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Generate uuid in atom.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec uuid() -> atom(). % generic atom
+uuid() ->
+    list_to_atom(uuid:uuid_to_string(uuid:get_v4())).
 
 %%%===================================================================
 %%% Internal functions

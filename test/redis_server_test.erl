@@ -31,7 +31,7 @@
 %%%===================================================================
 
 test(_Config) ->
-    ?GEN_TEST(100).
+    ?SERVER_TEST_OPTS(100).
 
 initial_state() ->
     gb_sets:new().

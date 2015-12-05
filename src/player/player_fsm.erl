@@ -18,6 +18,7 @@
 %% API
 -export([
     start_link/1,
+    start/1,
     logout/1,
     go_direction/3,
     look_scene/2,
@@ -90,6 +91,18 @@
     PlayerProfile :: #player_profile{}.
 start_link(#player_profile{uid = Uid} = PlayerProfile) ->
     gen_fsm:start_link({local, Uid}, ?MODULE, PlayerProfile, []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Same as start_link/1 but without link.
+%% @see start_link/0.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec start(PlayerProfile) -> gen:start_ret() when
+    PlayerProfile :: #player_profile{}.
+start(#player_profile{uid = Uid} = PlayerProfile) ->
+    gen_fsm:start({local, Uid}, ?MODULE, PlayerProfile, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -243,7 +256,7 @@ logout(Uid) ->
     Reason :: term(). % generic term
 init(#player_profile{lang = Lang} = PlayerProfile) ->
     LangMap = nls_server:get_lang_map(Lang),
-    error_logger:info_msg("Player fsm initialized:~p~n", [PlayerProfile]),
+%%    error_logger:info_msg("Player fsm initialized:~p~n", [PlayerProfile]),
     {ok, non_battle, #state{self = PlayerProfile, lang_map = LangMap}}.
 
 %%--------------------------------------------------------------------

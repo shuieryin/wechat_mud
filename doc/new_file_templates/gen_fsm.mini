@@ -7,6 +7,7 @@
 %% API
 -export([
     start_link/0,
+    start/0,
     stop/0
 ]).
 
@@ -43,6 +44,17 @@
 -spec start_link() -> gen:start_ret().
 start_link() ->
     gen_fsm:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Same as start_link/0 but without link.
+%% @see start_link/0.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec start() -> gen:start_ret().
+start() ->
+    gen_fsm:start({local, ?SERVER}, ?MODULE, [], []).
 
 %%--------------------------------------------------------------------
 %% @doc

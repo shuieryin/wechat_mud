@@ -298,7 +298,7 @@ traverse_npcspec([{NpcType, Amount} | Tail], AccNpcFsmList, AccNpcFsmMap) ->
 new_npc(0, _, AccNpcFsmList, AccOverallNpcFsmMap) ->
     {AccNpcFsmList, AccOverallNpcFsmMap};
 new_npc(Amount, #npc_born_info{npc_id = NpcType, name_nls_key = NameNlsKey} = NpcBornProfile, AccNpcFsmList, AccOverallNpcFsmMap) ->
-    NpcFsmId = list_to_atom(uuid:uuid_to_string(uuid:get_v4())),
+    NpcFsmId = cm:uuid(),
     NpcProfile = NpcBornProfile#npc_born_info{npc_fsm_id = NpcFsmId},
     npc_fsm_sup:add_child(NpcProfile),
     new_npc(Amount - 1, NpcBornProfile, [#simple_npc_fsm{npc_fsm_id = NpcFsmId, npc_type = NpcType, npc_name_nls_key = NameNlsKey} | AccNpcFsmList], AccOverallNpcFsmMap#{NpcFsmId => NpcFsmId}).
