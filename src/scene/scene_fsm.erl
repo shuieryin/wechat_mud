@@ -25,7 +25,9 @@
     leave/2,
     go_direction/3,
     look_scene/3,
-    look_target/4
+    look_target/4,
+    get_scene_object_list/1,
+    get_exits_map/1
 ]).
 
 %% gen_fsm callbacks
@@ -157,6 +159,28 @@ look_scene(CurSceneName, Uid, DispatcherPid) ->
     LookArgs :: binary().
 look_target(CurSceneName, Uid, DispatcherPid, LookArgs) ->
     gen_fsm:send_all_state_event(CurSceneName, {look_target, Uid, DispatcherPid, LookArgs}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Gets the current scene object list including players and npcs.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec get_scene_object_list(CurSceneName) -> [scene_object()] when
+    CurSceneName :: scene_name().
+get_scene_object_list(CurSceneName) ->
+    gen_fsm:sync_send_all_state_event(CurSceneName, get_scene_object_list).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Gets the current scene exits map.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec get_exits_map(CurSceneName) -> exits_map() when
+    CurSceneName :: scene_name().
+get_exits_map(CurSceneName) ->
+    gen_fsm:sync_send_all_state_event(CurSceneName, get_exits_map).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -383,7 +407,9 @@ remove_scene_object(SceneObjectKey, #state{scene_object_list = SceneObjectList} 
     {stop, Reason, Reply, NewStateData} |
     {stop, Reason, NewStateData} when
 
-    Event :: {go_direction, Uid, TargetDirection},
+    Event :: {go_direction, Uid, TargetDirection} |
+    get_scene_object_list |
+    get_exits_map,
     Reply :: SceneName,
 
     Uid :: player_fsm:uid(),
@@ -405,7 +431,11 @@ handle_sync_event({go_direction, Uid, TargetDirection}, _From, StateName, #state
                 {SceneName, remove_scene_object(Uid, State)}
         end,
 
-    {reply, TargetSceneName, StateName, UpdatedState}.
+    {reply, TargetSceneName, StateName, UpdatedState};
+handle_sync_event(get_scene_object_list, _From, StateName, #state{scene_object_list = SceneObjectList} = State) ->
+    {reply, SceneObjectList, StateName, State};
+handle_sync_event(get_exits_map, _From, StateName, #state{scene_info = #scene_info{exits = ExitsMap}} = State) ->
+    {reply, ExitsMap, StateName, State}.
 
 %%--------------------------------------------------------------------
 %% @private

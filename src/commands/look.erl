@@ -39,7 +39,7 @@
     Uid :: player_fsm:uid(),
     DispatcherPid :: pid().
 exec(DispatcherPid, Uid) ->
-    player_fsm:look_scene(Uid, DispatcherPid).
+    player_fsm:look_scene(DispatcherPid, Uid).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -52,7 +52,7 @@ exec(DispatcherPid, Uid) ->
     DispatcherPid :: pid(),
     RestArgsBin :: binary().
 exec(DispatcherPid, Uid, Args) ->
-    player_fsm:look_target(Uid, DispatcherPid, Args).
+    player_fsm:look_target(DispatcherPid, Uid, Args).
 
 %%%===================================================================
 %%% Internal functions (N/A)

@@ -27,7 +27,8 @@
     leave_scene/1,
     switch_lang/3,
     look_target/3,
-    being_looked/2
+    being_looked/2,
+    current_scene_name/1
 ]).
 
 %% gen_fsm callbacks
@@ -117,11 +118,11 @@ start(#player_profile{uid = Uid} = PlayerProfile) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec go_direction(Uid, DispatcherPid, Direction) -> ok when
-    Uid :: uid(),
+-spec go_direction(DispatcherPid, Uid, Direction) -> ok when
     DispatcherPid :: pid(),
+    Uid :: uid(),
     Direction :: direction:directions().
-go_direction(Uid, DispatcherPid, Direction) ->
+go_direction(DispatcherPid, Uid, Direction) ->
     gen_fsm:send_all_state_event(Uid, {go_direction, DispatcherPid, Direction}).
 
 %%--------------------------------------------------------------------
@@ -130,10 +131,10 @@ go_direction(Uid, DispatcherPid, Direction) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec look_scene(Uid, DispatcherPid) -> ok when
-    Uid :: uid(),
-    DispatcherPid :: pid().
-look_scene(Uid, DispatcherPid) ->
+-spec look_scene(DispatcherPid, Uid) -> ok when
+    DispatcherPid :: pid(),
+    Uid :: uid().
+look_scene(DispatcherPid, Uid) ->
     gen_fsm:send_all_state_event(Uid, {look_scene, DispatcherPid}).
 
 %%--------------------------------------------------------------------
@@ -142,11 +143,11 @@ look_scene(Uid, DispatcherPid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec look_target(Uid, DispatcherPid, LookArgs) -> ok when
-    Uid :: uid(),
+-spec look_target(DispatcherPid, Uid, LookArgs) -> ok when
     DispatcherPid :: pid(),
+    Uid :: uid(),
     LookArgs :: binary().
-look_target(Uid, DispatcherPid, LookArgs) ->
+look_target(DispatcherPid, Uid, LookArgs) ->
     gen_fsm:send_all_state_event(Uid, {look_target, DispatcherPid, LookArgs}).
 
 %%--------------------------------------------------------------------
@@ -156,8 +157,22 @@ look_target(Uid, DispatcherPid, LookArgs) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
+-spec being_looked(TargetPlayerUid, SrcUid) -> ok when
+    TargetPlayerUid :: player_fsm:uid(),
+    SrcUid :: TargetPlayerUid.
 being_looked(TargetPlayerUid, SrcUid) ->
     gen_fsm:sync_send_all_state_event(TargetPlayerUid, {being_looked, SrcUid}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Get the current scene name of one player.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec current_scene_name(PlayerUid) -> scene_fsm:scene_name() when
+    PlayerUid :: player_fsm:uid().
+current_scene_name(PlayerUid) ->
+    gen_fsm:sync_send_all_state_event(PlayerUid, current_scene_name).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -407,7 +422,10 @@ handle_event(stop, _StateName, State) ->
     {stop, Reason, Reply, NewStateData} |
     {stop, Reason, NewStateData} when
 
-    Event :: get_lang | {being_looked, SrcFsmId},
+    Event :: get_lang |
+    {being_looked, SrcFsmId} |
+    current_scene_name,
+
     Reply :: Lang,
 
     Lang :: nls_server:support_lang(),
@@ -428,7 +446,9 @@ handle_sync_event({being_looked, SrcUid}, _From, StateName, #state{self = #playe
                       true ->
                           [Description, <<"\n">>]
                   end,
-    {reply, ContentList, StateName, State}.
+    {reply, ContentList, StateName, State};
+handle_sync_event(current_scene_name, _From, StateName, #state{self = #player_profile{scene = CurrentSceneName}} = State) ->
+    {reply, CurrentSceneName, StateName, State}.
 
 %%--------------------------------------------------------------------
 %% @private

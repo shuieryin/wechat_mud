@@ -48,7 +48,6 @@ command(#state{registered_uids_set = RegisteredUidsSet}) ->
     UidsList = gb_sets:to_list(RegisteredUidsSet),
     Self = self(),
     TestUid = ?ONE_OF(UidsList),
-    io:format("TestUid:~p~n", [TestUid]),
     oneof([
         {call, ?SERVER, login, [Self, TestUid]},
         {call, ?SERVER, logout, [Self, TestUid]}

@@ -40,7 +40,7 @@
     DispatcherPid :: pid(),
     Direction :: directions().
 exec(DispatcherPid, Uid, Direction) ->
-    player_fsm:go_direction(Uid, DispatcherPid, Direction).
+    player_fsm:go_direction(DispatcherPid, Uid, Direction).
 
 %%--------------------------------------------------------------------
 %% @doc

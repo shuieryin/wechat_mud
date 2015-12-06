@@ -27,7 +27,8 @@
     common_server_test/1,
     nls_server_test/1,
     register_fsm_test/1,
-    login_server_test/1
+    login_server_test/1,
+    player_fsm_test/1
 ]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -59,7 +60,8 @@ groups() ->
             common_server_test,
             nls_server_test,
             register_fsm_test,
-            login_server_test
+            login_server_test,
+            player_fsm_test
         ]
     }].
 
@@ -68,6 +70,7 @@ common_server_test(Cfg) -> common_server_test:test(Cfg).
 nls_server_test(Cfg) -> nls_server_test:test(Cfg).
 register_fsm_test(Cfg) -> register_fsm_test:test(Cfg).
 login_server_test(Cfg) -> login_server_test:test(Cfg).
+player_fsm_test(Cfg) -> player_fsm_test:test(Cfg).
 
 %%%===================================================================
 %%% Init states
