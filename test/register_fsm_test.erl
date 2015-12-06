@@ -29,12 +29,13 @@ test(_Config) ->
     ?assert(proper:quickcheck(?FORALL(_L, integer(), test()), 20)).
 
 test() ->
+    Self = self(),
     TestUid = cm:uuid(),
     [TestIdBin | _] = re:split(atom_to_list(TestUid), "-"),
     TestId = binary_to_atom(TestIdBin, utf8),
     FsmId = register_fsm:fsm_server_name(TestUid),
 
-    login_server:register_uid(self(), TestUid),
+    login_server:register_uid(Self, TestUid),
 
     ValidLangs = cm:type_values(nls_server, support_lang),
     ValidGenders = cm:type_values(player_fsm, gender),
@@ -43,7 +44,19 @@ test() ->
     InvalidInputs = [<<"@342342KKK">>, <<"$%^^$%^@!%$@">>],
     PlayerProfile = #player_profile{uid = TestUid},
 
-    Ref = monitor(process, FsmId),
+    MonitorPid = spawn(
+        fun() ->
+            Ref = monitor(process, FsmId),
+            receive
+                {'DOWN', Ref, process, _, _} ->
+                    ?assert(login_server:is_uid_registered(TestUid)),
+                    ?assertNot(login_server:is_in_registration(TestUid)),
+                    ?assert(login_server:is_id_registered(TestId)),
+                    ?assert(login_server:is_uid_logged_in(TestUid))
+            end,
+            Self ! {done, self()}
+        end
+    ),
 
     ?assertNot(login_server:is_uid_registered(TestUid)),
     ?assert(login_server:is_in_registration(TestUid)),
@@ -85,13 +98,9 @@ test() ->
     % =================input confirmation - End===================
 
     receive
-        {'DOWN', Ref, process, _, _} ->
-            ?assert(login_server:is_uid_registered(TestUid)),
-            ?assertNot(login_server:is_in_registration(TestUid)),
-            ?assert(login_server:is_id_registered(TestId)),
-            ?assert(login_server:is_uid_logged_in(TestUid))
-    end,
-    true.
+        {done, MonitorPid} ->
+            true
+    end.
 
 %%%===================================================================
 %%% Internal functions
