@@ -27,7 +27,8 @@
     logout/2,
     is_id_registered/1,
     start/0,
-    stop/0
+    stop/0,
+    get_registered_player_uids/0
 ]).
 
 %% gen_server callbacks
@@ -112,6 +113,16 @@ is_uid_registered(Uid) ->
     Id :: player_fsm:id().
 is_id_registered(Id) ->
     gen_server:call(?MODULE, {is_id_registered, Id}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Checks if id has been registered.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec get_registered_player_uids() -> uid_set().
+get_registered_player_uids() ->
+    gen_server:call(?MODULE, get_registered_player_uids).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -267,7 +278,9 @@ init([]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: {is_uid_registered | is_in_registration | delete_user, Uid},
+    Request :: {is_uid_registered | is_in_registration | delete_user, Uid} |
+    get_registered_player_uids,
+
     Reply :: IsUidRegistered | IsIdRegistered | IsInRegistration | IsUserLoggedIn | ok,
 
     Uid :: player_fsm:uid(),
@@ -297,7 +310,9 @@ handle_call({delete_user, Uid}, _From, #state{registered_uids_set = RegisteredUi
 
     {reply, ok, LoggedOutState#state{registered_uids_set = UpdatedRegisteredUidsSet}};
 handle_call({is_uid_logged_in, Uid}, _From, #state{logged_in_uids_set = LoggedUidsSet} = State) ->
-    {reply, gb_sets:is_element(Uid, LoggedUidsSet), State}.
+    {reply, gb_sets:is_element(Uid, LoggedUidsSet), State};
+handle_call(get_registered_player_uids, _From, #state{registered_uids_set = RegisteredUidsSet} = State) ->
+    {reply, RegisteredUidsSet, State}.
 
 %%--------------------------------------------------------------------
 %% @private
