@@ -32,6 +32,7 @@
     registered_uids_set,
     current_player_uid,
     current_scene,
+    current_pid,
     valid_langs
 }).
 
@@ -40,7 +41,7 @@
 %%%===================================================================
 
 test(_Config) ->
-    ?SERVER_TEST_OPTS(20).
+    ?ST().
 
 initial_state() ->
     Self = self(),
@@ -53,6 +54,7 @@ initial_state() ->
         registered_uids_set = RegisteredUidsSet,
         current_player_uid = CurrentPlayerUid,
         current_scene = player_fsm:current_scene_name(CurrentPlayerUid),
+        current_pid = Self,
         valid_langs = ValidLangs
     }.
 
@@ -79,20 +81,21 @@ command(#state{current_player_uid = PlayerUid, current_scene = CurrentScene, val
         {call, ?SERVER, go_direction, [Self, PlayerUid, TargetDirection]}
     ]).
 
-next_state(#state{current_player_uid = PlayerUid, current_scene = CurrentScene} = ModelState, _Var, {call, ?SERVER, go_direction, [_, PlayerUid, TargetDirection]}) ->
+next_state(#state{current_player_uid = PlayerUid, current_scene = CurrentScene, current_pid = Self} = ModelState, _Var, {call, ?SERVER, go_direction, [Self, PlayerUid, TargetDirection]}) ->
     case scene_fsm:get_exits_map(CurrentScene) of
         undefined ->
             ModelState;
         #{TargetDirection := TargetSceneName} ->
+            io:format("next_state TargetSceneName:~p~nCurrentScene:~p~n", [TargetSceneName, CurrentScene]),
             ModelState#state{current_scene = TargetSceneName};
         Other ->
-            io:format("TargetDirection:~p~nOther:~p~n", [TargetDirection, Other]),
+            io:format("next_state TargetDirection:~p~nOther:~p~n", [TargetDirection, Other]),
             ModelState
     end;
 next_state(ModelState, _Var, {call, ?SERVER, _Action, _Args}) ->
     ModelState.
 
-precondition(#state{current_player_uid = PlayerUid, current_scene = CurrentScene}, {call, ?SERVER, go_direction, [_, PlayerUid, TargetDirection]}) ->
+precondition(#state{current_player_uid = PlayerUid, current_scene = CurrentScene, current_pid = Self}, {call, ?SERVER, go_direction, [Self, PlayerUid, TargetDirection]}) ->
     if
         undefined == TargetDirection ->
             false;
@@ -107,7 +110,8 @@ precondition(#state{current_player_uid = PlayerUid, current_scene = CurrentScene
 precondition(_ModelState, {call, ?SERVER, _Action, _Args}) ->
     true.
 
-postcondition(#state{current_scene = CurrentSceneName, current_player_uid = PlayerUid}, {call, ?SERVER, go_direction, [_, PlayerUid, _]}, Result) ->
+postcondition(#state{current_scene = CurrentSceneName, current_player_uid = PlayerUid, current_pid = Self}, {call, ?SERVER, go_direction, [Self, PlayerUid, _]}, Result) ->
+    io:format("postcondition CurrentSceneName:~p~n", [CurrentSceneName]),
     CurrentSceneName == player_fsm:current_scene_name(PlayerUid) andalso Result == ok;
 postcondition(_ModelState, {call, ?SERVER, look_target, _Args}, Result) ->
     Result == ok;
@@ -115,8 +119,7 @@ postcondition(_ModelState, {call, ?SERVER, switch_lang, _Args}, Result) ->
     Result == ok;
 postcondition(_ModelState, {call, ?SERVER, look_scene, _Args}, Result) ->
     Result == ok;
-postcondition(#state{current_scene = CurrentSceneName, current_player_uid = PlayerUid}, {call, ?SERVER, _Action, _Args}, _Result) ->
-    io:format("postcondition CurrentSceneName:~p~nPlayerUid:~p~n_Action:~p~n_Args:~p~n", [CurrentSceneName, PlayerUid, _Action, _Args]),
+postcondition(_ModelState, {call, ?SERVER, _Action, _Args}, _Result) ->
     true.
 
 %%%===================================================================
