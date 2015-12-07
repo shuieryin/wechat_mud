@@ -153,7 +153,6 @@ validatePlayerProfile(#player_profile{uid = Uid} = CurrentPlayerProfile) ->
 input(InvalidInput, ValidInput, Value, FieldName, PlayerProfile) ->
     input(InvalidInput, ValidInput, Value, FieldName, PlayerProfile, true).
 input(InvalidInput, ValidInput, Value, FieldName, #player_profile{uid = Uid} = PlayerProfile, IsValidate) ->
-%%    io:format("ValidInput:~p~nValue:~p~n", [ValidInput, Value]),
     Self = self(),
     register_fsm:input(Self, Uid, InvalidInput),
     register_fsm:input(Self, Uid, ValidInput),

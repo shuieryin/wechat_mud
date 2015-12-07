@@ -52,11 +52,12 @@
 -type mail_object() :: [nls_server:nls_object()].
 
 -include("../data_type/player_profile.hrl").
+-include("../data_type/npc_born_info.hrl").
 
 -record(mailbox, {
-    battle :: [mail_object()],
-    scene :: [mail_object()],
-    other :: [mail_object()]
+    battle = [] :: [mail_object()],
+    scene = [] :: [mail_object()],
+    other = [] :: [mail_object()]
 }).
 
 -record(state, {
@@ -157,11 +158,11 @@ look_target(DispatcherPid, Uid, LookArgs) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec being_looked(TargetPlayerUid, SrcUid) -> ok when
+-spec being_looked(TargetPlayerUid, SrcCharacter) -> ok when
     TargetPlayerUid :: player_fsm:uid(),
-    SrcUid :: TargetPlayerUid.
-being_looked(TargetPlayerUid, SrcUid) ->
-    gen_fsm:sync_send_all_state_event(TargetPlayerUid, {being_looked, SrcUid}).
+    SrcCharacter :: scene_fsm:scene_object().
+being_looked(TargetPlayerUid, SrcCharacter) ->
+    gen_fsm:sync_send_all_state_event(TargetPlayerUid, {being_looked, SrcCharacter}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -272,7 +273,7 @@ logout(Uid) ->
 init(#player_profile{lang = Lang} = PlayerProfile) ->
     LangMap = nls_server:get_lang_map(Lang),
 %%    error_logger:info_msg("Player fsm initialized:~p~n", [PlayerProfile]),
-    {ok, non_battle, #state{self = PlayerProfile, lang_map = LangMap}}.
+    {ok, non_battle, #state{self = PlayerProfile, lang_map = LangMap, mail_box = #mailbox{}}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -367,36 +368,37 @@ state_name(_Event, _From, State) ->
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_event({go_direction, DispatcherPid, Direction}, StateName, #state{self = #player_profile{scene = CurSceneName, uid = Uid, name = PlayerName, id = Id} = PlayerProfile, lang_map = LangMap} = State) ->
-    TargetSceneName =
+handle_event({go_direction, DispatcherPid, Direction}, StateName, #state{mail_box = MailBox, self = #player_profile{scene = CurSceneName, uid = Uid, name = PlayerName, id = Id} = PlayerProfile} = State) ->
+    {TargetSceneName, UpdatedMailBox} =
         case scene_fsm:go_direction(CurSceneName, Uid, Direction) of
             undefined ->
-                nls_server:do_response_content(LangMap, [{nls, invalid_exit}], DispatcherPid),
-                CurSceneName;
+                Umb = do_response_content(State, [{nls, invalid_exit}], DispatcherPid),
+                {CurSceneName, Umb};
             NewSceneName ->
                 scene_fsm:enter(NewSceneName, Uid, PlayerName, Id, DispatcherPid),
-                NewSceneName
+                {NewSceneName, MailBox}
         end,
 
-    {next_state, StateName, State#state{self = PlayerProfile#player_profile{scene = TargetSceneName}}};
+    {next_state, StateName, State#state{mail_box = UpdatedMailBox, self = PlayerProfile#player_profile{scene = TargetSceneName}}};
 handle_event({look_scene, DispatcherPid}, StateName, #state{self = #player_profile{scene = CurSceneName, uid = Uid}} = State) ->
     scene_fsm:look_scene(CurSceneName, Uid, DispatcherPid),
     {next_state, StateName, State};
 handle_event({look_target, DispatcherPid, LookArgs}, StateName, #state{self = #player_profile{scene = CurSceneName, uid = Uid}} = State) ->
     scene_fsm:look_target(CurSceneName, Uid, DispatcherPid, LookArgs),
     {next_state, StateName, State};
-handle_event({response_content, NlsObjectList, DispatcherPid}, StateName, #state{lang_map = LangMap} = State) ->
-    nls_server:do_response_content(LangMap, NlsObjectList, DispatcherPid),
-    {next_state, StateName, State};
+handle_event({response_content, NlsObjectList, DispatcherPid}, StateName, State) ->
+    UpdatedMailBox = do_response_content(State, NlsObjectList, DispatcherPid),
+    {next_state, StateName, State#state{mail_box = UpdatedMailBox}};
 handle_event(leave_scene, StateName, #state{self = #player_profile{scene = CurSceneName, uid = Uid}} = State) ->
     scene_fsm:leave(CurSceneName, Uid),
     {next_state, StateName, State};
 handle_event({switch_lang, DispatcherPid, TargetLang}, StateName, #state{self = #player_profile{uid = Uid} = PlayerProfile} = State) ->
     TargetLangMap = nls_server:get_lang_map(TargetLang),
-    nls_server:do_response_content(TargetLangMap, [{nls, lang_switched}], DispatcherPid),
+    UpdatedState = State#state{lang_map = TargetLangMap},
+    UpdatedMailBox = do_response_content(UpdatedState, [{nls, lang_switched}], DispatcherPid),
     UpdatedPlayerProfile = PlayerProfile#player_profile{lang = TargetLang},
     redis_client_server:async_set(Uid, UpdatedPlayerProfile, true),
-    {next_state, StateName, State#state{self = UpdatedPlayerProfile, lang_map = TargetLangMap}};
+    {next_state, StateName, UpdatedState#state{self = UpdatedPlayerProfile, lang_map = TargetLangMap, mail_box = UpdatedMailBox}};
 handle_event(logout, _StateName, #state{self = #player_profile{scene = CurSceneName, uid = Uid} = PlayerProfile} = State) ->
     scene_fsm:leave(CurSceneName, Uid),
     error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
@@ -423,13 +425,13 @@ handle_event(stop, _StateName, State) ->
     {stop, Reason, NewStateData} when
 
     Event :: get_lang |
-    {being_looked, SrcFsmId} |
+    {being_looked, SrcCharacter} |
     current_scene_name,
 
     Reply :: Lang,
 
     Lang :: nls_server:support_lang(),
-    SrcFsmId :: uid() | npc_fsm_manager:npc_fsm_id(),
+    SrcCharacter :: scene_fsm:scene_object(),
 
     From :: {pid(), Tag :: term()}, % generic term
     StateName :: state_name(),
@@ -439,14 +441,23 @@ handle_event(stop, _StateName, State) ->
     Reason :: term(). % generic term
 handle_sync_event(get_lang, _From, StateName, #state{self = #player_profile{lang = Lang}} = State) ->
     {reply, Lang, StateName, State};
-handle_sync_event({being_looked, SrcUid}, _From, StateName, #state{self = #player_profile{uid = Uid, description = Description, self_description = SelfDescription}} = State) ->
+handle_sync_event({being_looked, SrcCharacter}, _From, StateName, #state{self = #player_profile{uid = TargetFsmId, description = Description, self_description = SelfDescription}, mail_box = #mailbox{scene = SceneMessages} = MailBox} = State) ->
+    {SrcFsmId, SrcName} =
+        case SrcCharacter of
+            #simple_player{uid = SourceFsmId, name = SourceName} ->
+                {SourceFsmId, SourceName};
+            #simple_npc_fsm{npc_fsm_id = SourceFsmId, npc_name_nls_key = SourceName} ->
+                {SourceFsmId, SourceName}
+        end,
     ContentList = if
-                      SrcUid == Uid ->
+                      SrcFsmId == TargetFsmId ->
                           [SelfDescription, <<"\n">>];
                       true ->
                           [Description, <<"\n">>]
                   end,
-    {reply, ContentList, StateName, State};
+
+    UpdatedSceneMessages = [{nls, SrcName}, {nls, being_looked}, <<"\n">> | SceneMessages],
+    {reply, ContentList, StateName, State#state{mail_box = MailBox#mailbox{scene = UpdatedSceneMessages}}};
 handle_sync_event(current_scene_name, _From, StateName, #state{self = #player_profile{scene = CurrentSceneName}} = State) ->
     {reply, CurrentSceneName, StateName, State}.
 
@@ -527,5 +538,21 @@ format_status(Opt, StatusData) ->
     gen_fsm:format_status(Opt, StatusData).
 
 %%%===================================================================
-%%% Internal functions (N/A)
+%%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Implementation function for nls_server:response_content/3.
+%% @see nls_server:response_content/3.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec do_response_content(State, NlsObjectList, DispatcherPid) -> UpdatedMailBox when
+    State :: #state{},
+    NlsObjectList :: [nls_server:nls_object()],
+    DispatcherPid :: pid(),
+    UpdatedMailBox :: #mailbox{}.
+do_response_content(#state{lang_map = LangMap, mail_box = #mailbox{scene = SceneMessages} = MailBox}, NlsObjectList, DispatcherPid) ->
+    nls_server:do_response_content(LangMap, SceneMessages ++ NlsObjectList, DispatcherPid),
+    MailBox#mailbox{scene = []}.
