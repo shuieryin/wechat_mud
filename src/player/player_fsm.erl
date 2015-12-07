@@ -383,8 +383,8 @@ handle_event({go_direction, DispatcherPid, Direction}, StateName, #state{mail_bo
 handle_event({look_scene, DispatcherPid}, StateName, #state{self = #player_profile{scene = CurSceneName, uid = Uid}} = State) ->
     scene_fsm:look_scene(CurSceneName, Uid, DispatcherPid),
     {next_state, StateName, State};
-handle_event({look_target, DispatcherPid, LookArgs}, StateName, #state{self = #player_profile{scene = CurSceneName, uid = Uid}} = State) ->
-    scene_fsm:look_target(CurSceneName, Uid, DispatcherPid, LookArgs),
+handle_event({look_target, DispatcherPid, LookArgs}, StateName, #state{self = #player_profile{scene = CurSceneName}} = State) ->
+    scene_fsm:look_target(CurSceneName, simple_player(State), DispatcherPid, LookArgs),
     {next_state, StateName, State};
 handle_event({response_content, NlsObjectList, DispatcherPid}, StateName, State) ->
     UpdatedMailBox = do_response_content(State, NlsObjectList, DispatcherPid),
@@ -456,7 +456,7 @@ handle_sync_event({being_looked, SrcCharacter}, _From, StateName, #state{self = 
                           [Description, <<"\n">>]
                   end,
 
-    UpdatedSceneMessages = [{nls, SrcName}, {nls, being_looked}, <<"\n">> | SceneMessages],
+    UpdatedSceneMessages = [[SrcName, {nls, being_looked}, <<"\n">>] | SceneMessages],
     {reply, ContentList, StateName, State#state{mail_box = MailBox#mailbox{scene = UpdatedSceneMessages}}};
 handle_sync_event(current_scene_name, _From, StateName, #state{self = #player_profile{scene = CurrentSceneName}} = State) ->
     {reply, CurrentSceneName, StateName, State}.
@@ -554,5 +554,15 @@ format_status(Opt, StatusData) ->
     DispatcherPid :: pid(),
     UpdatedMailBox :: #mailbox{}.
 do_response_content(#state{lang_map = LangMap, mail_box = #mailbox{scene = SceneMessages} = MailBox}, NlsObjectList, DispatcherPid) ->
-    nls_server:do_response_content(LangMap, SceneMessages ++ NlsObjectList, DispatcherPid),
+    nls_server:do_response_content(LangMap, lists:flatten(SceneMessages ++ NlsObjectList), DispatcherPid),
     MailBox#mailbox{scene = []}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Returns simple player record.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec simple_player(#state{}) -> #simple_player{}.
+simple_player(#state{self = #player_profile{uid = Uid, name = Name, id = Id}}) ->
+    #simple_player{uid = Uid, name = Name, id = Id}.

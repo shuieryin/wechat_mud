@@ -152,13 +152,13 @@ look_scene(CurSceneName, Uid, DispatcherPid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec look_target(CurSceneName, Uid, DispatcherPid, LookArgs) -> ok when
+-spec look_target(CurSceneName, SrcSimplePlayer, DispatcherPid, LookArgs) -> ok when
     CurSceneName :: scene_name(),
     DispatcherPid :: pid(),
-    Uid :: player_fsm:uid(),
+    SrcSimplePlayer :: #simple_player{},
     LookArgs :: binary().
-look_target(CurSceneName, Uid, DispatcherPid, LookArgs) ->
-    gen_fsm:send_all_state_event(CurSceneName, {look_target, Uid, DispatcherPid, LookArgs}).
+look_target(CurSceneName, SrcSimplePlayer, DispatcherPid, LookArgs) ->
+    gen_fsm:send_all_state_event(CurSceneName, {look_target, SrcSimplePlayer, DispatcherPid, LookArgs}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -291,11 +291,12 @@ state_name(_Event, _From, State) ->
     {enter, Uid, PlayerName, Id, DispatcherPid} |
     {leave, Uid} |
     {look_scene, Uid, DispatcherPid} |
-    {look_target, Uid, DispatcherPid, LookArgs},
+    {look_target, SrcSimplePlayer, DispatcherPid, LookArgs},
 
     PlayerName :: player_fsm:name(),
     Id :: player_fsm:id(),
     DispatcherPid :: pid(),
+    SrcSimplePlayer :: #simple_player{},
     Uid :: player_fsm:uid(),
     LookArgs :: binary(),
 
@@ -312,7 +313,7 @@ handle_event({leave, Uid}, StateName, State) ->
 handle_event({look_scene, Uid, DispatcherPid}, StateName, State) ->
     ok = show_scene(State, Uid, DispatcherPid),
     {next_state, StateName, State};
-handle_event({look_target, Uid, DispatcherPid, LookArgs}, StateName, #state{scene_object_list = SceneObjectList} = State) ->
+handle_event({look_target, #simple_player{uid = Uid} = SrcSimplePlayer, DispatcherPid, LookArgs}, StateName, #state{scene_object_list = SceneObjectList} = State) ->
     [RawSequence | Rest] = lists:reverse(re:split(LookArgs, <<" ">>)),
     {Target, Sequence} =
         case Rest of
@@ -333,7 +334,7 @@ handle_event({look_target, Uid, DispatcherPid, LookArgs}, StateName, #state{scen
                       #simple_npc_fsm{npc_fsm_id = TargetNpcFsmId} ->
                           npc_fsm:being_looked(TargetNpcFsmId, Uid);
                       #simple_player{uid = TargetPlayerUid} ->
-                          player_fsm:being_looked(TargetPlayerUid, Uid)
+                          player_fsm:being_looked(TargetPlayerUid, SrcSimplePlayer)
                   end,
     player_fsm:response_content(Uid, ContentList, DispatcherPid),
     {next_state, StateName, State}.

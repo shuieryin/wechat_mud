@@ -39,5 +39,6 @@
 -record(simple_player, {
     uid :: player_fsm:uid(),
     name :: player_fsm:name(),
-    id :: player_fsm:id()
+    id :: player_fsm:id(),
+    name_description :: nls_server:nls_object()
 }).
