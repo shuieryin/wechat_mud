@@ -20,8 +20,8 @@
             Setup,
             {History, State, Result} = run_commands(?MODULE, _Cmds),
             Cleanup,
-            ?WHENFAIL(ct:pal("History: ~w~nState: ~w~nResult: ~w~n",
-                [History, State, Result]),
+            ?WHENFAIL(ct:pal("Module:~w~nHistory: ~w~nState: ~w~nResult: ~w~n",
+                [?MODULE, History, State, Result]),
                 aggregate(command_names(_Cmds), Result =:= ok)
             )
         end
@@ -41,8 +41,8 @@
         Setup,
         {History, State, Result} = proper_fsm:run_commands(?MODULE, _Cmds),
         Cleanup,
-        ?WHENFAIL(ct:pal("History: ~w~nState: ~w~nResult: ~w~n",
-            [History, State, Result]),
+        ?WHENFAIL(ct:pal("Module:~w~nHistory: ~w~nState: ~w~nResult: ~w~n",
+            [?MODULE, History, State, Result]),
             aggregate(zip(proper_fsm:state_names(History), command_names(_Cmds)), Result =:= ok))
     end
 ), Opts))).
