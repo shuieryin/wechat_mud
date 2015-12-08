@@ -46,15 +46,7 @@ test() ->
 
     MonitorPid = spawn(
         fun() ->
-            Ref = monitor(process, FsmId),
-            receive
-                {'DOWN', Ref, process, _, _} ->
-                    ?assert(login_server:is_uid_registered(TestUid)),
-                    ?assertNot(login_server:is_in_registration(TestUid)),
-                    ?assert(login_server:is_id_registered(TestId)),
-                    ?assert(login_server:is_uid_logged_in(TestUid))
-            end,
-            Self ! {done, self()}
+            check_after(FsmId, TestUid, TestId, Self)
         end
     ),
 
@@ -101,6 +93,17 @@ test() ->
         {done, MonitorPid} ->
             true
     end.
+
+check_after(FsmId, TestUid, TestId, From) ->
+    Ref = monitor(process, FsmId),
+    receive
+        {'DOWN', Ref, process, _, _} ->
+            ?assert(login_server:is_uid_registered(TestUid)),
+            ?assertNot(login_server:is_in_registration(TestUid)),
+            ?assert(login_server:is_id_registered(TestId)),
+            ?assert(login_server:is_uid_logged_in(TestUid))
+    end,
+    From ! {done, self()}.
 
 %%%===================================================================
 %%% Internal functions
