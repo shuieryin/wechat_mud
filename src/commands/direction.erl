@@ -52,33 +52,33 @@ exec(DispatcherPid, Uid, Direction) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec parse_direction(RawDirectionInput) -> directions() | undefined when
-    RawDirectionInput :: atom(). % generic atom
-parse_direction('6') -> east;
-parse_direction('8') -> south;
-parse_direction('4') -> west;
-parse_direction('2') -> north;
-parse_direction('3') -> northeast;
-parse_direction('9') -> southeast;
-parse_direction('7') -> southwest;
-parse_direction('1') -> northwest;
+    RawDirectionInput :: binary(). % generic binary
+parse_direction(<<"6">>) -> east;
+parse_direction(<<"8">>) -> south;
+parse_direction(<<"4">>) -> west;
+parse_direction(<<"2">>) -> north;
+parse_direction(<<"3">>) -> northeast;
+parse_direction(<<"9">>) -> southeast;
+parse_direction(<<"7">>) -> southwest;
+parse_direction(<<"1">>) -> northwest;
 
-parse_direction(e) -> east;
-parse_direction(s) -> south;
-parse_direction(w) -> west;
-parse_direction(n) -> north;
-parse_direction(ne) -> northeast;
-parse_direction(se) -> southeast;
-parse_direction(sw) -> southwest;
-parse_direction(nw) -> northwest;
+parse_direction(<<"e">>) -> east;
+parse_direction(<<"s">>) -> south;
+parse_direction(<<"w">>) -> west;
+parse_direction(<<"n">>) -> north;
+parse_direction(<<"ne">>) -> northeast;
+parse_direction(<<"se">>) -> southeast;
+parse_direction(<<"sw">>) -> southwest;
+parse_direction(<<"nw">>) -> northwest;
 
-parse_direction(east) -> east;
-parse_direction(south) -> south;
-parse_direction(west) -> west;
-parse_direction(north) -> north;
-parse_direction(northeast) -> northeast;
-parse_direction(southeast) -> southeast;
-parse_direction(southwest) -> southwest;
-parse_direction(northwest) -> northwest;
+parse_direction(<<"east">>) -> east;
+parse_direction(<<"south">>) -> south;
+parse_direction(<<"west">>) -> west;
+parse_direction(<<"north">>) -> north;
+parse_direction(<<"northeast">>) -> northeast;
+parse_direction(<<"southeast">>) -> southeast;
+parse_direction(<<"southwest">>) -> southwest;
+parse_direction(<<"northwest">>) -> northwest;
 
 parse_direction(_) -> undefined.
 

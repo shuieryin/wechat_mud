@@ -26,8 +26,7 @@
 
 -type get_param() :: string() | binary(). % generic string % generic binary
 -type post_param() :: binary(). % generic binary
--type short_command() :: '5' | l.
--type command() :: lang | login | logout | look | rereg.
+-type command() :: binary(). % generic binary
 
 -record(wechat_get_params, {
     signature :: get_param(),
@@ -345,11 +344,12 @@ gen_action_from_message_type(#wechat_post_params{'MsgType' = MsgType} = ReqParam
     ReturnContent :: [nls_server:value()].
 handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
     try
-        RawModuleName = parse_raw_command(list_to_atom(string:to_lower(binary_to_list(ModuleNameBin)))),
+        RawModuleName = parse_raw_command(ModuleNameBin),
+
         {ModuleName, CommandArgs} =
             case is_command_exist(RawModuleName) of
                 true ->
-                    {RawModuleName, RawCommandArgs};
+                    {binary_to_atom(RawModuleName, utf8), RawCommandArgs};
                 false ->
                     case direction:parse_direction(RawModuleName) of
                         undefined ->
@@ -368,7 +368,7 @@ handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
             true ->
                 pending_content(ModuleName, exec, Args);
             false ->
-                nls_server:get_nls_content([{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(binary_to_list(ModuleNameBin) ++ "_help")}], player_fsm:get_lang(Uid))
+                nls_server:get_nls_content([{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(binary_to_list(RawModuleName) ++ "_help")}], player_fsm:get_lang(Uid))
         end
     catch
         Type:Reason ->
@@ -560,10 +560,10 @@ execute_command(Module, Function, [DispatcherPid, Uid | CommandArgs] = FunctionA
 %% @end
 %%--------------------------------------------------------------------
 -spec parse_raw_command(RawCommand) -> Command when
-    RawCommand :: short_command() | atom(), % generic atom
+    RawCommand :: command(),
     Command :: RawCommand.
-parse_raw_command('5') -> look;
-parse_raw_command(l) -> look;
+parse_raw_command(<<"5">>) -> <<"look">>;
+parse_raw_command(<<"l">>) -> <<"look">>;
 parse_raw_command(Other) -> Other.
 
 %%--------------------------------------------------------------------
@@ -572,11 +572,11 @@ parse_raw_command(Other) -> Other.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec is_command_exist(Command) -> boolean() when
-    Command :: command() | atom(). % generic atom
-is_command_exist(look) -> true;
-is_command_exist(lang) -> true;
-is_command_exist(login) -> true;
-is_command_exist(logout) -> true;
-is_command_exist(rereg) -> true;
-is_command_exist(_) -> false.
+-spec is_command_exist(CommandBin) -> boolean() when
+    CommandBin :: command().
+is_command_exist(<<"look">>) -> true;
+is_command_exist(<<"lang">>) -> true;
+is_command_exist(<<"login">>) -> true;
+is_command_exist(<<"logout">>) -> true;
+is_command_exist(<<"rereg">>) -> true;
+is_command_exist(_InvalidCommand) -> false.

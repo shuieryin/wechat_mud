@@ -76,6 +76,7 @@ stop() ->
 %%--------------------------------------------------------------------
 %% @doc
 %% Starts npc fsm as requirements of NpcSpecs.
+%% TODO: mark down npc uuids for reusable purpose, this is to prevent from growing memory size of atoms.
 %%
 %% @end
 %%--------------------------------------------------------------------

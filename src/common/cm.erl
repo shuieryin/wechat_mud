@@ -32,7 +32,7 @@
     uuid/0
 ]).
 
--type valid_type() :: atom | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple.
+-type valid_type() :: atom | binary | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple | map.
 
 -define(OBSERVER_NODE, 'macbook@192.168.1.110').
 
@@ -79,8 +79,8 @@ type_of(X) when is_integer(X) -> integer;
 type_of(X) when is_float(X) -> float;
 type_of(X) when is_list(X) -> list;
 type_of(X) when is_tuple(X) -> tuple;
-type_of(X) when is_bitstring(X) -> bitstring;  % will fail before e12
 type_of(X) when is_binary(X) -> binary;
+type_of(X) when is_bitstring(X) -> bitstring;  % will fail before e12
 type_of(X) when is_boolean(X) -> boolean;
 type_of(X) when is_function(X) -> function;
 type_of(X) when is_pid(X) -> pid;
@@ -323,6 +323,7 @@ type_values(ModuleName, TypeName) ->
 %%--------------------------------------------------------------------
 %% @doc
 %% Generate uuid in atom.
+%% Caution! Be careful of this function. Improper use may lead to memory leak.
 %%
 %% @end
 %%--------------------------------------------------------------------

@@ -70,7 +70,7 @@ postcondition(_ModelState, {call, ?SERVER, get_lang_map, _Args}, Result) ->
     map == cm:type_of(Result);
 postcondition(_ModelState, {call, ?SERVER, get_nls_content, _Args}, Result) ->
     Type = cm:type_of(list_to_binary(Result)),
-    bitstring == Type.
+    binary == Type.
 
 %%%===================================================================
 %%% Internal functions
