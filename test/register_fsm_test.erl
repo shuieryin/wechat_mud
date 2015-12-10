@@ -34,6 +34,12 @@ test() ->
     [TestId | _] = re:split(atom_to_list(TestUid), "-"),
     FsmId = register_fsm:fsm_server_name(TestUid),
 
+    MonitorPid = spawn(
+        fun() ->
+            check_after(FsmId, TestUid, TestId, Self)
+        end
+    ),
+
     login_server:register_uid(Self, TestUid),
 
     ValidLangs = cm:type_values(nls_server, support_lang),
@@ -42,12 +48,6 @@ test() ->
     InvalidLangs = [kr, jp, 124134, <<"fasdf">>],
     InvalidInputs = [<<"@342342KKK">>, <<"$%^^$%^@!%$@">>],
     PlayerProfile = #player_profile{uid = TestUid},
-
-    MonitorPid = spawn(
-        fun() ->
-            check_after(FsmId, TestUid, TestId, Self)
-        end
-    ),
 
     ?assertNot(login_server:is_uid_registered(TestUid)),
     ?assert(login_server:is_in_registration(TestUid)),

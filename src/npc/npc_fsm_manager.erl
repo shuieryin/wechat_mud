@@ -43,7 +43,8 @@
 -include("../data_type/npc_born_info.hrl").
 
 -record(state, {
-    npc_fsms_map :: npc_fsm()
+    npc_fsms_map :: npc_fsm(),
+    npc_fsm_ids_bank :: gb_sets:set(npc_fsm_id())
 }).
 
 -export_type([npc_type/0,
@@ -114,7 +115,7 @@ new_npcs(NpcsSpec) ->
     State :: #state{},
     Reason :: term(). % generic term
 init([]) ->
-    {ok, #state{npc_fsms_map = #{}}}.
+    {ok, #state{npc_fsms_map = #{}, npc_fsm_ids_bank = gb_sets:new()}}.
 
 %%--------------------------------------------------------------------
 %% @private
