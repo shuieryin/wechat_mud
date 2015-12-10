@@ -34,12 +34,6 @@ test() ->
     [TestId | _] = re:split(atom_to_list(TestUid), "-"),
     FsmId = register_fsm:fsm_server_name(TestUid),
 
-    MonitorPid = spawn(
-        fun() ->
-            check_after(FsmId, TestUid, TestId, Self)
-        end
-    ),
-
     login_server:register_uid(Self, TestUid),
 
     ValidLangs = cm:type_values(nls_server, support_lang),
@@ -76,6 +70,12 @@ test() ->
     ),
     % =================input confirmation - End===================
 
+    MonitorPid = spawn(
+        fun() ->
+            check_after(FsmId, TestUid, TestId, Self)
+        end
+    ),
+
     NormalFlow2 = normal_flow(ValidGenders, ValidBornMonths, InvalidInputs, ResetPlayerProfile, TestId),
     % =================input confirmation - Start=================
     input(
@@ -95,6 +95,7 @@ test() ->
 
 check_after(FsmId, TestUid, TestId, From) ->
     Ref = monitor(process, FsmId),
+    Self = self(),
     receive
         {'DOWN', Ref, process, _, _} ->
             ?assert(login_server:is_uid_registered(TestUid)),
@@ -102,7 +103,7 @@ check_after(FsmId, TestUid, TestId, From) ->
             ?assert(login_server:is_id_registered(TestId)),
             ?assert(login_server:is_uid_logged_in(TestUid))
     end,
-    From ! {done, self()}.
+    From ! {done, Self}.
 
 %%%===================================================================
 %%% Internal functions
