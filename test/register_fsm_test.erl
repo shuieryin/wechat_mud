@@ -31,8 +31,7 @@ test(_Config) ->
 test() ->
     Self = self(),
     TestUid = cm:uuid(),
-    [TestIdBin | _] = re:split(atom_to_list(TestUid), "-"),
-    TestId = binary_to_atom(TestIdBin, utf8),
+    [TestId | _] = re:split(atom_to_list(TestUid), "-"),
     FsmId = register_fsm:fsm_server_name(TestUid),
 
     login_server:register_uid(Self, TestUid),
@@ -112,7 +111,7 @@ normal_flow(ValidGenders, ValidBornMonths, InvalidInputs, PlayerProfile, TestId)
     % =================input id - Start=================
     InputId = input(
         ?ONE_OF(InvalidInputs),
-        atom_to_binary(TestId, utf8),
+        TestId,
         TestId,
         id,
         PlayerProfile

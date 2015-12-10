@@ -146,7 +146,7 @@ get_nls_content(NlsObjectList, Lang) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec is_valid_lang(Lang) -> boolean() when
-    Lang :: support_lang() | binary.
+    Lang :: support_lang() | binary().
 is_valid_lang(Lang) ->
     gen_server:call(?SERVER, {is_valid_lang, Lang}).
 
@@ -297,7 +297,9 @@ handle_call({is_valid_lang, TargetLang}, _From, #state{nls_map = NlsMap, valid_l
                  binary ->
                      lists:member(TargetLang, ValidLangs);
                  atom ->
-                     maps:is_key(TargetLang, NlsMap)
+                     maps:is_key(TargetLang, NlsMap);
+                 _ ->
+                     false
              end,
     {reply, Result, State};
 handle_call({get_nls_content, NlsObjectList, Lang}, _From, #state{nls_map = NlsMap} = State) ->

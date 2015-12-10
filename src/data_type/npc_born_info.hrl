@@ -10,7 +10,7 @@
 
 -record(npc_born_info, {
     npc_fsm_id :: npc_fsm_manager:npc_fsm_id(),
-    npc_id :: atom(),
+    npc_id :: binary(), % define npc_id to binary for convenience of pattern matching.
     name_nls_key :: atom(),
     description_nls_key :: atom(),
     self_description_nls_key :: atom(),

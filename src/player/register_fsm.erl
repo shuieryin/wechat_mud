@@ -178,8 +178,9 @@ init({Uid, DispatcherPid}) ->
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: {Lang, DispatcherPid},
-    Lang :: binary(),
+    Request :: {LangBin, DispatcherPid},
+    LangBin :: binary(),
+
     DispatcherPid :: pid(),
     State :: #state{},
     NextStateName :: state_name(),
@@ -189,9 +190,9 @@ init({Uid, DispatcherPid}) ->
 select_lang({LangBin, DispatcherPid}, #state{self = PlayerProfile} = State) ->
     {NextState, NewState, ContentList, Lang} =
         try
-            CurLang = binary_to_atom(LangBin, utf8),
-            case nls_server:is_valid_lang(CurLang) of
+            case nls_server:is_valid_lang(LangBin) of
                 true ->
+                    CurLang = binary_to_atom(LangBin, utf8),
                     {input_id, State#state{self = PlayerProfile#player_profile{lang = CurLang}}, [{nls, please_input_id}], CurLang};
                 false ->
                     {select_lang, State, [{nls, select_lang}], zh}
@@ -231,7 +232,7 @@ input_id({RawId, DispatcherPid}, #state{self = #player_profile{lang = Lang} = Pl
             nomatch ->
                 {[{nls, invalid_id}, RawId, <<"\n\n">>, {nls, please_input_id}], input_id, State};
             _ ->
-                Id = list_to_atom(string:to_lower(binary_to_list(RawId))),
+                Id = list_to_binary(string:to_lower(binary_to_list(RawId))),
                 case login_server:is_id_registered(Id) of
                     true ->
                         {[{nls, id_already_exists}, <<"\n\n">>, {nls, please_input_id}], input_id, State};
@@ -626,7 +627,7 @@ gen_summary_content([], [], AccSummary) ->
     Value :: term(), % generic term
     ConvertedValue :: Value.
 gen_summary_convert_value(id, Value) ->
-    atom_to_binary(Value, utf8);
+    Value;
 gen_summary_convert_value(_, Value) when is_integer(Value) ->
     integer_to_binary(Value);
 gen_summary_convert_value(_, Value) when is_atom(Value) ->

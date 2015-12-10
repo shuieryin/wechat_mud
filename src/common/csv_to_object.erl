@@ -217,6 +217,8 @@ traverse_column([RawValue | TailValues], [{_, FieldType} | TailFieldInfos], AccV
                     case FieldType of
                         atom ->
                             list_to_atom(RawValue);
+                        binary ->
+                            list_to_binary(RawValue);
                         integer ->
                             list_to_integer(RawValue);
                         float ->

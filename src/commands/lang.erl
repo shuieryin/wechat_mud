@@ -35,16 +35,15 @@
     DispatcherPid :: pid().
 exec(DispatcherPid, Uid, RawTargetLang) ->
     CurLang = player_fsm:get_lang(Uid),
-    TargetLang = binary_to_atom(RawTargetLang, utf8),
-    case TargetLang of
-        all ->
+    case RawTargetLang of
+        <<"all">> ->
             nls_server:show_langs(DispatcherPid, CurLang);
         _ ->
-            case nls_server:is_valid_lang(TargetLang) of
+            case nls_server:is_valid_lang(RawTargetLang) of
                 true ->
-                    player_fsm:switch_lang(DispatcherPid, Uid, TargetLang);
+                    player_fsm:switch_lang(DispatcherPid, Uid, binary_to_atom(RawTargetLang, utf8));
                 false ->
-                    player_fsm:response_content(Uid, [{nls, invalid_lang}, atom_to_binary(TargetLang, utf8), <<"\n\n">>, {nls, lang_help}], DispatcherPid)
+                    player_fsm:response_content(Uid, [{nls, invalid_lang}, RawTargetLang, <<"\n\n">>, {nls, lang_help}], DispatcherPid)
             end
     end.
 

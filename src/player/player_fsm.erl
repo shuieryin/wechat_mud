@@ -47,7 +47,7 @@
 -type uid() :: atom().
 -type born_month() :: 1..12.
 -type gender() :: male | female.
--type id() :: atom().
+-type id() :: binary(). % define id to binary for convenience of pattern matching.
 -type name() :: nls_server:nls_object().
 -type mail_object() :: [nls_server:nls_object()].
 

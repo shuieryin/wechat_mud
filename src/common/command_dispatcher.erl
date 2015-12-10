@@ -285,17 +285,16 @@ process_request(Req) ->
     ReqParams :: #wechat_post_params{},
     InputForUnregister :: binary() | no_reply | subscribe | unsubscribe,
     FuncForRegsiter :: function().
-gen_action_from_message_type(#wechat_post_params{'MsgType' = MsgType} = ReqParams) ->
-    case binary_to_atom(MsgType, utf8) of
-        event ->
-            Event = binary_to_atom(ReqParams#wechat_post_params.'Event', utf8),
+gen_action_from_message_type(#wechat_post_params{'MsgType' = MsgType, 'Event' = Event} = ReqParams) ->
+    case MsgType of
+        <<"event">> ->
             case Event of
-                subscribe ->
+                <<"subscribe">> ->
                     {subscribe,
                         fun(_Uid) ->
                             nls_server:get_nls_content([{nls, welcome_back}], zh)
                         end};
-                unsubscribe ->
+                <<"unsubscribe">> ->
                     {unsubscribe,
                         fun(Uid) ->
                             handle_input(Uid, <<"logout">>, [])
@@ -305,7 +304,7 @@ gen_action_from_message_type(#wechat_post_params{'MsgType' = MsgType} = ReqParam
                         ?EMPTY_CONTENT
                                end}
             end;
-        text ->
+        <<"text">> ->
             RawInput = ReqParams#wechat_post_params.'Content',
             [ModuleNameBin | RawCommandArgs] = binary:split(RawInput, <<" ">>),
             {RawInput,

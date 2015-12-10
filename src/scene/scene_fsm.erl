@@ -318,13 +318,13 @@ handle_event({look_target, #simple_player{uid = Uid} = SrcSimplePlayer, Dispatch
     {Target, Sequence} =
         case Rest of
             [] ->
-                {binary_to_atom(RawSequence, utf8), 1};
+                {RawSequence, 1};
             _ ->
                 case re:run(RawSequence, "^[0-9]*$") of
                     {match, _} ->
-                        {binary_to_atom(cm:binary_join(lists:reverse(Rest), <<"_">>), utf8), binary_to_integer(RawSequence)};
+                        {cm:binary_join(lists:reverse(Rest), <<"_">>), binary_to_integer(RawSequence)};
                     _ ->
-                        {binary_to_atom(re:replace(LookArgs, <<" ">>, <<"_">>, [global, {return, binary}]), utf8), 1}
+                        {re:replace(LookArgs, <<" ">>, <<"_">>, [global, {return, binary}]), 1}
                 end
         end,
     TargetSceneObject = grab_target_scene_objects(SceneObjectList, Target, Sequence),
@@ -566,12 +566,12 @@ gen_character_name([], _, AccList) ->
             AccList
     end;
 gen_character_name([#simple_npc_fsm{npc_type = NpcType, npc_name_nls_key = NpcNameNlsKey} | Tail], CallerUid, AccSceneObjectNameList) ->
-    NpcTypeForDisplay = re:replace(atom_to_list(NpcType), "_", " ", [global, {return, binary}]),
+    NpcTypeForDisplay = re:replace(NpcType, "_", " ", [global, {return, binary}]),
     gen_character_name(Tail, CallerUid, [{nls, NpcNameNlsKey}, <<" (">>, NpcTypeForDisplay, <<")">>, <<"\n">>] ++ AccSceneObjectNameList);
 gen_character_name([#simple_player{uid = CallerUid} | Tail], CallerUid, AccCharactersNameList) ->
     gen_character_name(Tail, CallerUid, AccCharactersNameList);
 gen_character_name([#simple_player{name = PlayerName, id = Id} | Tail], CallerUid, AccSceneObjectNameList) ->
-    gen_character_name(Tail, CallerUid, [PlayerName, <<" (">>, atom_to_binary(Id, utf8), <<")">>, <<"\n">>] ++ AccSceneObjectNameList).
+    gen_character_name(Tail, CallerUid, [PlayerName, <<" (">>, Id, <<")">>, <<"\n">>] ++ AccSceneObjectNameList).
 
 %%--------------------------------------------------------------------
 %% @doc

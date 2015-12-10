@@ -35,7 +35,7 @@
 -define(SERVER, ?MODULE).
 
 -type npc_fsm_id() :: atom(). % generic atom
--type npc_type() :: dog | little_boy.
+-type npc_type() :: binary(). % generic binary
 -type npc_amount() :: pos_integer(). % generic integer
 -type npc_spec() :: {npc_type(), npc_amount()}.
 -type npc_fsm() :: #{npc_fsm_id() => npc_fsm_id()}.
