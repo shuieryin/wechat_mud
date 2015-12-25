@@ -6,4 +6,4 @@ script: make; make ct
 notifications:
   email: shuieryin@gmail.com
 otp_release:
-  - 18.1
+  - 18.2
