@@ -72,7 +72,8 @@ test() ->
 
     MonitorPid = spawn(
         fun() ->
-            check_after(FsmId, TestUid, TestId, Self)
+            MonitorRef = monitor(process, FsmId),
+            check_after(TestUid, TestId, Self, MonitorRef)
         end
     ),
 
@@ -93,11 +94,10 @@ test() ->
             true
     end.
 
-check_after(FsmId, TestUid, TestId, From) ->
-    Ref = monitor(process, FsmId),
+check_after(TestUid, TestId, From, MonitorRef) ->
     Self = self(),
     receive
-        {'DOWN', Ref, process, _, _} ->
+        {'DOWN', MonitorRef, process, _, _} ->
             ?assert(login_server:is_uid_registered(TestUid)),
             ?assertNot(login_server:is_in_registration(TestUid)),
             ?assert(login_server:is_id_registered(TestId)),
