@@ -27,7 +27,8 @@
     input_confirmation/2,
     fsm_server_name/1,
     current_player_profile/1,
-    start/2
+    start/2,
+    stop/1
 ]).
 
 %% gen_fsm callbacks
@@ -87,6 +88,17 @@ start_link(DispatcherPid, Uid) ->
     DispatcherPid :: pid().
 start(DispatcherPid, Uid) ->
     gen_fsm:start({local, fsm_server_name(Uid)}, ?MODULE, {Uid, DispatcherPid}, []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Stop the register fsm
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec stop(Uid) -> ok when
+    Uid :: player_fsm:uid().
+stop(Uid) ->
+    gen_fsm:send_all_state_event(fsm_server_name(Uid), stop).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -336,7 +348,9 @@ input_born_month({MonthBin, DispatcherPid}, #state{self = #player_profile{lang =
     {next_state, NextStateName, NextState} |
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
+
     DispatcherPid :: pid(),
+
     State :: #state{},
     Event :: binary(),
     NextStateName :: state_name(),
@@ -436,14 +450,15 @@ state_name(_Event, _From, State) ->
     {next_state, NextStateName, NewStateData, timeout() | hibernate} |
     {stop, Reason, NewStateData} when
 
-    Event :: term(), % generic term
+    Event :: stop,
+    Reason :: normal,
+
     StateName :: state_name(),
     StateData :: #state{},
     NextStateName :: StateName,
-    NewStateData :: StateData,
-    Reason :: term(). % generic term
-handle_event(_Event, StateName, State) ->
-    {next_state, StateName, State}.
+    NewStateData :: StateData.
+handle_event(stop, _StateName, State) ->
+    {stop, normal, State}.
 
 %%--------------------------------------------------------------------
 %% @private

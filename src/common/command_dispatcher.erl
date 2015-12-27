@@ -42,7 +42,8 @@
     'MsgId' :: post_param(),
     'MsgType' :: post_param(),
     'ToUserName' :: post_param(),
-    'Event' :: post_param()
+    'Event' :: post_param(),
+    'EventKey' :: post_param()
 }).
 
 %%%===================================================================
@@ -212,7 +213,7 @@ process_request(Req) ->
             error_logger:info_msg("ReqParams:~tp~n", [ReqParams]),
 
             Uid = binary_to_atom(UidBin, utf8),
-            {RawInput, FuncForRegsiteredUser} = gen_action_from_message_type(ReqParams),
+            {RawInput, FuncExec} = gen_action_from_message_type(ReqParams),
             ReturnContent =
                 case whereis(Uid) of % login_server:is_uid_logged_in(Uid)
                     undefined ->
@@ -224,16 +225,22 @@ process_request(Req) ->
                                     true ->
                                         if
                                             <<"login">> == RawInput orelse <<"rereg">> == RawInput orelse subscribe == RawInput ->
-                                                FuncForRegsiteredUser(Uid);
+                                                FuncExec(Uid);
                                             true ->
                                                 nls_server:get_nls_content([{nls, please_login}], zh)
                                         end
                                 end;
                             _ ->
-                                pending_content(register_fsm, input, [Uid, RawInput])
+                                if
+                                    unsubscribe == RawInput ->
+                                        register_fsm:stop(Uid),
+                                        no_response;
+                                    true ->
+                                        pending_content(register_fsm, input, [Uid, RawInput])
+                                end
                         end;
                     _ ->
-                        FuncForRegsiteredUser(Uid)
+                        FuncExec(Uid)
                 end,
 
             Response =
@@ -297,12 +304,14 @@ gen_action_from_message_type(#wechat_post_params{'MsgType' = MsgType, 'Event' = 
                 <<"unsubscribe">> ->
                     {unsubscribe,
                         fun(Uid) ->
-                            handle_input(Uid, <<"logout">>, [])
+                            handle_input(Uid, <<"logout">>, []),
+                            no_response
                         end};
                 _ ->
-                    {no_reply, fun(_Uid) ->
-                        ?EMPTY_CONTENT
-                               end}
+                    {no_reply,
+                        fun(_Uid) ->
+                            no_response
+                        end}
             end;
         <<"text">> ->
             RawInput = ReqParams#wechat_post_params.'Content',
@@ -416,24 +425,7 @@ parse_xml_request(Req) ->
             parse_failed;
         _ ->
             {ok, {"xml", [], Params}, _} = erlsom:simple_form(Message),
-            #{
-                'Content' := Content,
-                'CreateTime' := CreateTime,
-                'FromUserName' := FromUserName,
-                'MsgId' := MsgId,
-                'MsgType' := MsgType,
-                'ToUserName' := ToUserName
-            } = ParamsMap = unmarshall_params(Params, #{}),
-            Event = maps:get('Event', ParamsMap, undefined),
-            #wechat_post_params{
-                'Content' = Content,
-                'CreateTime' = CreateTime,
-                'FromUserName' = FromUserName,
-                'MsgId' = MsgId,
-                'MsgType' = MsgType,
-                'ToUserName' = ToUserName,
-                'Event' = Event
-            }
+            unmarshall_params(Params, #wechat_post_params{})
     end.
 
 %%--------------------------------------------------------------------
@@ -450,18 +442,32 @@ parse_xml_request(Req) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec unmarshall_params(SrcList, ParamsMap) -> FinalParamsMap when
+-spec unmarshall_params(SrcList, ParamsRecord) -> FinalParamsRecord when
     SrcList :: [{ParamKey, [], [ParamValue]}],
     ParamKey :: string(),
     ParamValue :: string(),
-    ParamsMap :: map(), % generic map
-    FinalParamsMap :: ParamsMap.
-unmarshall_params([], ParamsMap) ->
-    ParamsMap;
-unmarshall_params([{"Content", [], [ParamValue]} | Tail], ParamsMap) ->
-    unmarshall_params(Tail, ParamsMap#{'Content' => unicode:characters_to_binary(string:to_lower(string:strip(ParamValue)))});
-unmarshall_params([{ParamKey, [], [ParamValue]} | Tail], ParamsMap) ->
-    unmarshall_params(Tail, ParamsMap#{list_to_atom(ParamKey) => unicode:characters_to_binary(string:strip(ParamValue))}).
+    ParamsRecord :: #wechat_post_params{},
+    FinalParamsRecord :: ParamsRecord.
+unmarshall_params([], ParamsRecord) ->
+    ParamsRecord;
+unmarshall_params([{"Content", [], [ParamValue]} | Tail], ParamsRecord) ->
+    unmarshall_params(Tail, ParamsRecord#wechat_post_params{'Content' = unicode:characters_to_binary(string:to_lower(string:strip(ParamValue)))});
+unmarshall_params([{"CreateTime", [], [ParamValue]} | Tail], ParamsRecord) ->
+    unmarshall_params(Tail, ParamsRecord#wechat_post_params{'CreateTime' = unicode:characters_to_binary(ParamValue)});
+unmarshall_params([{"FromUserName", [], [ParamValue]} | Tail], ParamsRecord) ->
+    unmarshall_params(Tail, ParamsRecord#wechat_post_params{'FromUserName' = unicode:characters_to_binary(ParamValue)});
+unmarshall_params([{"MsgId", [], [ParamValue]} | Tail], ParamsRecord) ->
+    unmarshall_params(Tail, ParamsRecord#wechat_post_params{'MsgId' = unicode:characters_to_binary(ParamValue)});
+unmarshall_params([{"MsgType", [], [ParamValue]} | Tail], ParamsRecord) ->
+    unmarshall_params(Tail, ParamsRecord#wechat_post_params{'MsgType' = unicode:characters_to_binary(ParamValue)});
+unmarshall_params([{"ToUserName", [], [ParamValue]} | Tail], ParamsRecord) ->
+    unmarshall_params(Tail, ParamsRecord#wechat_post_params{'ToUserName' = unicode:characters_to_binary(ParamValue)});
+unmarshall_params([{"Event", [], [ParamValue]} | Tail], ParamsRecord) ->
+    unmarshall_params(Tail, ParamsRecord#wechat_post_params{'Event' = unicode:characters_to_binary(ParamValue)});
+unmarshall_params([{"EventKey", [], [ParamValue]} | Tail], ParamsRecord) ->
+    unmarshall_params(Tail, ParamsRecord#wechat_post_params{'EventKey' = unicode:characters_to_binary(ParamValue)});
+unmarshall_params([{_Other, [], [_ParamValue]} | Tail], ParamsRecord) ->
+    unmarshall_params(Tail, ParamsRecord).
 
 %%--------------------------------------------------------------------
 %% @doc
