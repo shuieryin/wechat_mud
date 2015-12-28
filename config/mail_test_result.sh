@@ -1,7 +1,7 @@
 #!/bin/bash
 
 log_folder=$(ls -td -- ./_build/test/logs/*/ | head -n 1)
-if [ -z "$TRAVIS_CI" ]; then
+if [  "true" != "$TRAVIS_CI" ]; then
     exit
 fi
 

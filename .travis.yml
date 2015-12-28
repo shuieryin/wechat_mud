@@ -5,7 +5,7 @@ language:
 
 env:
   global:
-    - TRAVIS_CI=true
+    - TRAVIS_CI=false
 
 #addons:
 #  apt:
