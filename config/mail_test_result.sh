@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [$TRAVIS_CI -eq true]; then
+    exit
+fi
+
 file_name=test_result.zip
 log_folder=$(ls -td -- ./_build/test/logs/*/ | head -n 1)
 
