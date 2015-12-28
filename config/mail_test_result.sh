@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [$TRAVIS_CI -eq true]; then
+if ["$TRAVIS_CI" != "true"]; then
     exit
 fi
 
