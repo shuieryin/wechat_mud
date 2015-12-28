@@ -11,6 +11,6 @@ subject="Travis CI build failed - ${log_folder##*@}"
 body="Travis CI build failed attachment\n${log_folder}"
 attachments="${file_name}"
 
-./config/mail.sh "${from}" "${to}" "${subject}" "${body}" "${attachments}"
+./config/sendmail.sh "${from}" "${to}" "${subject}" "${body}" "${attachments}"
 rm -f ${file_name}
 echo "is on travis:" $TRAVIS_CI
