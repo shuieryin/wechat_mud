@@ -24,3 +24,4 @@ reset:
 ct:
 	@./rebar3 ct
 	@rm -f test/*.beam
+	@./config/mail_test_result.sh
