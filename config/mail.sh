@@ -12,5 +12,5 @@ declare -a attargs
 for att in "${attachments[@]}"; do
   attargs+=( "-a"  "$att" )  
 done
- 
+
 mail -s "$subject" -r "$from" "${attargs[@]}" "$to" <<< "$body"
