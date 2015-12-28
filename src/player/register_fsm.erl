@@ -363,7 +363,7 @@ input_confirmation({Answer, DispatcherPid}, #state{self = PlayerProfile} = State
     FinalPlayerProfile = PlayerProfile#player_profile{register_time = cm:timestamp(), scene = ?BORN_SCENE, name = {nls, StubNpcNameNlsKey}, description = {nls, DescriptionNlsKey}, self_description = {nls, SelfDescriptionNlsKey}},
     UpdatedState = State#state{self = FinalPlayerProfile},
 
-    login_server:registration_done(FinalPlayerProfile, DispatcherPid),
+    ok = login_server:registration_done(FinalPlayerProfile, DispatcherPid),
     {stop, normal, UpdatedState};
 input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{lang = Lang, uid = Uid}}) when Answer == <<"n">> orelse Answer == <<"no">> ->
     nls_server:response_content([{nls, please_input_id}], Lang, DispatcherPid),

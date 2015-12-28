@@ -1,8 +1,7 @@
 #!/bin/bash
 
 log_folder=$(ls -td -- ./_build/test/logs/*/ | head -n 1)
-
-if ["$TRAVIS_CI" != "true"]; then
+if [ -z "$TRAVIS_CI" ]; then
     exit
 fi
 
@@ -18,5 +17,4 @@ attachments="${file_name}"
 
 ./config/sendmail.sh "${from}" "${to}" "${subject}" "${body}" "${attachments}"
 rm -f ${file_name}
-echo "is on travis:" $TRAVIS_CI
-....
+echo "is on travis:[" ${TRAVIS_CI} "]"

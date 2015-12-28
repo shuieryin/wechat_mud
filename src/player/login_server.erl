@@ -159,7 +159,7 @@ register_uid(DispatcherPid, Uid) ->
     PlayerProfile :: #player_profile{},
     DispatcherPid :: pid().
 registration_done(PlayerProfile, DispatcherPid) ->
-    gen_server:cast(?MODULE, {registration_done, PlayerProfile, DispatcherPid}).
+    gen_server:call(?MODULE, {registration_done, PlayerProfile, DispatcherPid}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -279,7 +279,8 @@ init([]) ->
     {stop, Reason, NewState} when
 
     Request :: {is_uid_registered | is_in_registration | delete_user, Uid} |
-    get_registered_player_uids,
+    get_registered_player_uids |
+    {registration_done, PlayerProfile, DispatcherPid},
 
     Reply :: IsUidRegistered | IsIdRegistered | IsInRegistration | IsUserLoggedIn | ok,
 
@@ -288,6 +289,8 @@ init([]) ->
     IsIdRegistered :: boolean(),
     IsInRegistration :: boolean(),
     IsUserLoggedIn :: boolean(),
+    PlayerProfile :: #player_profile{},
+    DispatcherPid :: pid(),
 
     From :: {pid(), Tag :: term()}, % generic term
     State :: #state{},
@@ -312,33 +315,8 @@ handle_call({delete_user, Uid}, _From, #state{registered_uids_set = RegisteredUi
 handle_call({is_uid_logged_in, Uid}, _From, #state{logged_in_uids_set = LoggedUidsSet} = State) ->
     {reply, gb_sets:is_element(Uid, LoggedUidsSet), State};
 handle_call(get_registered_player_uids, _From, #state{registered_uids_set = RegisteredUidsSet} = State) ->
-    {reply, RegisteredUidsSet, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Handling cast messages
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec handle_cast(Request, State) ->
-    {noreply, NewState} |
-    {noreply, NewState, timeout() | hibernate} |
-    {stop, Reason, NewState} when
-
-    Request ::
-    {registration_done, PlayerProfile, DispatcherPid} |
-    {register_uid, DispatcherPid, Uid} |
-    {login, DispatcherPid, Uid} |
-    stop,
-
-    DispatcherPid :: pid(),
-    Uid :: player_fsm:uid(),
-    PlayerProfile :: #player_profile{},
-    State :: #state{},
-    NewState :: State,
-    Reason :: term(). % generic term
-handle_cast({registration_done, #player_profile{uid = Uid, id = Id, born_month = BornMonth} = PlayerProfile, DispatcherPid}, #state{registering_uids_set = RegisteringUidsSet, registered_uids_set = RegisteredUidsSet, registered_ids_set = RegisteredIdsSet, born_type_info = BornTypesMap} = State) ->
+    {reply, RegisteredUidsSet, State};
+handle_call({registration_done, #player_profile{uid = Uid, id = Id, born_month = BornMonth} = PlayerProfile, DispatcherPid}, _From, #state{registering_uids_set = RegisteringUidsSet, registered_uids_set = RegisteredUidsSet, registered_ids_set = RegisteredIdsSet, born_type_info = BornTypesMap} = State) ->
     UpdatedRegisteredUidsSet = gb_sets:add(Uid, RegisteredUidsSet),
 
     redis_client_server:async_set(registered_uids_set, UpdatedRegisteredUidsSet, false),
@@ -361,7 +339,30 @@ handle_cast({registration_done, #player_profile{uid = Uid, id = Id, born_month =
     },
 
     login(DispatcherPid, Uid),
-    {noreply, UpdatedState};
+    {reply, ok, UpdatedState}.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Handling cast messages
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec handle_cast(Request, State) ->
+    {noreply, NewState} |
+    {noreply, NewState, timeout() | hibernate} |
+    {stop, Reason, NewState} when
+
+    Request ::
+    {register_uid, DispatcherPid, Uid} |
+    {login, DispatcherPid, Uid} |
+    stop,
+
+    DispatcherPid :: pid(),
+    Uid :: player_fsm:uid(),
+    State :: #state{},
+    NewState :: State,
+    Reason :: term(). % generic term
 handle_cast({register_uid, DispatcherPid, Uid}, State) ->
     UpdatedState =
         case register_fsm_sup:add_child(DispatcherPid, Uid) of

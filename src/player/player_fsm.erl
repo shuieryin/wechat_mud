@@ -554,7 +554,13 @@ format_status(Opt, StatusData) ->
     DispatcherPid :: pid(),
     UpdatedMailBox :: #mailbox{}.
 do_response_content(#state{lang_map = LangMap, mail_box = #mailbox{scene = SceneMessages} = MailBox}, NlsObjectList, DispatcherPid) ->
-    nls_server:do_response_content(LangMap, lists:flatten(SceneMessages ++ NlsObjectList), DispatcherPid),
+    FinalNlsObjectList = case SceneMessages of
+                             [] ->
+                                 NlsObjectList;
+                             _ ->
+                                 lists:flatten([lists:reverse(SceneMessages), <<"\n">>, NlsObjectList])
+                         end,
+    nls_server:do_response_content(LangMap, FinalNlsObjectList, DispatcherPid),
     MailBox#mailbox{scene = []}.
 
 %%--------------------------------------------------------------------
