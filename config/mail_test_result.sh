@@ -1,11 +1,12 @@
 #!/bin/bash
 
+log_folder=$(ls -td -- ./_build/test/logs/*/ | head -n 1)
+
 if ["$TRAVIS_CI" != "true"]; then
     exit
 fi
 
 file_name=test_result.zip
-log_folder=$(ls -td -- ./_build/test/logs/*/ | head -n 1)
 
 zip -r ${file_name} ${log_folder} > /dev/null
 
@@ -18,3 +19,4 @@ attachments="${file_name}"
 ./config/sendmail.sh "${from}" "${to}" "${subject}" "${body}" "${attachments}"
 rm -f ${file_name}
 echo "is on travis:" $TRAVIS_CI
+....
