@@ -5,8 +5,11 @@ language:
 env:
   global:
     - TRAVIS_CI=true
+addons:
+  apt:
+    packages:
+      - sendmail
 before_install:
-  - sudo apt-get install -qq sendmail
   - ./rebar3 dialyzer
 script:
   - make
