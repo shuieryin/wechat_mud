@@ -58,7 +58,8 @@
 -type lang_map() :: #{key() => value()}.
 -type key_pos() :: non_neg_integer(). % generic integer
 -type keys_map() :: #{key_pos() => field_name()}.
--type nls_object() :: {nls, key()} | value().
+-type nls_replacements() :: [value()].
+-type nls_object() :: {nls, key()} | {nls, key(), nls_replacements()} | value().
 -type nls_map() :: #{support_lang() => lang_map()}.
 
 -record(state, {
@@ -517,6 +518,11 @@ fill_in_nls([], _, AccContentList) ->
     lists:reverse(AccContentList);
 fill_in_nls([{nls, NlsKey} | Tail], LangMap, AccContentList) ->
     fill_in_nls(Tail, LangMap, [maps:get(NlsKey, LangMap) | AccContentList]);
+fill_in_nls([{nls, NlsKey, Replacements} | Tail], LangMap, AccContentList) ->
+    ConvertedReplacements = fill_in_nls(Replacements, LangMap, []),
+    io:format("ConvertedReplacements:~p~n", [ConvertedReplacements]),
+    ReplacedContent = fill_in_content(maps:get(NlsKey, LangMap), ConvertedReplacements, <<>>),
+    fill_in_nls(Tail, LangMap, [ReplacedContent | AccContentList]);
 fill_in_nls([NonNlsKey | Tail], LangMap, AccContentList) ->
     fill_in_nls(Tail, LangMap, [NonNlsKey | AccContentList]).
 
@@ -535,3 +541,31 @@ read_nls_file(NlsFileName, AccNlsMap) ->
     {ok, NlsMap} = ecsv:process_csv_file_with(NlsFile, fun read_line/2, {0, AccNlsMap}),
     ok = file:close(NlsFile),
     NlsMap.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Replace <<"${any()}">> in binary with replacements in order:
+%%      fill_in_content(<<"ab${content_abbrv}ef">>, [<<"cd">>], <<>>) =>
+%%                  <<"abcdef">>;
+%%      fill_in_content(<<"ab${}ef">>, [<<"cd">>], <<>>) =>
+%%                  <<"abcdef">>;
+%%      fill_in_content(<<"ab${content_abbrv}ef">>, [<<"cd">>, <<"will_be_ignore">>], <<>>) =>
+%%                  <<"abcdef">>;
+%%      fill_in_content(<<"ab${content_abbrv}ef">>, [], <<>>) =>
+%%                  <<"ab${content_abbrv}ef">>;
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec fill_in_content(SrcContent, Replacements, AccContent) -> FinalContent when
+    SrcContent :: value(),
+    Replacements :: [value()],
+    AccContent :: SrcContent,
+    FinalContent :: AccContent.
+fill_in_content(<<"${}", Rest/binary>>, [Replacement | Replacements], AccContent) ->
+    fill_in_content(Rest, Replacements, <<AccContent/binary, Replacement/binary>>);
+fill_in_content(<<"${", _IgnoreOneByte, Rest/binary>>, Replacements, AccContent) ->
+    fill_in_content(<<"${", Rest/binary>>, Replacements, AccContent);
+fill_in_content(<<Byte, Rest/binary>>, Replacements, AccContent) ->
+    fill_in_content(Rest, Replacements, <<AccContent/binary, Byte>>);
+fill_in_content(<<>>, _Replacements, FinalContent) ->
+    FinalContent.

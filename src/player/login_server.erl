@@ -378,9 +378,9 @@ handle_cast({login, DispatcherPid, Uid}, #state{logged_in_uids_set = LoggedInUid
     UpdatedLoggedInUidsSet =
         case gb_sets:is_element(Uid, LoggedInUidsSet) of
             false ->
-                #player_profile{scene = CurSceneName, name = PlayerName, id = Id} = PlayerProfile = redis_client_server:get(Uid),
+                #player_profile{scene = CurSceneName} = PlayerProfile = redis_client_server:get(Uid),
                 player_fsm_sup:add_child(PlayerProfile),
-                scene_fsm:enter(CurSceneName, Uid, PlayerName, Id, DispatcherPid),
+                scene_fsm:enter(CurSceneName, DispatcherPid, player_fsm:simple_player(PlayerProfile), undefined),
                 gb_sets:add(Uid, LoggedInUidsSet);
             true ->
                 player_fsm:response_content(Uid, [{nls, already_login}], DispatcherPid),

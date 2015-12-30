@@ -28,7 +28,9 @@
     switch_lang/3,
     look_target/3,
     being_looked/2,
-    current_scene_name/1
+    current_scene_name/1,
+    append_message/3,
+    simple_player/1
 ]).
 
 %% gen_fsm callbacks
@@ -54,6 +56,7 @@
 -include("../data_type/player_profile.hrl").
 -include("../data_type/npc_born_info.hrl").
 
+-type mail_type() :: battle | scene | other.
 -record(mailbox, {
     battle = [] :: [mail_object()],
     scene = [] :: [mail_object()],
@@ -245,6 +248,30 @@ switch_lang(DispatcherPid, Uid, TargetLang) ->
 logout(Uid) ->
     gen_fsm:send_all_state_event(Uid, logout).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Append message to mailbox. The appended message will be shown to
+%% the target player by his/her next action.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec append_message(Uid, Message, MailType) -> ok when
+    Uid :: player_fsm:uid(),
+    Message :: mail_object(),
+    MailType :: mail_type().
+append_message(Uid, Message, MailType) ->
+    gen_fsm:send_all_state_event(Uid, {append_message, Message, MailType}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Returns simple player record.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec simple_player(#player_profile{}) -> #simple_player{}.
+simple_player(#player_profile{uid = Uid, name = Name, id = Id, self_description = SelfDescription}) ->
+    #simple_player{uid = Uid, name = Name, id = Id, name_description = SelfDescription}.
+
 %%%===================================================================
 %%% gen_fsm callbacks
 %%%===================================================================
@@ -354,6 +381,7 @@ state_name(_Event, _From, State) ->
     leave_scene |
     {switch_lang, DispatcherPid, TargetLang} |
     {logout, NotifyOkPid} |
+    {append_message, Message, MailType} |
     stop,
 
     NlsObjectList :: [nls_server:nls_object()],
@@ -362,20 +390,22 @@ state_name(_Event, _From, State) ->
     LookArgs :: binary(),
     NotifyOkPid :: pid(),
     TargetLang :: nls_server:support_lang(),
+    Message :: mail_object(),
+    MailType :: mail_type(),
 
     StateName :: state_name(),
     StateData :: #state{},
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_event({go_direction, DispatcherPid, Direction}, StateName, #state{mail_box = MailBox, self = #player_profile{scene = CurSceneName, uid = Uid, name = PlayerName, id = Id} = PlayerProfile} = State) ->
+handle_event({go_direction, DispatcherPid, Direction}, StateName, #state{mail_box = MailBox, self = #player_profile{scene = CurSceneName, uid = Uid} = PlayerProfile} = State) ->
     {TargetSceneName, UpdatedMailBox} =
         case scene_fsm:go_direction(CurSceneName, Uid, Direction) of
             undefined ->
                 Umb = do_response_content(State, [{nls, invalid_exit}], DispatcherPid),
                 {CurSceneName, Umb};
             NewSceneName ->
-                scene_fsm:enter(NewSceneName, Uid, PlayerName, Id, DispatcherPid),
+                scene_fsm:enter(NewSceneName, DispatcherPid, simple_player(PlayerProfile), CurSceneName),
                 {NewSceneName, MailBox}
         end,
 
@@ -383,8 +413,8 @@ handle_event({go_direction, DispatcherPid, Direction}, StateName, #state{mail_bo
 handle_event({look_scene, DispatcherPid}, StateName, #state{self = #player_profile{scene = CurSceneName, uid = Uid}} = State) ->
     scene_fsm:look_scene(CurSceneName, Uid, DispatcherPid),
     {next_state, StateName, State};
-handle_event({look_target, DispatcherPid, LookArgs}, StateName, #state{self = #player_profile{scene = CurSceneName}} = State) ->
-    scene_fsm:look_target(CurSceneName, simple_player(State), DispatcherPid, LookArgs),
+handle_event({look_target, DispatcherPid, LookArgs}, StateName, #state{self = #player_profile{scene = CurSceneName} = PlayerProfile} = State) ->
+    scene_fsm:look_target(CurSceneName, simple_player(PlayerProfile), DispatcherPid, LookArgs),
     {next_state, StateName, State};
 handle_event({response_content, NlsObjectList, DispatcherPid}, StateName, State) ->
     UpdatedMailBox = do_response_content(State, NlsObjectList, DispatcherPid),
@@ -404,6 +434,8 @@ handle_event(logout, _StateName, #state{self = #player_profile{scene = CurSceneN
     error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
     redis_client_server:set(Uid, PlayerProfile, true),
     {stop, normal, State};
+handle_event({append_message, Message, MailType}, StateName, State) ->
+    {next_state, StateName, append_message_priv(Message, MailType, State)};
 handle_event(stop, _StateName, State) ->
     {stop, normal, State}.
 
@@ -441,7 +473,7 @@ handle_event(stop, _StateName, State) ->
     Reason :: term(). % generic term
 handle_sync_event(get_lang, _From, StateName, #state{self = #player_profile{lang = Lang}} = State) ->
     {reply, Lang, StateName, State};
-handle_sync_event({being_looked, SrcCharacter}, _From, StateName, #state{self = #player_profile{uid = TargetFsmId, description = Description, self_description = SelfDescription}, mail_box = #mailbox{scene = SceneMessages} = MailBox} = State) ->
+handle_sync_event({being_looked, SrcCharacter}, _From, StateName, #state{self = #player_profile{uid = TargetFsmId, description = Description, self_description = SelfDescription}} = State) ->
     {SrcFsmId, SrcName} =
         case SrcCharacter of
             #simple_player{uid = SourceFsmId, name = SourceName} ->
@@ -456,8 +488,8 @@ handle_sync_event({being_looked, SrcCharacter}, _From, StateName, #state{self = 
                           [Description, <<"\n">>]
                   end,
 
-    UpdatedSceneMessages = [[SrcName, {nls, being_looked}, <<"\n">>] | SceneMessages],
-    {reply, ContentList, StateName, State#state{mail_box = MailBox#mailbox{scene = UpdatedSceneMessages}}};
+    SceneMessage = [SrcName, {nls, being_looked}, <<"\n">>],
+    {reply, ContentList, StateName, append_message_priv(SceneMessage, scene, State)};
 handle_sync_event(current_scene_name, _From, StateName, #state{self = #player_profile{scene = CurrentSceneName}} = State) ->
     {reply, CurrentSceneName, StateName, State}.
 
@@ -565,10 +597,21 @@ do_response_content(#state{lang_map = LangMap, mail_box = #mailbox{scene = Scene
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Returns simple player record.
+%% Append message.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec simple_player(#state{}) -> #simple_player{}.
-simple_player(#state{self = #player_profile{uid = Uid, name = Name, id = Id}}) ->
-    #simple_player{uid = Uid, name = Name, id = Id}.
+-spec append_message_priv(Message, MailType, State) -> UpdatedState when
+    Message :: mail_object(),
+    MailType :: mail_type(),
+    State :: #state{},
+    UpdatedState :: State.
+append_message_priv(Message, battle, #state{mail_box = #mailbox{battle = SceneMessages} = MailBox} = State) ->
+    UpdatedSceneMessages = [Message | SceneMessages],
+    State#state{mail_box = MailBox#mailbox{battle = UpdatedSceneMessages}};
+append_message_priv(Message, scene, #state{mail_box = #mailbox{scene = SceneMessages} = MailBox} = State) ->
+    UpdatedSceneMessages = [Message | SceneMessages],
+    State#state{mail_box = MailBox#mailbox{scene = UpdatedSceneMessages}};
+append_message_priv(Message, other, #state{mail_box = #mailbox{other = SceneMessages} = MailBox} = State) ->
+    UpdatedSceneMessages = [Message | SceneMessages],
+    State#state{mail_box = MailBox#mailbox{other = UpdatedSceneMessages}}.

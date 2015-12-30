@@ -1,4 +1,4 @@
-all: install
+all: dialyzer install ct
 
 install:
 	@./config/install.sh
@@ -25,3 +25,6 @@ ct:
 	@./rebar3 ct
 	@rm -f test/*.beam
 	@./config/mail_test_result.sh
+
+dialyzer:
+	@./rebar3 dialyzer

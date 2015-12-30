@@ -21,7 +21,7 @@
 %% API
 -export([
     start_link/1,
-    enter/5,
+    enter/4,
     leave/2,
     go_direction/3,
     look_scene/3,
@@ -50,18 +50,21 @@
 -type scene_object() :: #simple_player{} | #simple_npc_fsm{}.
 -type scene_character_name() :: npc_fsm_manager:npc_type() | player_fsm:uid().
 -type scene_name() :: atom(). % generic atom
--type exit() :: north | east | south | west | northeast | southeast | southwest | northwest.
--type exits_map() :: #{exit() => nls_server:key()}.
+-type exits_map() :: #{direction:directions() => nls_server:key()}.
+-type exits_scenes() :: #{scene_name() => direction:directions()}.
 
 -record(state, {
     scene_info :: #scene_info{},
-    scene_object_list :: [scene_object()]
+    scene_object_list :: [scene_object()],
+    exits_scenes :: exits_scenes()
 }).
 
 -type state_name() :: state_name.
 
--export_type([scene_name/0,
-    exits_map/0]).
+-export_type([
+    scene_name/0,
+    exits_map/0
+]).
 
 %%%===================================================================
 %%% API
@@ -90,14 +93,13 @@ start_link(#scene_info{id = SceneName} = SceneInfo) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec enter(SceneName, Uid, PlayerName, Id, DispatcherPid) -> ok when
+-spec enter(SceneName, DispatcherPid, SimplePlayer, FromSceneName) -> ok when
     SceneName :: scene_name(),
-    Uid :: player_fsm:uid(),
-    PlayerName :: player_fsm:name(),
-    Id :: player_fsm:id(),
-    DispatcherPid :: pid().
-enter(SceneName, Uid, PlayerName, Id, DispatcherPid) ->
-    gen_fsm:send_all_state_event(SceneName, {enter, Uid, PlayerName, Id, DispatcherPid}).
+    DispatcherPid :: pid(),
+    SimplePlayer :: #simple_player{},
+    FromSceneName :: scene_name().
+enter(SceneName, DispatcherPid, SimplePlayer, FromSceneName) ->
+    gen_fsm:send_all_state_event(SceneName, {enter, DispatcherPid, SimplePlayer, FromSceneName}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -207,11 +209,16 @@ get_exits_map(CurSceneName) ->
     StateName :: state_name(),
     StateData :: #state{},
     Reason :: term(). % generic term
-init(#scene_info{id = SceneName, npcs = NpcsSpec} = SceneInfo) ->
+init(#scene_info{id = SceneName, npcs = NpcsSpec, exits = ExitsMap} = SceneInfo) ->
     io:format("scene server ~p starting...", [SceneName]),
 
     SceneNpcFsmList = npc_fsm_manager:new_npcs(NpcsSpec),
-    State = #state{scene_info = SceneInfo, scene_object_list = SceneNpcFsmList},
+    ExitsScenes = maps:fold(
+        fun(CurExit, CurSceneName, AccExitsScenes) ->
+            AccExitsScenes#{CurSceneName => CurExit}
+        end, #{}, ExitsMap),
+
+    State = #state{scene_info = SceneInfo, scene_object_list = SceneNpcFsmList, exits_scenes = ExitsScenes},
 
     io:format("started~n"),
     {ok, state_name, State}.
@@ -288,13 +295,13 @@ state_name(_Event, _From, State) ->
     {stop, Reason, NewStateData} when
 
     Event ::
-    {enter, Uid, PlayerName, Id, DispatcherPid} |
+    {enter, DispatcherPid, SimplePlayer, FromSceneName} |
     {leave, Uid} |
     {look_scene, Uid, DispatcherPid} |
     {look_target, SrcSimplePlayer, DispatcherPid, LookArgs},
 
-    PlayerName :: player_fsm:name(),
-    Id :: player_fsm:id(),
+    SimplePlayer :: #simple_player{},
+    FromSceneName :: scene_name(),
     DispatcherPid :: pid(),
     SrcSimplePlayer :: #simple_player{},
     Uid :: player_fsm:uid(),
@@ -305,9 +312,16 @@ state_name(_Event, _From, State) ->
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_event({enter, Uid, PlayerName, Id, DispatcherPid}, StateName, #state{scene_object_list = SceneObjectList} = State) ->
+handle_event({enter, DispatcherPid, #simple_player{uid = Uid, name = PlayerName} = SimplePlayer, FromSceneName}, StateName, #state{scene_object_list = SceneObjectList, exits_scenes = ExitsScenes} = State) ->
     ok = show_scene(State, Uid, DispatcherPid),
-    {next_state, StateName, State#state{scene_object_list = [#simple_player{uid = Uid, name = PlayerName, id = Id} | SceneObjectList]}};
+    EnterSceneMessage = case FromSceneName of
+                            undefined ->
+                                [{nls, enter_scene, [PlayerName]}, <<"\n">>];
+                            _ ->
+                                [{nls, enter_scene, [PlayerName, {nls, maps:get(FromSceneName, ExitsScenes)}]}, <<"\n">>]
+                        end,
+    broadcast(State, EnterSceneMessage, scene, []),
+    {next_state, StateName, State#state{scene_object_list = [SimplePlayer | SceneObjectList]}};
 handle_event({leave, Uid}, StateName, State) ->
     {next_state, StateName, remove_scene_object(Uid, State)};
 handle_event({look_scene, Uid, DispatcherPid}, StateName, State) ->
@@ -423,12 +437,14 @@ remove_scene_object(SceneObjectKey, #state{scene_object_list = SceneObjectList} 
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_sync_event({go_direction, Uid, TargetDirection}, _From, StateName, #state{scene_info = #scene_info{exits = ExitsMap}} = State) ->
+handle_sync_event({go_direction, Uid, TargetDirection}, _From, StateName, #state{scene_info = #scene_info{exits = ExitsMap}, scene_object_list = SceneObjectList} = State) ->
     {TargetSceneName, UpdatedState} =
         case maps:get(TargetDirection, ExitsMap, undefined) of
             undefined ->
                 {undefined, State};
             SceneName ->
+                #simple_player{name = PlayerName} = scene_player(SceneObjectList, Uid),
+                broadcast(State, [{nls, leave_scene, [PlayerName, {nls, TargetDirection}]}, <<"\n">>], scene, [Uid]),
                 {SceneName, remove_scene_object(Uid, State)}
         end,
 
@@ -596,3 +612,60 @@ show_scene(#state{scene_info = #scene_info{exits = ExitsMap, title = SceneTitle,
         gen_exits_desc(ExitsMap)
     ]),
     player_fsm:response_content(Uid, ContentList, DispatcherPid).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Broadcast message to current scene players.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec broadcast(State, Message, MailType, ExceptUids) -> ok when
+    State :: #state{},
+    Message :: player_fsm:mail_object(),
+    MailType :: player_fsm:mail_type(),
+    ExceptUids :: [player_fsm:uid()] | gb_sets:set(player_fsm:uid()).
+broadcast(#state{scene_object_list = SceneObjectList}, Message, MailType, ExceptUids) ->
+    IsGbSets = gb_sets:is_set(ExceptUids),
+    FilterFunc = if
+                     IsGbSets ->
+                         fun gb_sets:is_member/2;
+                     is_list(ExceptUids) ->
+                         fun lists:member/2;
+                     true ->
+                         fun(_, _) -> false end
+                 end,
+
+    lists:foreach(
+        fun(SceneObject) ->
+            case SceneObject of
+                #simple_player{uid = TargetPlayerUid} ->
+                    IsBroadcast = FilterFunc(TargetPlayerUid, ExceptUids),
+                    if
+                        IsBroadcast ->
+                            player_fsm:append_message(TargetPlayerUid, Message, MailType);
+                        true ->
+                            do_nothing
+                    end;
+                _ ->
+                    do_nothing
+            end
+        end,
+        SceneObjectList
+    ).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Get target scene player
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec scene_player(SceneObjectList, TargetPlayerUid) -> Result when
+    SceneObjectList :: [scene_object()],
+    TargetPlayerUid :: player_fsm:uid(),
+    Result :: #simple_player{}.
+scene_player([#simple_player{uid = TargetPlayerUid} = SimplePlayer | _Rest], TargetPlayerUid) ->
+    SimplePlayer;
+scene_player([_OtherSceneObject | Rest], TargetPlayerUid) ->
+    scene_player(Rest, TargetPlayerUid);
+scene_player([], _TargetPlayerUid) ->
+    undefined.

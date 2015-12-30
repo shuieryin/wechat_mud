@@ -12,12 +12,11 @@ env:
 #    packages:
 #      - sendmail
 
-before_install:
-  - ./rebar3 dialyzer
+#before_install:
+#  - ./rebar3 dialyzer
 
 script:
   - make
-  - make ct
 
 notifications:
   email:
