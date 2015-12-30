@@ -318,7 +318,7 @@ handle_event({enter, DispatcherPid, #simple_player{uid = Uid, name = PlayerName}
                             undefined ->
                                 [{nls, enter_scene, [PlayerName]}, <<"\n">>];
                             _ ->
-                                [{nls, enter_scene, [PlayerName, {nls, maps:get(FromSceneName, ExitsScenes)}]}, <<"\n">>]
+                                [{nls, enter_scene_from, [PlayerName, {nls, maps:get(FromSceneName, ExitsScenes)}]}, <<"\n">>]
                         end,
     broadcast(State, EnterSceneMessage, scene, []),
     {next_state, StateName, State#state{scene_object_list = [SimplePlayer | SceneObjectList]}};
@@ -615,7 +615,8 @@ show_scene(#state{scene_info = #scene_info{exits = ExitsMap, title = SceneTitle,
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Broadcast message to current scene players.
+%% Broadcast message to current scene players except players
+%% indicated in "ExceptUids".
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -623,23 +624,13 @@ show_scene(#state{scene_info = #scene_info{exits = ExitsMap, title = SceneTitle,
     State :: #state{},
     Message :: player_fsm:mail_object(),
     MailType :: player_fsm:mail_type(),
-    ExceptUids :: [player_fsm:uid()] | gb_sets:set(player_fsm:uid()).
+    ExceptUids :: [player_fsm:uid()].
 broadcast(#state{scene_object_list = SceneObjectList}, Message, MailType, ExceptUids) ->
-    IsGbSets = gb_sets:is_set(ExceptUids),
-    FilterFunc = if
-                     IsGbSets ->
-                         fun gb_sets:is_member/2;
-                     is_list(ExceptUids) ->
-                         fun lists:member/2;
-                     true ->
-                         fun(_, _) -> false end
-                 end,
-
     lists:foreach(
         fun(SceneObject) ->
             case SceneObject of
                 #simple_player{uid = TargetPlayerUid} ->
-                    IsBroadcast = FilterFunc(TargetPlayerUid, ExceptUids),
+                    IsBroadcast = not lists:member(TargetPlayerUid, ExceptUids),
                     if
                         IsBroadcast ->
                             player_fsm:append_message(TargetPlayerUid, Message, MailType);

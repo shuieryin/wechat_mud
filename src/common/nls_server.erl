@@ -520,7 +520,6 @@ fill_in_nls([{nls, NlsKey} | Tail], LangMap, AccContentList) ->
     fill_in_nls(Tail, LangMap, [maps:get(NlsKey, LangMap) | AccContentList]);
 fill_in_nls([{nls, NlsKey, Replacements} | Tail], LangMap, AccContentList) ->
     ConvertedReplacements = fill_in_nls(Replacements, LangMap, []),
-    io:format("ConvertedReplacements:~p~n", [ConvertedReplacements]),
     ReplacedContent = fill_in_content(maps:get(NlsKey, LangMap), ConvertedReplacements, <<>>),
     fill_in_nls(Tail, LangMap, [ReplacedContent | AccContentList]);
 fill_in_nls([NonNlsKey | Tail], LangMap, AccContentList) ->
