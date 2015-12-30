@@ -56,7 +56,8 @@
 -record(state, {
     scene_info :: #scene_info{},
     scene_object_list :: [scene_object()],
-    exits_scenes :: exits_scenes()
+    exits_scenes :: exits_scenes(),
+    exits_description :: [nls_server:nls_object()]
 }).
 
 -type state_name() :: state_name.
@@ -218,7 +219,12 @@ init(#scene_info{id = SceneName, npcs = NpcsSpec, exits = ExitsMap} = SceneInfo)
             AccExitsScenes#{CurSceneName => CurExit}
         end, #{}, ExitsMap),
 
-    State = #state{scene_info = SceneInfo, scene_object_list = SceneNpcFsmList, exits_scenes = ExitsScenes},
+    State = #state{
+        scene_info = SceneInfo,
+        scene_object_list = SceneNpcFsmList,
+        exits_scenes = ExitsScenes,
+        exits_description = gen_exits_desc(ExitsMap)
+    },
 
     io:format("started~n"),
     {ok, state_name, State}.
@@ -322,7 +328,9 @@ handle_event({enter, DispatcherPid, #simple_player{uid = Uid, name = PlayerName}
                         end,
     broadcast(State, EnterSceneMessage, scene, []),
     {next_state, StateName, State#state{scene_object_list = [SimplePlayer | SceneObjectList]}};
-handle_event({leave, Uid}, StateName, State) ->
+handle_event({leave, Uid}, StateName, #state{scene_object_list = SceneObjectList} = State) ->
+    #simple_player{name = PlayerName} = scene_player(SceneObjectList, Uid),
+    broadcast(State, [{nls, leave_scene, [PlayerName, {nls, unknown}]}, <<"\n">>], scene, [Uid]),
     {next_state, StateName, remove_scene_object(Uid, State)};
 handle_event({look_scene, Uid, DispatcherPid}, StateName, State) ->
     ok = show_scene(State, Uid, DispatcherPid),
@@ -543,7 +551,7 @@ format_status(Opt, StatusData) ->
     ExitsMap :: exits_map(),
     ExitNls :: [nls_server:nls_object()].
 gen_exits_desc(ExitsMap) ->
-    [[{nls, ExitKey}, <<"\n">>] || ExitKey <- maps:keys(ExitsMap)].
+    [[{nls, ExitKey}, <<" (">>, atom_to_binary(ExitKey, utf8), <<")\n">>] || ExitKey <- maps:keys(ExitsMap)].
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -600,7 +608,7 @@ gen_character_name([#simple_player{name = PlayerName, id = Id} | Tail], CallerUi
     DispatcherPid :: pid(),
     State :: #state{},
     Uid :: player_fsm:uid().
-show_scene(#state{scene_info = #scene_info{exits = ExitsMap, title = SceneTitle, desc = SceneDesc}, scene_object_list = SceneObjectList}, Uid, DispatcherPid) ->
+show_scene(#state{scene_info = #scene_info{title = SceneTitle, desc = SceneDesc}, scene_object_list = SceneObjectList, exits_description = ExitsDescription}, Uid, DispatcherPid) ->
     ContentList = lists:flatten([
         {nls, SceneTitle},
         <<"\n\n">>,
@@ -609,7 +617,7 @@ show_scene(#state{scene_info = #scene_info{exits = ExitsMap, title = SceneTitle,
         gen_characters_name_list(SceneObjectList, Uid),
         {nls, obvious_exits},
         <<"\n">>,
-        gen_exits_desc(ExitsMap)
+        ExitsDescription
     ]),
     player_fsm:response_content(Uid, ContentList, DispatcherPid).
 
