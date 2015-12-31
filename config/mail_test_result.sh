@@ -1,6 +1,5 @@
 #!/bin/bash
 
-echo "is on travis:[" ${TRAVIS_CI} "]"
 if [  "true" != "$TRAVIS_CI" ]
 then
     exit

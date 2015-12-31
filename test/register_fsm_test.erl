@@ -26,8 +26,7 @@
 %%%===================================================================
 
 test(_Config) ->
-    ?assert(proper:quickcheck(?FORALL(_L, integer(), test()), 20)),
-    ?assert(1 == 2).
+    ?assert(proper:quickcheck(?FORALL(_L, integer(), test()), 20)).
 
 test() ->
     Self = self(),
