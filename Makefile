@@ -21,9 +21,7 @@ reset:
 	@git fetch --all
 	@git reset --hard origin/master
 
-ct: ct_run ct_analyze
-
-ct_run:
+ct:
 	@./rebar3 ct
 	@rm -f test/*.beam
 
