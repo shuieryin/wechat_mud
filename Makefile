@@ -22,7 +22,7 @@ reset:
 	@git reset --hard origin/master
 
 ct:
-	@./rebar3 ct
+	@./config/rebar3 ct
 	@rm -f test/*.beam
 
 ct_analyze:
@@ -30,4 +30,4 @@ ct_analyze:
 	@./config/mail_test_result.sh
 
 dialyzer:
-	@./rebar3 dialyzer
+	@./config/rebar3 dialyzer
