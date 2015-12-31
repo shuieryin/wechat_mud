@@ -7,6 +7,9 @@ for filename in ${log_html_folder}/${app_name}_suite.*_*.html; do
     is_test_passed=$(cat ${filename} | grep -E "=== Returned value: ok|=== successfully completed test case")
     if [ "${is_test_passed}" = "" ]
     then
-        echo $(cat ${filename})
+        lynx --dump ${filename} > tmp_result.txt
+        cat tmp_result.txt
     fi
 done
+
+rm -f tmp_result.txt

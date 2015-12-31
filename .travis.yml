@@ -7,10 +7,10 @@ env:
   global:
     - TRAVIS_CI=false
 
-#addons:
-#  apt:
-#    packages:
-#      - sendmail
+addons:
+  apt:
+    packages:
+      - lynx
 
 #before_install:
 #  - ./rebar3 dialyzer
