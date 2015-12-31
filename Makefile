@@ -21,9 +21,14 @@ reset:
 	@git fetch --all
 	@git reset --hard origin/master
 
-ct:
+ct: ct_run ct_analyze
+
+ct_run:
 	@./rebar3 ct
 	@rm -f test/*.beam
+
+ct_analyze:
+	@./config/show_ct_errors.sh
 	@./config/mail_test_result.sh
 
 dialyzer:
