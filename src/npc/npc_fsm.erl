@@ -95,13 +95,9 @@ init(NpcProfile) ->
     {ok, non_battle, #state{npc_profile = NpcProfile}}.
 
 %%--------------------------------------------------------------------
-%% @private
 %% @doc
-%% There should be one instance of this function for each possible
-%% state name. Whenever a gen_fsm receives an event sent using
-%% gen_fsm:sync_send_event/[2,3], the instance of this function with
-%% the same name as the current state name StateName is called to
-%% handle the event.
+%% Refer to below functions for details.
+%% @see being_looked/2.
 %%
 %% @end
 %%--------------------------------------------------------------------

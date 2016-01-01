@@ -116,6 +116,7 @@ start(#player_profile{uid = Uid} = PlayerProfile) ->
 %% Go to direction.
 %%
 %% This function does the followings:
+%%
 %% 1. Checks if current scene is linked to the target scene, if so go to
 %% step 2, otherwise remind user the direction is invalid.
 %%
@@ -309,11 +310,12 @@ init(#player_profile{lang = Lang} = PlayerProfile) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% For go_direction, @see go_direction/3.
-%% For look_scene, @see look_scene/2.
-%% For look_target, @see look_target/3.
-%% For leave_scene, @see leave_scene/1.
-%% For logout, @see logout/1.
+%% Refer to below functions for details.
+%% @see go_direction/3.
+%% @see look_scene/2.
+%% @see look_target/3.
+%% @see leave_scene/1.
+%% @see logout/1.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -368,7 +370,8 @@ non_battle(logout, #state{self = #player_profile{scene = CurSceneName, uid = Uid
 
 %%--------------------------------------------------------------------
 %% @doc
-%% For being_looked, @see being_looked/2.
+%% Refer to below functions for details.
+%% @see being_looked/2.
 %%
 %% @end
 %%--------------------------------------------------------------------

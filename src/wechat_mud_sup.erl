@@ -1,3 +1,13 @@
+%%%-------------------------------------------------------------------
+%%% @author Shuieryin
+%%% @copyright (C) 2015, Shuieryin
+%%% @doc
+%%%
+%%% Wechat mud root supervisor.
+%%%
+%%% @end
+%%% Created : 26. Aug 2015 11:04 AM
+%%%-------------------------------------------------------------------
 -module(wechat_mud_sup).
 
 -behaviour(supervisor).

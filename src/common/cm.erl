@@ -19,7 +19,6 @@
     hot_code_replace/1,
     index_of/2,
     until_process_terminated/2,
-    gen_doc/0,
     increase_vsn/3,
     hot_code_upgrade/0,
     q/0,
@@ -163,16 +162,6 @@ until_process_terminated(_, IsTerminatedFun, DetectPeriodInMilli) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% This function generates edoc in html format.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec gen_doc() -> ok.
-gen_doc() ->
-    edoc:application(wechat_mud, [{dir, "doc/edoc"}]).
-
-%%--------------------------------------------------------------------
-%% @doc
 %% This function increases version number
 %%
 %% @end
@@ -295,8 +284,11 @@ binary_join(List, Sep) ->
 %%--------------------------------------------------------------------
 %% @doc
 %% Get type values if split by "|".
+%%
 %% For example:
-%%          Given type in nls_server: -type support_lang() :: zh | en.
+%%
+%%          Given type in nls_server: -ty¢pe support_lang() :: zh | en.
+%%
 %%          [zh, en] = type_values(nls_server, support_lang).
 %%
 %% @end

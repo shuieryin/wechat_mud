@@ -31,3 +31,6 @@ ct_analyze:
 
 dialyzer:
 	@./config/rebar3 dialyzer
+
+edoc:
+	@./config/gen_edoc.sh

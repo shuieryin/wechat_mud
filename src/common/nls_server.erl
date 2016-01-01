@@ -543,15 +543,15 @@ read_nls_file(NlsFileName, AccNlsMap) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Replace <<"${any()}">> in binary with replacements in order:
-%%      fill_in_content(<<"ab${content_abbrv}ef">>, [<<"cd">>], <<>>) =>
-%%                  <<"abcdef">>;
-%%      fill_in_content(<<"ab${}ef">>, [<<"cd">>], <<>>) =>
-%%                  <<"abcdef">>;
-%%      fill_in_content(<<"ab${content_abbrv}ef">>, [<<"cd">>, <<"will_be_ignore">>], <<>>) =>
-%%                  <<"abcdef">>;
-%%      fill_in_content(<<"ab${content_abbrv}ef">>, [], <<>>) =>
-%%                  <<"ab${content_abbrv}ef">>;
+%% Replace "${any()}" in binary with replacements in order:
+%%      "ab${content_abbrv}ef" replace ["cd"] =
+%%                  "abcdef";
+%%      "ab${}ef" replace ["cd"] =
+%%                  "abcdef";
+%%      "ab${content_abbrv}ef" replace ["cd", "will_be_ignore"] =
+%%                  "abcdef";
+%%      "ab${content_abbrv}ef" replace [] =
+%%                  "ab${content_abbrv}ef";
 %%
 %% @end
 %%--------------------------------------------------------------------

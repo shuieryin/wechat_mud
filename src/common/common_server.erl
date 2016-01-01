@@ -127,7 +127,9 @@ turn_off_wechat_debug() ->
 %%--------------------------------------------------------------------
 %% @doc
 %% Retrieves runtime data by file name.
+%%
 %% For example retriving specific:
+%%
 %%      csv file:                   [csv_file_name]
 %%
 %% @end
@@ -141,10 +143,15 @@ get_runtime_data(DataName) ->
 %%--------------------------------------------------------------------
 %% @doc
 %% Retrieves runtime data by phase list.
+%%
 %% For example retriving specific:
+%%
 %%      csv file:                   [csv_file_name]
+%%
 %%      row of csv file:            [csv_file_name | row_id]
+%%
 %%      field of row of csv file:   [csv_file_name | row_id | field_name]
+%%
 %%
 %% The element types of each phase has to be map type except csv_file_name
 %% and the last phase name. It returns undefined once field not found when
@@ -254,40 +261,6 @@ handle_call(random_npc, _From, #state{runtime_datas = #{npc_born_info := NpcsRun
     #{RandomKey := RandomNpc} = NpcsRuntimeDataMap,
     {reply, RandomNpc, State}.
 
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Retrieves runtime data by phase list.
-%% For example retriving specific:
-%%      csv file:                   [csv_file_name]
-%%      row of csv file:            [csv_file_name | row_id]
-%%      field of row of csv file:   [csv_file_name | row_id | field_name]
-%%
-%% The element types of each phase has to be map type except csv_file_name
-%% and the last phase name. It returns undefined once field not found when
-%% traversing phase list.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec runtime_data(Phases, RuntimeDatasMap) -> TargetRuntimeData when
-    Phases :: [csv_to_object:key()],
-    RuntimeDatasMap :: csv_to_object:csv_to_object(),
-    TargetRuntimeData :: term(). % generic term
-runtime_data([Phase | []], RuntimeDatasMap) ->
-    case maps:get(Phase, RuntimeDatasMap, undefined) of
-        undefined ->
-            undefined;
-        TargetRuntimeData ->
-            TargetRuntimeData
-    end;
-runtime_data([Phase | Tail], RuntimeDatasMap) ->
-    case maps:get(Phase, RuntimeDatasMap, undefined) of
-        undefined ->
-            undefined;
-        DeeperMap ->
-            runtime_data(Tail, DeeperMap)
-    end.
-
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -388,3 +361,36 @@ format_status(Opt, StatusData) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Retrieves runtime data by phase list.
+%% For example retriving specific:
+%%      csv file:                   [csv_file_name]
+%%      row of csv file:            [csv_file_name | row_id]
+%%      field of row of csv file:   [csv_file_name | row_id | field_name]
+%%
+%% The element types of each phase has to be map type except csv_file_name
+%% and the last phase name. It returns undefined once field not found when
+%% traversing phase list.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec runtime_data(Phases, RuntimeDatasMap) -> TargetRuntimeData when
+    Phases :: [csv_to_object:key()],
+    RuntimeDatasMap :: csv_to_object:csv_to_object(),
+    TargetRuntimeData :: term(). % generic term
+runtime_data([Phase | []], RuntimeDatasMap) ->
+    case maps:get(Phase, RuntimeDatasMap, undefined) of
+        undefined ->
+            undefined;
+        TargetRuntimeData ->
+            TargetRuntimeData
+    end;
+runtime_data([Phase | Tail], RuntimeDatasMap) ->
+    case maps:get(Phase, RuntimeDatasMap, undefined) of
+        undefined ->
+            undefined;
+        DeeperMap ->
+            runtime_data(Tail, DeeperMap)
+    end.

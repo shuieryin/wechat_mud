@@ -5,7 +5,7 @@
 %% noinspection ErlangUnusedFunction
 main([CurVersion]) ->
     try
-	io:format("~p~n", [increase_vsn(CurVersion, 3, 1)])
+        io:format("~p~n", [increase_vsn(CurVersion, 3, 1)])
     catch
         _:_ ->
             usage()
@@ -30,4 +30,3 @@ increase_vsn([CurDepthVersionNumStr | Tail], VersionDepth, Increment, CurDepth, 
                 CurDepthVersionNumStr
         end,
     increase_vsn(Tail, VersionDepth, Increment, CurDepth + 1, [UpdatedVersionNum | AccVersion]).
-

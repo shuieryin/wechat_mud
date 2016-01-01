@@ -5,6 +5,7 @@ out
 gen
 ebin
 .rebar
+.eunit
 *.rdb
 deps
 *.dump
@@ -13,4 +14,4 @@ rebar.lock
 config/wechat_mud.appup
 log
 logs
-doc/edoc
+doc
