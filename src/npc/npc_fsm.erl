@@ -14,7 +14,8 @@
 %% API
 -export([
     start_link/1,
-    being_looked/2
+    being_looked/2,
+    non_battle/3
 ]).
 
 %% gen_fsm callbacks
@@ -38,7 +39,7 @@
     npc_profile :: #npc_born_info{}
 }).
 
--type state_name() :: state_name.
+-type state_name() :: state_name | non_battle.
 
 %%%===================================================================
 %%% API
@@ -65,7 +66,7 @@ start_link(#npc_born_info{npc_fsm_id = NpcFsmId} = NpcProfile) ->
 %% @end
 %%--------------------------------------------------------------------
 being_looked(TargetNpcFsmId, SrcUid) ->
-    gen_fsm:sync_send_all_state_event(TargetNpcFsmId, {being_looked, SrcUid}).
+    gen_fsm:sync_send_event(TargetNpcFsmId, {being_looked, SrcUid}).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -91,7 +92,42 @@ being_looked(TargetNpcFsmId, SrcUid) ->
     Reason :: term(), % generic term
     NpcProfile :: #npc_born_info{}.
 init(NpcProfile) ->
-    {ok, state_name, #state{npc_profile = NpcProfile}}.
+    {ok, non_battle, #state{npc_profile = NpcProfile}}.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% There should be one instance of this function for each possible
+%% state name. Whenever a gen_fsm receives an event sent using
+%% gen_fsm:sync_send_event/[2,3], the instance of this function with
+%% the same name as the current state name StateName is called to
+%% handle the event.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec non_battle(Event, From, State) ->
+    {next_state, NextStateName, NextState} |
+    {next_state, NextStateName, NextState, timeout() | hibernate} |
+    {reply, Reply, NextStateName, NextState} |
+    {reply, Reply, NextStateName, NextState, timeout() | hibernate} |
+    {stop, Reason, NewState} |
+    {stop, Reason, Reply, NewState} when
+
+    Event :: {being_looked, SrcFsmId},
+    Reply :: NlsObjectList,
+
+    SrcFsmId :: player_fsm:uid() | npc_fsm_manager:npc_fsm_id(),
+    NlsObjectList :: [nls_server:nls_object()],
+
+    From :: {pid(), term()}, % generic term
+    State :: #state{},
+    NextStateName :: state_name(),
+    NextState :: State,
+    Reason :: normal | term(), % generic term
+    NewState :: State.
+non_battle({being_looked, _SrcFsmId}, _From, #state{npc_profile = #npc_born_info{description_nls_key = DescriptionNlsKey}} = State) ->
+    ContentList = [{nls, DescriptionNlsKey}, <<"\n">>],
+    {reply, ContentList, non_battle, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -190,21 +226,18 @@ handle_event(_Event, StateName, State) ->
     {stop, Reason, Reply, NewStateData} |
     {stop, Reason, NewStateData} when
 
-    Event :: {being_looked, SrcFsmId},
-    Reply :: NlsObjectList,
-
-    SrcFsmId :: player_fsm:uid() | npc_fsm_manager:npc_fsm_id(),
-    NlsObjectList :: [nls_server:nls_object()],
+    Event :: term(), % generic term
+    Reply :: ok,
 
     From :: {pid(), Tag :: term()}, % generic term
     StateName :: state_name(),
-    StateData :: #state{},
+    StateData :: term(),
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_sync_event({being_looked, _SrcFsmId}, _From, StateName, #state{npc_profile = #npc_born_info{description_nls_key = DescriptionNlsKey}} = State) ->
-    ContentList = [{nls, DescriptionNlsKey}, <<"\n">>],
-    {reply, ContentList, StateName, State}.
+handle_sync_event(_Event, _From, StateName, State) ->
+    Reply = ok,
+    {reply, Reply, StateName, State}.
 
 %%--------------------------------------------------------------------
 %% @private

@@ -30,7 +30,9 @@
     being_looked/2,
     current_scene_name/1,
     append_message/3,
-    simple_player/1
+    simple_player/1,
+    non_battle/2,
+    non_battle/3
 ]).
 
 %% gen_fsm callbacks
@@ -127,7 +129,7 @@ start(#player_profile{uid = Uid} = PlayerProfile) ->
     Uid :: uid(),
     Direction :: direction:directions().
 go_direction(DispatcherPid, Uid, Direction) ->
-    gen_fsm:send_all_state_event(Uid, {go_direction, DispatcherPid, Direction}).
+    gen_fsm:send_event(Uid, {go_direction, DispatcherPid, Direction}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -139,7 +141,7 @@ go_direction(DispatcherPid, Uid, Direction) ->
     DispatcherPid :: pid(),
     Uid :: uid().
 look_scene(DispatcherPid, Uid) ->
-    gen_fsm:send_all_state_event(Uid, {look_scene, DispatcherPid}).
+    gen_fsm:send_event(Uid, {look_scene, DispatcherPid}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -152,7 +154,7 @@ look_scene(DispatcherPid, Uid) ->
     Uid :: uid(),
     LookArgs :: binary().
 look_target(DispatcherPid, Uid, LookArgs) ->
-    gen_fsm:send_all_state_event(Uid, {look_target, DispatcherPid, LookArgs}).
+    gen_fsm:send_event(Uid, {look_target, DispatcherPid, LookArgs}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -165,7 +167,7 @@ look_target(DispatcherPid, Uid, LookArgs) ->
     TargetPlayerUid :: player_fsm:uid(),
     SrcCharacter :: scene_fsm:scene_object().
 being_looked(TargetPlayerUid, SrcCharacter) ->
-    gen_fsm:sync_send_all_state_event(TargetPlayerUid, {being_looked, SrcCharacter}).
+    gen_fsm:sync_send_event(TargetPlayerUid, {being_looked, SrcCharacter}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -221,7 +223,7 @@ response_content(Uid, ContentList, DispatcherPid) ->
 -spec leave_scene(Uid) -> ok when
     Uid :: uid().
 leave_scene(Uid) ->
-    gen_fsm:send_all_state_event(Uid, leave_scene).
+    gen_fsm:send_event(Uid, leave_scene).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -246,7 +248,7 @@ switch_lang(DispatcherPid, Uid, TargetLang) ->
 -spec logout(Uid) -> ok when
     Uid :: uid().
 logout(Uid) ->
-    gen_fsm:send_all_state_event(Uid, logout).
+    gen_fsm:send_event(Uid, logout).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -271,6 +273,9 @@ append_message(Uid, Message, MailType) ->
 -spec simple_player(#player_profile{}) -> #simple_player{}.
 simple_player(#player_profile{uid = Uid, name = Name, id = Id, self_description = SelfDescription}) ->
     #simple_player{uid = Uid, name = Name, id = Id, name_description = SelfDescription}.
+
+%%attack(Uid, TargetUid) ->
+%%    gen_fsm:send_all_state_event(Uid, attack).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -301,6 +306,110 @@ init(#player_profile{lang = Lang} = PlayerProfile) ->
     LangMap = nls_server:get_lang_map(Lang),
 %%    error_logger:info_msg("Player fsm initialized:~p~n", [PlayerProfile]),
     {ok, non_battle, #state{self = PlayerProfile, lang_map = LangMap, mail_box = #mailbox{}}}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% For go_direction, @see go_direction/3.
+%% For look_scene, @see look_scene/2.
+%% For look_target, @see look_target/3.
+%% For leave_scene, @see leave_scene/1.
+%% For logout, @see logout/1.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec non_battle(Event, State) ->
+    {next_state, NextStateName, NextState} |
+    {next_state, NextStateName, NextState, timeout() | hibernate} |
+    {stop, Reason, NewState} when
+
+    Event ::
+    {go_direction, DispatcherPid, Direction} |
+    {look_scene, DispatcherPid} |
+    {look_target, DispatcherPid, LookArgs} |
+    leave_scene |
+    {logout, NotifyOkPid},
+
+    DispatcherPid :: pid(),
+    Direction :: direction:directions(),
+    LookArgs :: binary(),
+    NotifyOkPid :: pid(),
+
+    State :: #state{},
+    NextStateName :: state_name(),
+    NextState :: State,
+    NewState :: State,
+    Reason :: term(). % generic term
+non_battle({go_direction, DispatcherPid, Direction}, #state{mail_box = MailBox, self = #player_profile{scene = CurSceneName, uid = Uid} = PlayerProfile} = State) ->
+    {TargetSceneName, UpdatedMailBox} =
+        case scene_fsm:go_direction(CurSceneName, Uid, Direction) of
+            undefined ->
+                Umb = do_response_content(State, [{nls, invalid_exit}], DispatcherPid),
+                {CurSceneName, Umb};
+            NewSceneName ->
+                scene_fsm:enter(NewSceneName, DispatcherPid, simple_player(PlayerProfile), CurSceneName),
+                {NewSceneName, MailBox}
+        end,
+
+    {next_state, non_battle, State#state{mail_box = UpdatedMailBox, self = PlayerProfile#player_profile{scene = TargetSceneName}}};
+non_battle({look_scene, DispatcherPid}, #state{self = #player_profile{scene = CurSceneName, uid = Uid}} = State) ->
+    scene_fsm:look_scene(CurSceneName, Uid, DispatcherPid),
+    {next_state, non_battle, State};
+non_battle({look_target, DispatcherPid, LookArgs}, #state{self = #player_profile{scene = CurSceneName} = PlayerProfile} = State) ->
+    scene_fsm:look_target(CurSceneName, simple_player(PlayerProfile), DispatcherPid, LookArgs),
+    {next_state, non_battle, State};
+non_battle(leave_scene, #state{self = #player_profile{scene = CurSceneName, uid = Uid}} = State) ->
+    scene_fsm:leave(CurSceneName, Uid),
+    {next_state, non_battle, State};
+non_battle(logout, #state{self = #player_profile{scene = CurSceneName, uid = Uid} = PlayerProfile} = State) ->
+    scene_fsm:leave(CurSceneName, Uid),
+    error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
+    redis_client_server:set(Uid, PlayerProfile, true),
+    {stop, normal, State}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% For being_looked, @see being_looked/2.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec non_battle(Event, From, State) ->
+    {next_state, NextStateName, NextState} |
+    {next_state, NextStateName, NextState, timeout() | hibernate} |
+    {reply, Reply, NextStateName, NextState} |
+    {reply, Reply, NextStateName, NextState, timeout() | hibernate} |
+    {stop, Reason, NewState} |
+    {stop, Reason, Reply, NewState} when
+
+    Event :: {being_looked, SrcCharacter},
+    Reply :: BeingLookedDescription,
+
+    SrcCharacter :: scene_fsm:scene_object(),
+    BeingLookedDescription :: [nls_server:nls_object()],
+
+    From :: {pid(), term()}, % generic term
+    State :: #state{},
+    NextStateName :: state_name(),
+    NextState :: State,
+    Reason :: normal | term(), % generic term
+    NewState :: State.
+non_battle({being_looked, SrcCharacter}, _From, #state{self = #player_profile{uid = TargetFsmId, description = Description, self_description = SelfDescription}} = State) ->
+    {SrcFsmId, SrcName} =
+        case SrcCharacter of
+            #simple_player{uid = SourceFsmId, name = SourceName} ->
+                {SourceFsmId, SourceName};
+            #simple_npc_fsm{npc_fsm_id = SourceFsmId, npc_name_nls_key = SourceName} ->
+                {SourceFsmId, SourceName}
+        end,
+    ContentList = if
+                      SrcFsmId == TargetFsmId ->
+                          [SelfDescription, <<"\n">>];
+                      true ->
+                          [Description, <<"\n">>]
+                  end,
+
+    SceneMessage = [SrcName, {nls, being_looked}, <<"\n">>],
+    {reply, ContentList, non_battle, append_message_priv(SceneMessage, scene, State)}.
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -374,21 +483,13 @@ state_name(_Event, _From, State) ->
     {stop, Reason, NewStateData} when
 
     Event ::
-    {go_direction, DispatcherPid, Direction} |
-    {look_scene, DispatcherPid} |
-    {look_target, DispatcherPid, LookArgs} |
     {response_content, NlsObjectList, DispatcherPid} |
-    leave_scene |
     {switch_lang, DispatcherPid, TargetLang} |
-    {logout, NotifyOkPid} |
     {append_message, Message, MailType} |
     stop,
 
     NlsObjectList :: [nls_server:nls_object()],
     DispatcherPid :: pid(),
-    Direction :: direction:directions(),
-    LookArgs :: binary(),
-    NotifyOkPid :: pid(),
     TargetLang :: nls_server:support_lang(),
     Message :: mail_object(),
     MailType :: mail_type(),
@@ -398,30 +499,9 @@ state_name(_Event, _From, State) ->
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_event({go_direction, DispatcherPid, Direction}, StateName, #state{mail_box = MailBox, self = #player_profile{scene = CurSceneName, uid = Uid} = PlayerProfile} = State) ->
-    {TargetSceneName, UpdatedMailBox} =
-        case scene_fsm:go_direction(CurSceneName, Uid, Direction) of
-            undefined ->
-                Umb = do_response_content(State, [{nls, invalid_exit}], DispatcherPid),
-                {CurSceneName, Umb};
-            NewSceneName ->
-                scene_fsm:enter(NewSceneName, DispatcherPid, simple_player(PlayerProfile), CurSceneName),
-                {NewSceneName, MailBox}
-        end,
-
-    {next_state, StateName, State#state{mail_box = UpdatedMailBox, self = PlayerProfile#player_profile{scene = TargetSceneName}}};
-handle_event({look_scene, DispatcherPid}, StateName, #state{self = #player_profile{scene = CurSceneName, uid = Uid}} = State) ->
-    scene_fsm:look_scene(CurSceneName, Uid, DispatcherPid),
-    {next_state, StateName, State};
-handle_event({look_target, DispatcherPid, LookArgs}, StateName, #state{self = #player_profile{scene = CurSceneName} = PlayerProfile} = State) ->
-    scene_fsm:look_target(CurSceneName, simple_player(PlayerProfile), DispatcherPid, LookArgs),
-    {next_state, StateName, State};
 handle_event({response_content, NlsObjectList, DispatcherPid}, StateName, State) ->
     UpdatedMailBox = do_response_content(State, NlsObjectList, DispatcherPid),
     {next_state, StateName, State#state{mail_box = UpdatedMailBox}};
-handle_event(leave_scene, StateName, #state{self = #player_profile{scene = CurSceneName, uid = Uid}} = State) ->
-    scene_fsm:leave(CurSceneName, Uid),
-    {next_state, StateName, State};
 handle_event({switch_lang, DispatcherPid, TargetLang}, StateName, #state{self = #player_profile{uid = Uid} = PlayerProfile} = State) ->
     TargetLangMap = nls_server:get_lang_map(TargetLang),
     UpdatedState = State#state{lang_map = TargetLangMap},
@@ -429,11 +509,6 @@ handle_event({switch_lang, DispatcherPid, TargetLang}, StateName, #state{self = 
     UpdatedPlayerProfile = PlayerProfile#player_profile{lang = TargetLang},
     redis_client_server:async_set(Uid, UpdatedPlayerProfile, true),
     {next_state, StateName, UpdatedState#state{self = UpdatedPlayerProfile, lang_map = TargetLangMap, mail_box = UpdatedMailBox}};
-handle_event(logout, _StateName, #state{self = #player_profile{scene = CurSceneName, uid = Uid} = PlayerProfile} = State) ->
-    scene_fsm:leave(CurSceneName, Uid),
-    error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
-    redis_client_server:set(Uid, PlayerProfile, true),
-    {stop, normal, State};
 handle_event({append_message, Message, MailType}, StateName, State) ->
     {next_state, StateName, append_message_priv(Message, MailType, State)};
 handle_event(stop, _StateName, State) ->
@@ -457,13 +532,12 @@ handle_event(stop, _StateName, State) ->
     {stop, Reason, NewStateData} when
 
     Event :: get_lang |
-    {being_looked, SrcCharacter} |
     current_scene_name,
 
-    Reply :: Lang,
+    Reply :: Lang |
+    scene_fsm:scene_name(),
 
     Lang :: nls_server:support_lang(),
-    SrcCharacter :: scene_fsm:scene_object(),
 
     From :: {pid(), Tag :: term()}, % generic term
     StateName :: state_name(),
@@ -473,23 +547,6 @@ handle_event(stop, _StateName, State) ->
     Reason :: term(). % generic term
 handle_sync_event(get_lang, _From, StateName, #state{self = #player_profile{lang = Lang}} = State) ->
     {reply, Lang, StateName, State};
-handle_sync_event({being_looked, SrcCharacter}, _From, StateName, #state{self = #player_profile{uid = TargetFsmId, description = Description, self_description = SelfDescription}} = State) ->
-    {SrcFsmId, SrcName} =
-        case SrcCharacter of
-            #simple_player{uid = SourceFsmId, name = SourceName} ->
-                {SourceFsmId, SourceName};
-            #simple_npc_fsm{npc_fsm_id = SourceFsmId, npc_name_nls_key = SourceName} ->
-                {SourceFsmId, SourceName}
-        end,
-    ContentList = if
-                      SrcFsmId == TargetFsmId ->
-                          [SelfDescription, <<"\n">>];
-                      true ->
-                          [Description, <<"\n">>]
-                  end,
-
-    SceneMessage = [SrcName, {nls, being_looked}, <<"\n">>],
-    {reply, ContentList, StateName, append_message_priv(SceneMessage, scene, State)};
 handle_sync_event(current_scene_name, _From, StateName, #state{self = #player_profile{scene = CurrentSceneName}} = State) ->
     {reply, CurrentSceneName, StateName, State}.
 
