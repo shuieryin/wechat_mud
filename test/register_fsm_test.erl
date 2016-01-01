@@ -132,14 +132,7 @@ normal_flow(ValidGenders, ValidBornMonths, InvalidInputs, PlayerProfile, TestId)
 
 validatePlayerProfile(#player_profile{uid = Uid} = CurrentPlayerProfile) ->
     ServerPlayerProfile = register_fsm:current_player_profile(Uid),
-    Result = CurrentPlayerProfile == ServerPlayerProfile,
-    case Result of
-        false ->
-            io:format("CurrentPlayerProfile:~p~nServerPlayerProfile:~p~n", [CurrentPlayerProfile, ServerPlayerProfile]);
-        true ->
-            do_nothing
-    end,
-    ?assert(Result).
+    ?assert(CurrentPlayerProfile == ServerPlayerProfile).
 
 input(InvalidInput, ValidInput, Value, FieldName, PlayerProfile) ->
     input(InvalidInput, ValidInput, Value, FieldName, PlayerProfile, true).

@@ -22,12 +22,12 @@ reset:
 	@git reset --hard origin/master
 
 ct:
-	@./config/rebar3 ct
+	@./config/rebar3 do ct -c, cover
 	@rm -f test/*.beam
+	@./config/test_coverage.sh
 
 ct_analyze:
 	@./config/show_ct_errors.sh
-	@./config/mail_test_result.sh
 
 dialyzer:
 	@./config/rebar3 dialyzer

@@ -83,9 +83,7 @@ look_target(#state{pid = Self, player_uid = PlayerUid}) ->
                      #simple_npc_fsm{npc_fsm_id = TargetNpcFsmId} ->
                          TargetNpcFsmId;
                      #simple_player{uid = TargetPlayerUid} ->
-                         TargetPlayerUid;
-                     _ ->
-                         undefined
+                         TargetPlayerUid
                  end,
     ?assertMatch(ok, player_fsm:look_target(Self, PlayerUid, list_to_binary([<<"look ">>, atom_to_binary(TargetName, utf8)]))).
 
