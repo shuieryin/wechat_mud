@@ -305,7 +305,6 @@ simple_player(#player_profile{uid = Uid, name = Name, id = Id, self_description 
     Reason :: term(). % generic term
 init(#player_profile{lang = Lang} = PlayerProfile) ->
     LangMap = nls_server:get_lang_map(Lang),
-%%    error_logger:info_msg("Player fsm initialized:~p~n", [PlayerProfile]),
     {ok, non_battle, #state{self = PlayerProfile, lang_map = LangMap, mail_box = #mailbox{}}}.
 
 %%--------------------------------------------------------------------

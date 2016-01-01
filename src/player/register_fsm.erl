@@ -18,7 +18,7 @@
 
 %% API
 -export([
-    start_link/2,
+    start_link/3,
     input/3,
     select_lang/2,
     input_id/2,
@@ -27,7 +27,6 @@
     input_confirmation/2,
     fsm_server_name/1,
     current_player_profile/1,
-    start/2,
     stop/1
 ]).
 
@@ -47,12 +46,21 @@
 -define(BORN_SCENE, dream_board_nw).
 -define(ID_RULE_REGEX, "^[a-zA-Z0-9]{6,10}$").
 
--type state_name() :: select_lang | input_id | input_gender | input_born_month | input_confirmation | state_name.
-
 -include("../data_type/player_profile.hrl").
 -include("../data_type/npc_born_info.hrl").
 
--record(state, {self :: #player_profile{}, summary_content :: [nls_server:value()]}).
+-type state_name() :: select_lang | input_id | input_gender | input_born_month | input_confirmation | state_name.
+-type born_type_info_map() :: #{player_fsm:born_month() => #born_type_info{}}.
+
+-record(state, {
+    self :: #player_profile{},
+    summary_content :: [nls_server:value()],
+    born_type_info_map :: born_type_info_map()
+}).
+
+-export_type([
+    born_type_info_map/0
+]).
 
 %%%===================================================================
 %%% API
@@ -70,24 +78,12 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link(DispatcherPid, Uid) -> gen:start_ret() when
+-spec start_link(DispatcherPid, Uid, BornTypeInfoMap) -> gen:start_ret() when
     Uid :: player_fsm:uid(),
-    DispatcherPid :: pid().
-start_link(DispatcherPid, Uid) ->
-    gen_fsm:start_link({local, fsm_server_name(Uid)}, ?MODULE, {Uid, DispatcherPid}, []).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Same as start_link/2 but without link.
-%% @see start_link/2.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec start(DispatcherPid, Uid) -> gen:start_ret() when
-    Uid :: player_fsm:uid(),
-    DispatcherPid :: pid().
-start(DispatcherPid, Uid) ->
-    gen_fsm:start({local, fsm_server_name(Uid)}, ?MODULE, {Uid, DispatcherPid}, []).
+    DispatcherPid :: pid(),
+    BornTypeInfoMap :: register_fsm:born_type_info_map().
+start_link(DispatcherPid, Uid, BornTypeInfoMap) ->
+    gen_fsm:start_link({local, fsm_server_name(Uid)}, ?MODULE, {Uid, DispatcherPid, BornTypeInfoMap}, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -154,7 +150,7 @@ fsm_server_name(Uid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec init({Uid, DispatcherPid}) ->
+-spec init({Uid, DispatcherPid, BornTypeInfoMap}) ->
     {ok, StateName, StateData} |
     {ok, StateName, StateData, timeout() | hibernate} |
     {stop, Reason} |
@@ -162,12 +158,16 @@ fsm_server_name(Uid) ->
 
     Uid :: player_fsm:uid(),
     DispatcherPid :: pid(),
+    BornTypeInfoMap :: register_fsm:born_type_info_map(),
+
     Reason :: term(), % generic term
     StateName :: state_name(),
     StateData :: #state{}.
-init({Uid, DispatcherPid}) ->
-%%    error_logger:info_msg("register fsm init~nUid:~p~n", [Uid]),
-    State = #state{self = #player_profile{uid = Uid}},
+init({Uid, DispatcherPid, BornTypeInfoMap}) ->
+    State = #state{
+        self = #player_profile{uid = Uid},
+        born_type_info_map = BornTypeInfoMap
+    },
     nls_server:response_content([{nls, select_lang}], zh, DispatcherPid),
     {ok, select_lang, State}.
 
@@ -357,17 +357,42 @@ input_born_month({MonthBin, DispatcherPid}, #state{self = #player_profile{lang =
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-input_confirmation({Answer, DispatcherPid}, #state{self = PlayerProfile} = State) when Answer == <<"y">> orelse Answer == <<"yes">> ->
+input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{born_month = BornMonth} = PlayerProfile, born_type_info_map = BornTypeInfoMap} = State) when Answer == <<"y">> orelse Answer == <<"yes">> ->
     #npc_born_info{name_nls_key = StubNpcNameNlsKey, description_nls_key = DescriptionNlsKey, self_description_nls_key = SelfDescriptionNlsKey} = common_server:random_npc(),
 
-    FinalPlayerProfile = PlayerProfile#player_profile{register_time = cm:timestamp(), scene = ?BORN_SCENE, name = {nls, StubNpcNameNlsKey}, description = {nls, DescriptionNlsKey}, self_description = {nls, SelfDescriptionNlsKey}},
+    #born_type_info{
+        attack = L_attack,
+        defence = L_defense,
+        hp = L_hp,
+        dexterity = L_dexterity
+    } = BornType = maps:get(BornMonth, BornTypeInfoMap),
+
+    FinalPlayerProfile = PlayerProfile#player_profile{
+        register_time = cm:timestamp(),
+        scene = ?BORN_SCENE,
+        name = {nls, StubNpcNameNlsKey},
+        description = {nls, DescriptionNlsKey},
+        self_description = {nls, SelfDescriptionNlsKey},
+        born_type = BornType,
+        player_status = #player_status{
+            attack = L_attack,
+            l_attack = L_attack,
+            defence = L_defense,
+            l_defence = L_defense,
+            hp = L_hp,
+            l_hp = L_hp,
+            dexterity = L_dexterity,
+            l_dexterity = L_dexterity
+        }
+    },
+
     UpdatedState = State#state{self = FinalPlayerProfile},
 
     ok = login_server:registration_done(FinalPlayerProfile, DispatcherPid),
     {stop, normal, UpdatedState};
-input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{lang = Lang, uid = Uid}}) when Answer == <<"n">> orelse Answer == <<"no">> ->
+input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{lang = Lang, uid = Uid}, born_type_info_map = BornTypeInfoMap}) when Answer == <<"n">> orelse Answer == <<"no">> ->
     nls_server:response_content([{nls, please_input_id}], Lang, DispatcherPid),
-    {next_state, input_id, #state{self = #player_profile{uid = Uid, lang = Lang}}};
+    {next_state, input_id, #state{self = #player_profile{uid = Uid, lang = Lang}, born_type_info_map = BornTypeInfoMap}};
 input_confirmation({Other, DispatcherPid}, #state{self = #player_profile{lang = Lang}, summary_content = SummaryContent} = State) ->
     ErrorMessageNlsContent
         = case Other of

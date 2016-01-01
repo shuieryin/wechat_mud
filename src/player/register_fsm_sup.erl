@@ -17,7 +17,7 @@
 %% API
 -export([
     start_link/0,
-    add_child/2,
+    add_child/3,
     start/0,
     stop/0
 ]).
@@ -67,11 +67,12 @@ stop() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec add_child(DispatcherPid, Uid) -> supervisor:startchild_ret() when
+-spec add_child(DispatcherPid, Uid, BornTypeInfoMap) -> supervisor:startchild_ret() when
     DispatcherPid :: pid(),
-    Uid :: player_fsm:uid().
-add_child(DispatcherPid, Uid) ->
-    supervisor:start_child(?MODULE, [DispatcherPid, Uid]).
+    Uid :: player_fsm:uid(),
+    BornTypeInfoMap :: register_fsm:born_type_info_map().
+add_child(DispatcherPid, Uid, BornTypeInfoMap) ->
+    supervisor:start_child(?MODULE, [DispatcherPid, Uid, BornTypeInfoMap]).
 
 %%%===================================================================
 %%% Supervisor callbacks

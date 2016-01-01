@@ -21,6 +21,17 @@
     dexterity :: integer()
 }).
 
+-record(player_status, {
+    attack :: integer(),
+    l_attack :: integer(),
+    defence :: integer(),
+    l_defence :: integer(),
+    hp :: integer(),
+    l_hp :: integer(),
+    dexterity :: integer(),
+    l_dexterity :: integer()
+}).
+
 -record(player_profile, {
     uid :: player_fsm:uid(),
     id :: player_fsm:id(),
@@ -33,7 +44,8 @@
     lang :: nls_server:support_lang(),
     register_time :: pos_integer(),
     scene :: scene_fsm:scene_name(),
-    avatar_profile :: #avatar_profile{} | undefined
+    avatar_profile :: #avatar_profile{} | undefined,
+    player_status :: #player_status{}
 }).
 
 -record(simple_player, {
