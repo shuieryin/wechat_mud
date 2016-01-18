@@ -410,9 +410,9 @@ non_battle({attacked, #target_content{dispatcher_pid = DispatcherPid, to = #simp
     do_response_content(State, Message, DispatcherPid),
     {next_state, battle, State};
 non_battle(logout, #state{self = #player_profile{scene = CurSceneName, uid = Uid} = PlayerProfile} = State) ->
+    true = redis_client_server:set(Uid, PlayerProfile, true),
     scene_fsm:leave(CurSceneName, Uid),
     error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
-    redis_client_server:set(Uid, PlayerProfile, true),
     {stop, normal, State}.
 
 %%--------------------------------------------------------------------
@@ -582,7 +582,7 @@ handle_event({switch_lang, DispatcherPid, TargetLang}, StateName, #state{self = 
     UpdatedState = State#state{lang_map = TargetLangMap},
     UpdatedMailBox = do_response_content(UpdatedState, [{nls, lang_switched}], DispatcherPid),
     UpdatedPlayerProfile = PlayerProfile#player_profile{lang = TargetLang},
-    redis_client_server:async_set(Uid, UpdatedPlayerProfile, true),
+    ok = redis_client_server:async_set(Uid, UpdatedPlayerProfile, true),
     {next_state, StateName, UpdatedState#state{self = UpdatedPlayerProfile, lang_map = TargetLangMap, mail_box = UpdatedMailBox}};
 handle_event({append_message, Message, MailType}, StateName, State) ->
     {next_state, StateName, append_message_priv(Message, MailType, State)};

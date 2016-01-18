@@ -208,7 +208,7 @@ init([]) ->
         case redis_client_server:get(common_config) of
             undefined ->
                 NewConfig = #common_config{is_wechat_debug = ?DEFAULT_WECHAT_DEBUG_MODE},
-                redis_client_server:set(common_config, NewConfig, true),
+                true = redis_client_server:set(common_config, NewConfig, true),
                 NewConfig;
             Config ->
                 Config

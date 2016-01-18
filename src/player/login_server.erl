@@ -235,7 +235,7 @@ init([]) ->
         case redis_client_server:get(registered_uids_set) of
             undefined ->
                 NewRegisteredUidsSet = gb_sets:new(),
-                redis_client_server:set(registered_uids_set, NewRegisteredUidsSet, true),
+                true = redis_client_server:set(registered_uids_set, NewRegisteredUidsSet, true),
                 NewRegisteredUidsSet;
             UidsSet ->
                 UidsSet
@@ -245,7 +245,7 @@ init([]) ->
         case redis_client_server:get(registered_ids_set) of
             undefined ->
                 NewRegisteredIdsSet = gb_sets:new(),
-                redis_client_server:set(registered_uids_set, NewRegisteredIdsSet, true),
+                true = redis_client_server:set(registered_uids_set, NewRegisteredIdsSet, true),
                 NewRegisteredIdsSet;
             IdsSet ->
                 IdsSet
@@ -308,8 +308,8 @@ handle_call({delete_user, Uid}, _From, #state{registered_uids_set = RegisteredUi
     ok = cm:until_process_terminated(Uid, 20),
     UpdatedRegisteredUidsSet = gb_sets:delete(Uid, RegisteredUidsSet),
 
-    redis_client_server:async_del([Uid], false),
-    redis_client_server:async_set(registered_uids_set, UpdatedRegisteredUidsSet, true),
+    ok = redis_client_server:async_del([Uid], false),
+    ok = redis_client_server:async_set(registered_uids_set, UpdatedRegisteredUidsSet, true),
 
     {reply, ok, LoggedOutState#state{registered_uids_set = UpdatedRegisteredUidsSet}};
 handle_call({is_uid_logged_in, Uid}, _From, #state{logged_in_uids_set = LoggedUidsSet} = State) ->
@@ -319,7 +319,7 @@ handle_call(get_registered_player_uids, _From, #state{registered_uids_set = Regi
 handle_call({registration_done, #player_profile{uid = Uid, id = Id} = PlayerProfile, DispatcherPid}, _From, #state{registering_uids_set = RegisteringUidsSet, registered_uids_set = RegisteredUidsSet, registered_ids_set = RegisteredIdsSet} = State) ->
     UpdatedRegisteredUidsSet = gb_sets:add(Uid, RegisteredUidsSet),
 
-    redis_client_server:async_set(registered_uids_set, UpdatedRegisteredUidsSet, false),
+    ok = redis_client_server:async_set(registered_uids_set, UpdatedRegisteredUidsSet, false),
 
     UpdatedRegisteredIdsSet = gb_sets:add(Id,
         case redis_client_server:get(Uid) of
@@ -328,8 +328,8 @@ handle_call({registration_done, #player_profile{uid = Uid, id = Id} = PlayerProf
             _ ->
                 RegisteredIdsSet
         end),
-    redis_client_server:async_set(registered_ids_set, UpdatedRegisteredIdsSet, false),
-    redis_client_server:set(Uid, PlayerProfile, true),
+    ok = redis_client_server:async_set(registered_ids_set, UpdatedRegisteredIdsSet, false),
+    true = redis_client_server:set(Uid, PlayerProfile, true),
 
     UpdatedState = State#state{
         registered_uids_set = UpdatedRegisteredUidsSet,
@@ -388,8 +388,8 @@ handle_cast({login, DispatcherPid, Uid}, #state{logged_in_uids_set = LoggedInUid
 
     {noreply, State#state{logged_in_uids_set = UpdatedLoggedInUidsSet}};
 handle_cast({logout, DispatcherPid, Uid}, State) ->
-    UpdatedState = logout(internal, Uid, State),
     ok = player_fsm:response_content(Uid, [{nls, already_logout}], DispatcherPid),
+    UpdatedState = logout(internal, Uid, State),
     {noreply, UpdatedState};
 handle_cast(stop, State) ->
     {stop, normal, State}.
