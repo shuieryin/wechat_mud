@@ -85,7 +85,7 @@ look_target(#state{pid = Self, player_uid = PlayerUid}) ->
                      #simple_player{uid = TargetPlayerUid} ->
                          TargetPlayerUid
                  end,
-    ?assertMatch(ok, player_fsm:look_target(Self, PlayerUid, list_to_binary([<<"look ">>, atom_to_binary(TargetName, utf8)]))).
+    ?assertMatch(ok, look:exec(Self, PlayerUid, list_to_binary([<<"look ">>, atom_to_binary(TargetName, utf8)]))).
 
 go_direction(#state{pid = Self, player_uid = PlayerUid}) ->
     CurrentSceneName = player_fsm:current_scene_name(PlayerUid),

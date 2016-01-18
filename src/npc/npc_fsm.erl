@@ -14,8 +14,7 @@
 %% API
 -export([
     start_link/1,
-    being_looked/2,
-    non_battle/3
+    non_battle/2
 ]).
 
 %% gen_fsm callbacks
@@ -34,6 +33,8 @@
 -define(SERVER, ?MODULE).
 
 -include("../data_type/npc_born_info.hrl").
+-include("../data_type/scene_info.hrl").
+-include("../data_type/player_profile.hrl").
 
 -record(state, {
     npc_profile :: #npc_born_info{}
@@ -57,16 +58,6 @@
     NpcProfile :: #npc_born_info{}.
 start_link(#npc_born_info{npc_fsm_id = NpcFsmId} = NpcProfile) ->
     gen_fsm:start_link({local, NpcFsmId}, ?MODULE, NpcProfile, []).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Being looked by given player. The npc might launch a offensive to
-%% player depending on its rage point.
-%%
-%% @end
-%%--------------------------------------------------------------------
-being_looked(TargetNpcFsmId, SrcUid) ->
-    gen_fsm:sync_send_event(TargetNpcFsmId, {being_looked, SrcUid}).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -97,33 +88,34 @@ init(NpcProfile) ->
 %%--------------------------------------------------------------------
 %% @doc
 %% Refer to below functions for details.
-%% @see being_looked/2.
+%%
+%% @see look.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec non_battle(Event, From, State) ->
+-spec non_battle(Event, State) ->
     {next_state, NextStateName, NextState} |
     {next_state, NextStateName, NextState, timeout() | hibernate} |
-    {reply, Reply, NextStateName, NextState} |
-    {reply, Reply, NextStateName, NextState, timeout() | hibernate} |
-    {stop, Reason, NewState} |
-    {stop, Reason, Reply, NewState} when
+    {stop, Reason, NewState} when
 
-    Event :: {being_looked, SrcFsmId},
-    Reply :: NlsObjectList,
+    Event :: {under_look, TargetContent},
 
-    SrcFsmId :: player_fsm:uid() | npc_fsm_manager:npc_fsm_id(),
-    NlsObjectList :: [nls_server:nls_object()],
+    TargetContent :: #target_content{},
 
-    From :: {pid(), term()}, % generic term
     State :: #state{},
     NextStateName :: state_name(),
     NextState :: State,
-    Reason :: normal | term(), % generic term
-    NewState :: State.
-non_battle({being_looked, _SrcFsmId}, _From, #state{npc_profile = #npc_born_info{description_nls_key = DescriptionNlsKey}} = State) ->
-    ContentList = [{nls, DescriptionNlsKey}, <<"\n">>],
-    {reply, ContentList, non_battle, State}.
+    NewState :: State,
+    Reason :: term(). % generic term
+non_battle({under_look, #target_content{from = #simple_player{uid = SrcUid}, actions = [_ | RestActions]} = TargetContent}, #state{npc_profile = #npc_born_info{description_nls_key = DescriptionNlsKey}} = State) ->
+    TargetDescription = [{nls, DescriptionNlsKey}, <<"\n">>],
+
+    UpdatedTargetContent = TargetContent#target_content{
+        actions = RestActions,
+        action_args = TargetDescription
+    },
+    ok = cm:target(SrcUid, UpdatedTargetContent),
+    {next_state, non_battle, State}.
 
 %%--------------------------------------------------------------------
 %% @private

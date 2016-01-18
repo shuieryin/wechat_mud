@@ -44,7 +44,7 @@
     lang :: nls_server:support_lang(),
     register_time :: pos_integer(),
     scene :: scene_fsm:scene_name(),
-    avatar_profile :: #avatar_profile{} | undefined,
+    avatar_profile :: #avatar_profile{},
     player_status :: #player_status{}
 }).
 
@@ -53,4 +53,10 @@
     name :: player_fsm:name(),
     id :: player_fsm:id(),
     name_description :: nls_server:nls_object()
+}).
+
+-record(perform_args, {
+    skill_id :: player_fsm:skill_id(),
+    value_bindings :: erl_eval:bindings(),
+    damage_value :: non_neg_integer()
 }).

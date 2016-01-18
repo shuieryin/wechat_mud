@@ -25,9 +25,10 @@
     leave/2,
     go_direction/3,
     look_scene/3,
-    look_target/4,
+    target/1,
     get_scene_object_list/1,
-    get_exits_map/1
+    get_exits_map/1,
+    general_target/1
 ]).
 
 %% gen_fsm callbacks
@@ -149,19 +150,37 @@ look_scene(CurSceneName, Uid, DispatcherPid) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Looks at current scene by response current scene info to player.
-%% LookArgs is converted from
-%%        binary "little boy 2" to "Target=little_boy" and "Sequence=2".
+%% This function is an aggregate function for executing action on target.
+%%
+%% Commands:
+%%      look:       Looks at current scene by response current scene info to player.
+%%      perform:    Perform skill on target.
+%%      attack:     Attack target and turn both player and target to battle state.
+%%
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec look_target(CurSceneName, SrcSimplePlayer, DispatcherPid, LookArgs) -> ok when
-    CurSceneName :: scene_name(),
-    DispatcherPid :: pid(),
-    SrcSimplePlayer :: #simple_player{},
-    LookArgs :: binary().
-look_target(CurSceneName, SrcSimplePlayer, DispatcherPid, LookArgs) ->
-    gen_fsm:send_all_state_event(CurSceneName, {look_target, SrcSimplePlayer, DispatcherPid, LookArgs}).
+-spec target(TargetContent) -> ok when
+    TargetContent :: #target_content{}.
+target(#target_content{actions = [Action | _], scene = SceneName} = TargetContent) ->
+    gen_fsm:send_all_state_event(SceneName, {Action, TargetContent}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% This function is an aggregate function for executing action on target.
+%%
+%% The difference between target/1 is that no need to specify simulation
+%% function on the current state event but uses common event "general_target".
+%%
+%% See target/1 for command details.
+%% @see target/1.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec general_target(TargetContent) -> ok when
+    TargetContent :: #target_content{}.
+general_target(#target_content{scene = SceneName} = TargetContent) ->
+    gen_fsm:send_all_state_event(SceneName, {general_target, TargetContent}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -304,14 +323,13 @@ state_name(_Event, _From, State) ->
     {enter, DispatcherPid, SimplePlayer, FromSceneName} |
     {leave, Uid} |
     {look_scene, Uid, DispatcherPid} |
-    {look_target, SrcSimplePlayer, DispatcherPid, LookArgs},
+    {general_target, TargetContent},
 
     SimplePlayer :: #simple_player{},
     FromSceneName :: scene_name(),
     DispatcherPid :: pid(),
-    SrcSimplePlayer :: #simple_player{},
     Uid :: player_fsm:uid(),
-    LookArgs :: binary(),
+    TargetContent :: #target_content{},
 
     StateName :: state_name(),
     StateData :: #state{},
@@ -329,37 +347,32 @@ handle_event({enter, DispatcherPid, #simple_player{uid = Uid, name = PlayerName}
     broadcast(State, EnterSceneMessage, scene, []),
     {next_state, StateName, State#state{scene_object_list = [SimplePlayer | SceneObjectList]}};
 handle_event({leave, Uid}, StateName, #state{scene_object_list = SceneObjectList} = State) ->
-    #simple_player{name = PlayerName} = scene_player(SceneObjectList, Uid),
+    #simple_player{name = PlayerName} = scene_player_by_uid(SceneObjectList, Uid),
     broadcast(State, [{nls, leave_scene, [PlayerName, {nls, unknown}]}, <<"\n">>], scene, [Uid]),
     {next_state, StateName, remove_scene_object(Uid, State)};
 handle_event({look_scene, Uid, DispatcherPid}, StateName, State) ->
     ok = show_scene(State, Uid, DispatcherPid),
     {next_state, StateName, State};
-handle_event({look_target, #simple_player{uid = Uid} = SrcSimplePlayer, DispatcherPid, LookArgs}, StateName, #state{scene_object_list = SceneObjectList} = State) ->
-    [RawSequence | Rest] = lists:reverse(re:split(LookArgs, <<" ">>)),
-    {Target, Sequence} =
-        case Rest of
-            [] ->
-                {RawSequence, 1};
-            _ ->
-                case re:run(RawSequence, "^[0-9]*$") of
-                    {match, _} ->
-                        {cm:binary_join(lists:reverse(Rest), <<"_">>), binary_to_integer(RawSequence)};
-                    _ ->
-                        {re:replace(LookArgs, <<" ">>, <<"_">>, [global, {return, binary}]), 1}
-                end
-        end,
-    TargetSceneObject = grab_target_scene_objects(SceneObjectList, Target, Sequence),
-    ContentList = case TargetSceneObject of
-                      undefined ->
-                          [{nls, no_such_target}, LookArgs, <<"\n">>];
-                      #simple_npc_fsm{npc_fsm_id = TargetNpcFsmId} ->
-                          npc_fsm:being_looked(TargetNpcFsmId, Uid);
-                      #simple_player{uid = TargetPlayerUid} ->
-                          player_fsm:being_looked(TargetPlayerUid, SrcSimplePlayer)
-                  end,
-    player_fsm:response_content(Uid, ContentList, DispatcherPid),
+handle_event({general_target, #target_content{from = #simple_player{uid = SrcUid}, dispatcher_pid = DispatcherPid, target = TargetId, sequence = Sequence, target_bin = TargetBin} = TargetContent}, StateName, #state{scene_object_list = SceneObjectList} = State) ->
+    TargetSceneObject = grab_target_scene_objects(SceneObjectList, TargetId, Sequence),
+    if
+        undefined == TargetSceneObject ->
+            ok = player_fsm:response_content(SrcUid, [{nls, no_such_target}, TargetBin, <<"\n">>], DispatcherPid);
+        true ->
+            UpdatedTargetContent = TargetContent#target_content{
+                to = TargetSceneObject
+            },
+
+            TargetPid = case TargetSceneObject of
+                            #simple_npc_fsm{npc_fsm_id = TargetNpcFsmId} ->
+                                TargetNpcFsmId;
+                            #simple_player{uid = TargetPlayerUid} ->
+                                TargetPlayerUid
+                        end,
+            ok = cm:target(TargetPid, UpdatedTargetContent)
+    end,
     {next_state, StateName, State}.
+
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -451,7 +464,7 @@ handle_sync_event({go_direction, Uid, TargetDirection}, _From, StateName, #state
             undefined ->
                 {undefined, State};
             SceneName ->
-                #simple_player{name = PlayerName} = scene_player(SceneObjectList, Uid),
+                #simple_player{name = PlayerName} = scene_player_by_uid(SceneObjectList, Uid),
                 broadcast(State, [{nls, leave_scene, [PlayerName, {nls, TargetDirection}]}, <<"\n">>], scene, [Uid]),
                 {SceneName, remove_scene_object(Uid, State)}
         end,
@@ -654,17 +667,17 @@ broadcast(#state{scene_object_list = SceneObjectList}, Message, MailType, Except
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Get target scene player
+%% Get target scene player by uid.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec scene_player(SceneObjectList, TargetPlayerUid) -> Result when
+-spec scene_player_by_uid(SceneObjectList, TargetPlayerUid) -> Result when
     SceneObjectList :: [scene_object()],
     TargetPlayerUid :: player_fsm:uid(),
-    Result :: #simple_player{}.
-scene_player([#simple_player{uid = TargetPlayerUid} = SimplePlayer | _Rest], TargetPlayerUid) ->
+    Result :: #simple_player{} | undefined.
+scene_player_by_uid([#simple_player{uid = TargetPlayerUid} = SimplePlayer | _Rest], TargetPlayerUid) ->
     SimplePlayer;
-scene_player([_OtherSceneObject | Rest], TargetPlayerUid) ->
-    scene_player(Rest, TargetPlayerUid);
-scene_player([], _TargetPlayerUid) ->
+scene_player_by_uid([_OtherSceneObject | Rest], TargetPlayerUid) ->
+    scene_player_by_uid(Rest, TargetPlayerUid);
+scene_player_by_uid([], _TargetPlayerUid) ->
     undefined.

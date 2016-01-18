@@ -1,31 +1,21 @@
 %%%-------------------------------------------------------------------
 %%% @author shuieryin
-%%% @copyright (C) 2015, Shuieryin
+%%% @copyright (C) 2016, Shuieryin
 %%% @doc
 %%%
-%%% Look module. This module returns the current scene content to
-%%% player when no arugments provided, or returns specific character
-%%% or object vice versa.
+%%% Perform skill on target.
 %%%
 %%% @end
-%%% Created : 20. Sep 2015 8:19 PM
+%%% Created : 10. Jan 2016 8:50 PM
 %%%-------------------------------------------------------------------
--module(look).
+-module(perform).
 -author("shuieryin").
 
 %% API
--export([
-    exec/2,
-    exec/3
-]).
-
--type sequence() :: pos_integer(). % generic integer
--type target() :: atom(). % generic atom
+-export([exec/3]).
 
 -include("../data_type/scene_info.hrl").
-
--export_type([sequence/0,
-    target/0]).
+-include("../data_type/player_profile.hrl").
 
 %%%===================================================================
 %%% API
@@ -33,37 +23,30 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Returns the current scene content when no arguments provided.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec exec(DispatcherPid, Uid) -> ok when
-    Uid :: player_fsm:uid(),
-    DispatcherPid :: pid().
-exec(DispatcherPid, Uid) ->
-    player_fsm:look_scene(DispatcherPid, Uid).
-
-%%--------------------------------------------------------------------
-%% @doc
 %% Show the first matched target scene object description.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispatcherPid, Uid, TargetArgs) -> ok when
+-spec exec(DispatcherPid, Uid, RestArgsBin) -> ok when
     Uid :: player_fsm:uid(),
     DispatcherPid :: pid(),
-    TargetArgs :: binary().
-exec(DispatcherPid, Uid, TargetArgs) ->
+    RestArgsBin :: binary().
+exec(DispatcherPid, Uid, Args) ->
+    [SkillId, TargetArgs] = re:split(Args, <<"\s+on\s+">>),
     {ok, TargetId, Sequence} = cm:parse_target_id(TargetArgs),
     TargetContent = #target_content{
-        actions = [under_look, looked],
+        actions = [perform_target, under_perform, performed],
+        action_args = #perform_args{
+            skill_id = SkillId
+        },
         dispatcher_pid = DispatcherPid,
         target = TargetId,
         sequence = Sequence,
         target_bin = TargetArgs,
-        self_targeted_message = [{nls, look_self}, <<"\n">>]
+        self_targeted_message = [{nls, attack_self}, <<"\n">>]
     },
-    cm:general_target(Uid, TargetContent).
+
+    cm:target(Uid, TargetContent).
 
 %%%===================================================================
 %%% Internal functions (N/A)

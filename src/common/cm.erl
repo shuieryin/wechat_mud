@@ -28,7 +28,11 @@
     observer/0,
     binary_join/2,
     type_values/2,
-    uuid/0
+    uuid/0,
+    rr/2,
+    parse_target_id/1,
+    target/2,
+    general_target/2
 ]).
 
 -type valid_type() :: atom | binary | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple | map.
@@ -37,6 +41,7 @@
 
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include("../data_type/scene_info.hrl").
 
 %%%===================================================================
 %%% API
@@ -322,6 +327,83 @@ type_values(ModuleName, TypeName) ->
 -spec uuid() -> atom(). % generic atom
 uuid() ->
     list_to_atom(uuid:uuid_to_string(uuid:get_v4())).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Random float range. Input arguments must be integer.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec rr(Start, End) -> float() when
+    Start :: pos_integer(),
+    End :: Start.
+rr(Start, End) ->
+    Value = if
+                Start > End ->
+                    Start;
+                true ->
+                    Start + random:uniform(End - Start)
+            end,
+    Value / 100.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% TargetArgs is converted from
+%%        binary "little boy 2" to "TargetId=little_boy" and "Sequence=2".
+%%        binary "shuieryin" to "TargetId=collin" and "Sequence=1".
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec parse_target_id(TargetArgs) -> {ok, TargetId, Sequence} when
+    TargetArgs :: binary(),
+    TargetId :: player_fsm:id() | npc_fsm_manager:npc_type(),
+    Sequence :: non_neg_integer().
+parse_target_id(TargetArgs) ->
+    [RawSequence | Rest] = lists:reverse(re:split(TargetArgs, <<" ">>)),
+    {TargetId, Sequence} =
+        case Rest of
+            [] ->
+                {RawSequence, 1};
+            _ ->
+                case re:run(RawSequence, "^[0-9]*$") of
+                    {match, _} ->
+                        {cm:binary_join(lists:reverse(Rest), <<"_">>), binary_to_integer(RawSequence)};
+                    _ ->
+                        {re:replace(TargetArgs, <<" ">>, <<"_">>, [global, {return, binary}]), 1}
+                end
+        end,
+    {ok, TargetId, Sequence}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% This function is an aggregate function for executing action on target.
+%% gen_fsm only.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec target(Uid, TargetContent) -> ok when
+    Uid :: player_fsm:uid(),
+    TargetContent :: #target_content{}.
+target(Uid, #target_content{actions = [Action | _]} = TargetContent) ->
+    gen_fsm:send_event(Uid, {Action, TargetContent}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% This function is an aggregate function for executing action on target.
+%% gen_fsm only.
+%%
+%% The difference between target/2 is that no need to specify simulation
+%% function on the current state event but uses common event "general_target".
+%%
+%% @see target/2.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec general_target(Uid, TargetContent) -> ok when
+    Uid :: player_fsm:uid(),
+    TargetContent :: #target_content{}.
+general_target(Uid, TargetContent) ->
+    gen_fsm:send_event(Uid, {general_target, TargetContent}).
 
 %%%===================================================================
 %%% Internal functions

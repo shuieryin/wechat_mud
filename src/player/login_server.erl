@@ -382,14 +382,14 @@ handle_cast({login, DispatcherPid, Uid}, #state{logged_in_uids_set = LoggedInUid
                 scene_fsm:enter(CurSceneName, DispatcherPid, player_fsm:simple_player(PlayerProfile), undefined),
                 gb_sets:add(Uid, LoggedInUidsSet);
             true ->
-                player_fsm:response_content(Uid, [{nls, already_login}], DispatcherPid),
+                ok = player_fsm:response_content(Uid, [{nls, already_login}], DispatcherPid),
                 LoggedInUidsSet
         end,
 
     {noreply, State#state{logged_in_uids_set = UpdatedLoggedInUidsSet}};
 handle_cast({logout, DispatcherPid, Uid}, State) ->
     UpdatedState = logout(internal, Uid, State),
-    player_fsm:response_content(Uid, [{nls, already_logout}], DispatcherPid),
+    ok = player_fsm:response_content(Uid, [{nls, already_logout}], DispatcherPid),
     {noreply, UpdatedState};
 handle_cast(stop, State) ->
     {stop, normal, State}.

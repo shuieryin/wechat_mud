@@ -116,9 +116,11 @@ start(Req) ->
 pending_content(Module, Function, Args) ->
     Self = self(),
     FunctionArgs = [Self | Args],
-    spawn(fun() ->
-        execute_command(Module, Function, FunctionArgs)
-          end),
+    spawn(
+        fun() ->
+            execute_command(Module, Function, FunctionArgs)
+        end
+    ),
     receive
         {execed, Self, ReturnContent} ->
             ReturnContent
@@ -553,7 +555,7 @@ execute_command(Module, Function, [DispatcherPid, Uid | CommandArgs] = FunctionA
         apply(Module, Function, FunctionArgs)
     catch
         Type:Reason ->
-            player_fsm:response_content(Uid, [{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(atom_to_list(Module) ++ "_help")}], DispatcherPid),
+            ok = player_fsm:response_content(Uid, [{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(atom_to_list(Module) ++ "_help")}], DispatcherPid),
             error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
             throw(Reason)
     end.
@@ -584,4 +586,7 @@ is_command_exist(<<"lang">>) -> true;
 is_command_exist(<<"login">>) -> true;
 is_command_exist(<<"logout">>) -> true;
 is_command_exist(<<"rereg">>) -> true;
+is_command_exist(<<"hp">>) -> true;
+is_command_exist(<<"perform">>) -> true;
+is_command_exist(<<"attack">>) -> true;
 is_command_exist(_InvalidCommand) -> false.

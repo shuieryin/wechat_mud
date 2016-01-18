@@ -3,6 +3,9 @@ all: dialyzer install ct
 install:
 	@./config/install.sh
 
+check:
+	@./config/rebar3 do dialyzer, edoc
+
 cu: clean_upgrade
 
 clean_upgrade: remove_appup upgrade

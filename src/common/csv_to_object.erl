@@ -227,6 +227,10 @@ traverse_column([RawValue | TailValues], [{_, FieldType} | TailFieldInfos], AccV
                             {ok, Tokens, _} = erl_scan:string(RawValue),
                             {ok, Term} = erl_parse:parse_term(Tokens),
                             Term;
+                        exprs ->
+                            {ok, Tokens, _} = erl_scan:string(RawValue),
+                            {ok, Exprs} = erl_parse:parse_exprs(Tokens),
+                            Exprs;
                         _ ->
                             RawValue
                     end

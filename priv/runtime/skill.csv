@@ -1,0 +1,2 @@
+skill_id:binary,skill_seq:atom,damage_formula:exprs,buff:term
+attack,0,"src_attack * cm:rr(90,110) - target_defense.",[].

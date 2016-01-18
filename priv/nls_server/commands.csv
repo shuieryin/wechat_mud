@@ -13,3 +13,6 @@ already_logout,您已登出,You have logged out
 rereg_help,指令:rereg~n描述:重新注册人物~n例子:rereg,COMMAND:rereg~nDESCRIPTION:Register character~nExample:rereg
 please_logout_first,请先登出,Please logout first
 look_help,指令:look [目标名称] [目标序号]~n描述:观察当前场景或场景里的人物或物件~n~n例子:~n观察场景: look / l / 5~n观察当前场景第一个人物或物件:~nlook dog / look dog 1~n观察当前场景非第一个人物或物件:~nlook dog n (n > 1),"COMMAND:look [target name] [target sequence]~nDESCRIPTION:Observe current scene, or target character or item in current scene~n~nEXAMPLE:~nObserve scene: look / l / 5~nObserve the first character or item in current scene:~nlook dog / look dog 1~nObserve non-first character or item in current scene:~nlook dog n (n > 1)"
+perform_help,指令:perform [武功名字] on [目标名称]~n描述:用武功对目标进行攻击~n~n例子:perform attack on dog,COMMAND:perform [skill name] on [target name]~nDESCRIPTION:Perform skill attack on someone.~n~n例子:perform attack on dog
+hp_help,指令:hp~n描述:显示当前hp状态,COMMAND:hp~nDESCRIPTION: Display current hp status
+attack_help,指令:attack [目标名称] ~n描述:对目标发起攻击,COMMAND:attack [target name]~nDESCRIPTION: Launch attack on target

@@ -12,8 +12,10 @@ northwest,西北,Northwest
 obvious_exits,这里明显的出口是 ,Obvious outlets 
 invalid_exit,这里没有这个出口,No such outlet
 no_such_target,这里没有: ,No such target: 
-being_looked,看了你一下。,just had an eye on you.
+under_look,看了你一下。,just had an eye on you.
 leave_scene,${player}往${direction}方向去了。,${player} leave towards ${direction} direction.
 enter_scene_from,${player}从${direction}方走了过来。,${player} comes by ${direction} direction.
 enter_scene,${player}走了过来。,${player} comes by.
 unknown,未知,unknown
+look_self,你看了下自己，傻呵呵笑了下。,"You look at yourself, laugh at silly."
+attack_self,你想打自己，但无从下手。,You cannot attack yourself.

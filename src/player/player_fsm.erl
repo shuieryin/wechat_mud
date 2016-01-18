@@ -26,13 +26,12 @@
     response_content/3,
     leave_scene/1,
     switch_lang/3,
-    look_target/3,
-    being_looked/2,
     current_scene_name/1,
     append_message/3,
     simple_player/1,
     non_battle/2,
-    non_battle/3
+    battle/2,
+    hp/2
 ]).
 
 %% gen_fsm callbacks
@@ -57,8 +56,20 @@
 
 -include("../data_type/player_profile.hrl").
 -include("../data_type/npc_born_info.hrl").
+-include("../data_type/skill.hrl").
+-include("../data_type/scene_info.hrl").
 
 -type mail_type() :: battle | scene | other.
+-type skill_id() :: binary().
+-type skill_map() :: #{skill_id() => #skill{}}.
+
+-type action() ::
+perform_target  | under_perform | performed |
+under_look      | looked        |
+under_attack    | attacked.
+
+-type action_args() :: #perform_args{} | term(). % generic term
+
 -record(mailbox, {
     battle = [] :: [mail_object()],
     scene = [] :: [mail_object()],
@@ -68,17 +79,22 @@
 -record(state, {
     self :: #player_profile{},
     mail_box :: #mailbox{},
-    lang_map :: nls_server:lang_map()
+    lang_map :: nls_server:lang_map(),
+    skill_map :: skill_map()
 }).
 
--type state_name() :: state_name | non_battle.
+-type state_name() :: state_name | battle | non_battle.
 
 -export_type([
     born_month/0,
     uid/0,
     gender/0,
     id/0,
-    name/0]).
+    name/0,
+    skill_id/0,
+    action/0,
+    action_args/0
+]).
 
 %%%===================================================================
 %%% API
@@ -143,32 +159,6 @@ go_direction(DispatcherPid, Uid, Direction) ->
     Uid :: uid().
 look_scene(DispatcherPid, Uid) ->
     gen_fsm:send_event(Uid, {look_scene, DispatcherPid}).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Displays the current scene info to user.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec look_target(DispatcherPid, Uid, LookArgs) -> ok when
-    DispatcherPid :: pid(),
-    Uid :: uid(),
-    LookArgs :: binary().
-look_target(DispatcherPid, Uid, LookArgs) ->
-    gen_fsm:send_event(Uid, {look_target, DispatcherPid, LookArgs}).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Being looked by given player. The npc might launch a offensive to
-%% player depending on its rage point.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec being_looked(TargetPlayerUid, SrcCharacter) -> ok when
-    TargetPlayerUid :: player_fsm:uid(),
-    SrcCharacter :: scene_fsm:scene_object().
-being_looked(TargetPlayerUid, SrcCharacter) ->
-    gen_fsm:sync_send_event(TargetPlayerUid, {being_looked, SrcCharacter}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -275,8 +265,17 @@ append_message(Uid, Message, MailType) ->
 simple_player(#player_profile{uid = Uid, name = Name, id = Id, self_description = SelfDescription}) ->
     #simple_player{uid = Uid, name = Name, id = Id, name_description = SelfDescription}.
 
-%%attack(Uid, TargetUid) ->
-%%    gen_fsm:send_all_state_event(Uid, attack).
+%%--------------------------------------------------------------------
+%% @doc
+%% Display player hp status.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec hp(DispatcherPid, Uid) -> ok when
+    DispatcherPid :: pid(),
+    Uid :: uid().
+hp(DispatcherPid, Uid) ->
+    gen_fsm:send_all_state_event(Uid, {hp, DispatcherPid}).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -304,8 +303,14 @@ simple_player(#player_profile{uid = Uid, name = Name, id = Id, self_description 
     StateData :: #state{},
     Reason :: term(). % generic term
 init(#player_profile{lang = Lang} = PlayerProfile) ->
-    LangMap = nls_server:get_lang_map(Lang),
-    {ok, non_battle, #state{self = PlayerProfile, lang_map = LangMap, mail_box = #mailbox{}}}.
+    {ok, non_battle,
+        #state{
+            self = PlayerProfile,
+            lang_map = nls_server:get_lang_map(Lang),
+            mail_box = #mailbox{},
+            skill_map = common_server:get_runtime_data(skill)
+        }
+    }.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -326,14 +331,15 @@ init(#player_profile{lang = Lang} = PlayerProfile) ->
     Event ::
     {go_direction, DispatcherPid, Direction} |
     {look_scene, DispatcherPid} |
-    {look_target, DispatcherPid, LookArgs} |
     leave_scene |
+    {general_target, TargetContent} |
+    {under_look, TargetContent} |
     {logout, NotifyOkPid},
 
     DispatcherPid :: pid(),
     Direction :: direction:directions(),
-    LookArgs :: binary(),
     NotifyOkPid :: pid(),
+    TargetContent :: #target_content{},
 
     State :: #state{},
     NextStateName :: state_name(),
@@ -355,12 +361,54 @@ non_battle({go_direction, DispatcherPid, Direction}, #state{mail_box = MailBox, 
 non_battle({look_scene, DispatcherPid}, #state{self = #player_profile{scene = CurSceneName, uid = Uid}} = State) ->
     scene_fsm:look_scene(CurSceneName, Uid, DispatcherPid),
     {next_state, non_battle, State};
-non_battle({look_target, DispatcherPid, LookArgs}, #state{self = #player_profile{scene = CurSceneName} = PlayerProfile} = State) ->
-    scene_fsm:look_target(CurSceneName, simple_player(PlayerProfile), DispatcherPid, LookArgs),
+non_battle({general_target, #target_content{target = TargetId, self_targeted_message = SelfMessage, dispatcher_pid = DispatcherPid} = TargetContent}, #state{self = #player_profile{scene = CurSceneName, id = SrcPlayerId} = PlayerProfile} = State) ->
+    if
+        SrcPlayerId == TargetId ->
+            do_response_content(State, SelfMessage, DispatcherPid);
+        true ->
+            scene_fsm:general_target(TargetContent#target_content{
+                scene = CurSceneName,
+                from = simple_player(PlayerProfile)
+            })
+    end,
     {next_state, non_battle, State};
 non_battle(leave_scene, #state{self = #player_profile{scene = CurSceneName, uid = Uid}} = State) ->
     scene_fsm:leave(CurSceneName, Uid),
     {next_state, non_battle, State};
+non_battle({under_look, #target_content{actions = [_ | RestActions], from = #simple_player{uid = SrcUid, name = SrcName}} = TargetContent}, #state{self = #player_profile{uid = TargetPlayerUid, description = Description, self_description = SelfDescription}} = State) ->
+    TargetDescription = if
+                            SrcUid == TargetPlayerUid ->
+                                SelfDescription;
+                            true ->
+                                Description
+                        end,
+
+    UpdatedTargetContent = TargetContent#target_content{
+        actions = RestActions,
+        action_args = [TargetDescription, <<"\n">>]
+    },
+    ok = cm:target(SrcUid, UpdatedTargetContent),
+
+    SceneMessage = [SrcName, {nls, under_look}, <<"\n">>],
+    UpdatedState = append_message_priv(SceneMessage, scene, State),
+    {next_state, non_battle, UpdatedState};
+non_battle({looked, #target_content{action_args = TargetDescription, dispatcher_pid = DispatcherPid}}, State) ->
+    do_response_content(State, TargetDescription, DispatcherPid),
+    {next_state, non_battle, State};
+non_battle({under_attack, #target_content{actions = [_ | RestActions], from = #simple_player{uid = SrcUid, name = SrcName}} = TargetContent}, State) ->
+    Message = [{nls, under_attack, [SrcName]}],
+    UpdatedState = append_message_priv(Message, battle, State),
+
+    UpdatedTargetContent = TargetContent#target_content{
+        actions = RestActions
+    },
+    ok = cm:target(SrcUid, UpdatedTargetContent),
+
+    {next_state, battle, UpdatedState};
+non_battle({attacked, #target_content{dispatcher_pid = DispatcherPid, to = #simple_player{name = TargetName}}}, State) ->
+    Message = [{nls, launch_attack, [TargetName]}],
+    do_response_content(State, Message, DispatcherPid),
+    {next_state, battle, State};
 non_battle(logout, #state{self = #player_profile{scene = CurSceneName, uid = Uid} = PlayerProfile} = State) ->
     scene_fsm:leave(CurSceneName, Uid),
     error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
@@ -370,48 +418,72 @@ non_battle(logout, #state{self = #player_profile{scene = CurSceneName, uid = Uid
 %%--------------------------------------------------------------------
 %% @doc
 %% Refer to below functions for details.
-%% @see being_looked/2.
+%% @see perform/4.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec non_battle(Event, From, State) ->
+-spec battle(Event, State) ->
     {next_state, NextStateName, NextState} |
     {next_state, NextStateName, NextState, timeout() | hibernate} |
-    {reply, Reply, NextStateName, NextState} |
-    {reply, Reply, NextStateName, NextState, timeout() | hibernate} |
-    {stop, Reason, NewState} |
-    {stop, Reason, Reply, NewState} when
+    {stop, Reason, NewState} when
 
-    Event :: {being_looked, SrcCharacter},
-    Reply :: BeingLookedDescription,
+    Event ::
+    {perform_target, TargetContent} |
+    {under_perform, TargetContent} |
+    {performed, TargetContent},
 
-    SrcCharacter :: scene_fsm:scene_object(),
-    BeingLookedDescription :: [nls_server:nls_object()],
+    TargetContent :: #target_content{},
 
-    From :: {pid(), term()}, % generic term
     State :: #state{},
     NextStateName :: state_name(),
     NextState :: State,
-    Reason :: normal | term(), % generic term
-    NewState :: State.
-non_battle({being_looked, SrcCharacter}, _From, #state{self = #player_profile{uid = TargetFsmId, description = Description, self_description = SelfDescription}} = State) ->
-    {SrcFsmId, SrcName} =
-        case SrcCharacter of
-            #simple_player{uid = SourceFsmId, name = SourceName} ->
-                {SourceFsmId, SourceName};
-            #simple_npc_fsm{npc_fsm_id = SourceFsmId, npc_name_nls_key = SourceName} ->
-                {SourceFsmId, SourceName}
-        end,
-    ContentList = if
-                      SrcFsmId == TargetFsmId ->
-                          [SelfDescription, <<"\n">>];
-                      true ->
-                          [Description, <<"\n">>]
-                  end,
+    NewState :: State,
+    Reason :: term(). % generic term
+battle({perform_target, #target_content{self_targeted_message = SelfMessage, dispatcher_pid = DispatcherPid, target = TargetId, action_args = #perform_args{skill_id = SkillId} = PerformArgs} = TargetContent}, #state{self = #player_profile{id = SrcPlayerId, scene = CurSceneName, player_status = #player_status{attack = SrcAttack}} = PlayerProfile, skill_map = SkillMap} = State) ->
+    if
+        SrcPlayerId == TargetId ->
+            do_response_content(State, SelfMessage, DispatcherPid);
+        true ->
+            case maps:get(SkillId, SkillMap, undefined) of
+                undefined ->
+                    do_response_content(State, [{nls, no_such_skill, [SkillId]}], DispatcherPid);
+                _ ->
+                    ValueBindings = erl_eval:add_binding(src_attack, SrcAttack, erl_eval:new_bindings()),
+                    UpdatedTargetContent = TargetContent#target_content{
+                        scene = CurSceneName,
+                        from = simple_player(PlayerProfile),
+                        action_args = PerformArgs#perform_args{
+                            value_bindings = ValueBindings
+                        }
+                    },
+                    scene_fsm:general_target(UpdatedTargetContent)
+            end
+    end,
 
-    SceneMessage = [SrcName, {nls, being_looked}, <<"\n">>],
-    {reply, ContentList, non_battle, append_message_priv(SceneMessage, scene, State)}.
+    {next_state, battle, State};
+battle({under_perform, #target_content{actions = [_ | RestAction], action_args = #perform_args{skill_id = SkillId, value_bindings = ValueBindings} = PerformArgs, from = #simple_player{uid = SrcUid, name = SrcName}} = TargetContent}, #state{skill_map = SkillMap, self = #player_profile{player_status = #player_status{defence = TargetDefense, hp = TargetHp} = TargetPlayerStatus} = TargetPlayerProfile} = State) ->
+    #{SkillId := #skill{damage_formula = DamageFormula}} = SkillMap,
+    FinalBindings = erl_eval:add_binding(target_defense, TargetDefense, ValueBindings),
+    {value, DamageValue, _} = erl_eval:exprs(DamageFormula, FinalBindings),
+    UpdatedTargetStatus = TargetPlayerStatus#player_status{hp = TargetHp - DamageValue},
+    UnderAttackMessage = {nls, attack_under_attack_desc, [SrcName, unarmed]},
+    DamageMessage = {nls, damage_desc, [DamageValue]},
+    UpdatedState = append_message_priv([UnderAttackMessage, <<"\n">>, DamageMessage, <<"\n">>], battle, State),
 
+    UpdatedTargetContent = TargetContent#target_content{
+        actions = RestAction,
+        action_args = PerformArgs#perform_args{
+            damage_value = DamageValue
+        }
+    },
+    ok = cm:target(SrcUid, UpdatedTargetContent),
+
+    {next_state, battle, UpdatedState#state{self = TargetPlayerProfile#player_profile{player_status = UpdatedTargetStatus}}};
+battle({performed, #target_content{to = #simple_player{name = TargetName}, action_args = #perform_args{damage_value = DamageValue}, dispatcher_pid = DispatcherPid}}, State) ->
+    AttackMessage = {nls, attack_desc, [TargetName, unarmed]},
+    DamageMessage = {nls, damage_desc, [DamageValue]},
+    do_response_content(State, [AttackMessage, <<"\n">>, DamageMessage, <<"\n">>], DispatcherPid),
+    {next_state, battle, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -488,6 +560,7 @@ state_name(_Event, _From, State) ->
     {response_content, NlsObjectList, DispatcherPid} |
     {switch_lang, DispatcherPid, TargetLang} |
     {append_message, Message, MailType} |
+    {hp, DispatcherPid} |
     stop,
 
     NlsObjectList :: [nls_server:nls_object()],
@@ -513,6 +586,10 @@ handle_event({switch_lang, DispatcherPid, TargetLang}, StateName, #state{self = 
     {next_state, StateName, UpdatedState#state{self = UpdatedPlayerProfile, lang_map = TargetLangMap, mail_box = UpdatedMailBox}};
 handle_event({append_message, Message, MailType}, StateName, State) ->
     {next_state, StateName, append_message_priv(Message, MailType, State)};
+handle_event({hp, DispatcherPid}, StateName, #state{self = #player_profile{player_status = #player_status{hp = Hp, l_hp = MaxHp}}} = State) ->
+    Message = [<<"hp: ">>, integer_to_binary(Hp), <<" / ">>, integer_to_binary(MaxHp), <<"\n">>],
+    do_response_content(State, Message, DispatcherPid),
+    {next_state, StateName, State};
 handle_event(stop, _StateName, State) ->
     {stop, normal, State}.
 
