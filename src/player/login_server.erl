@@ -20,7 +20,7 @@
     is_uid_registered/1,
     is_in_registration/1,
     register_uid/2,
-    registration_done/2,
+    registration_done/1,
     delete_player/1,
     login/2,
     is_uid_logged_in/1,
@@ -155,11 +155,10 @@ register_uid(DispatcherPid, Uid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec registration_done(PlayerProfile, DispatcherPid) -> ok when
-    PlayerProfile :: #player_profile{},
-    DispatcherPid :: pid().
-registration_done(PlayerProfile, DispatcherPid) ->
-    gen_server:call(?MODULE, {registration_done, PlayerProfile, DispatcherPid}).
+-spec registration_done(PlayerProfile) -> ok when
+    PlayerProfile :: #player_profile{}.
+registration_done(PlayerProfile) ->
+    gen_server:call(?MODULE, {registration_done, PlayerProfile}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -280,7 +279,8 @@ init([]) ->
 
     Request :: {is_uid_registered | is_in_registration | delete_user, Uid} |
     get_registered_player_uids |
-    {registration_done, PlayerProfile, DispatcherPid},
+    {registration_done, PlayerProfile} |
+    {login, DispatcherPid, Uid},
 
     Reply :: IsUidRegistered | IsIdRegistered | IsInRegistration | IsUserLoggedIn | ok,
 
@@ -305,7 +305,7 @@ handle_call({is_in_registration, Uid}, _From, #state{registering_uids_set = Regi
     {reply, Result, State};
 handle_call({delete_user, Uid}, _From, #state{registered_uids_set = RegisteredUidsSet} = State) ->
     LoggedOutState = logout(internal, Uid, State),
-    ok = cm:until_process_terminated(Uid, 20),
+    ok = cm:until_process_terminated(Uid),
     UpdatedRegisteredUidsSet = gb_sets:delete(Uid, RegisteredUidsSet),
 
     ok = redis_client_server:async_del([Uid], false),
@@ -316,7 +316,7 @@ handle_call({is_uid_logged_in, Uid}, _From, #state{logged_in_uids_set = LoggedUi
     {reply, gb_sets:is_element(Uid, LoggedUidsSet), State};
 handle_call(get_registered_player_uids, _From, #state{registered_uids_set = RegisteredUidsSet} = State) ->
     {reply, RegisteredUidsSet, State};
-handle_call({registration_done, #player_profile{uid = Uid, id = Id} = PlayerProfile, DispatcherPid}, _From, #state{registering_uids_set = RegisteringUidsSet, registered_uids_set = RegisteredUidsSet, registered_ids_set = RegisteredIdsSet} = State) ->
+handle_call({registration_done, #player_profile{uid = Uid, id = Id} = PlayerProfile}, _From, #state{registering_uids_set = RegisteringUidsSet, registered_uids_set = RegisteredUidsSet, registered_ids_set = RegisteredIdsSet} = State) ->
     UpdatedRegisteredUidsSet = gb_sets:add(Uid, RegisteredUidsSet),
 
     ok = redis_client_server:async_set(registered_uids_set, UpdatedRegisteredUidsSet, false),
@@ -336,9 +336,21 @@ handle_call({registration_done, #player_profile{uid = Uid, id = Id} = PlayerProf
         registered_ids_set = UpdatedRegisteredIdsSet,
         registering_uids_set = gb_sets:del_element(Uid, RegisteringUidsSet)
     },
+    {reply, ok, UpdatedState};
+handle_call({login, DispatcherPid, Uid}, _From, #state{logged_in_uids_set = LoggedInUidsSet} = State) ->
+    UpdatedLoggedInUidsSet =
+        case gb_sets:is_element(Uid, LoggedInUidsSet) of
+            false ->
+                #player_profile{scene = CurSceneName} = PlayerProfile = redis_client_server:get(Uid),
+                player_fsm_sup:add_child(PlayerProfile),
+                scene_fsm:enter(CurSceneName, DispatcherPid, player_fsm:simple_player(PlayerProfile), undefined),
+                gb_sets:add(Uid, LoggedInUidsSet);
+            true ->
+                ok = player_fsm:response_content(Uid, [{nls, already_login}], DispatcherPid),
+                LoggedInUidsSet
+        end,
 
-    login(DispatcherPid, Uid),
-    {reply, ok, UpdatedState}.
+    {noreply, State#state{logged_in_uids_set = UpdatedLoggedInUidsSet}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -354,7 +366,6 @@ handle_call({registration_done, #player_profile{uid = Uid, id = Id} = PlayerProf
 
     Request ::
     {register_uid, DispatcherPid, Uid} |
-    {login, DispatcherPid, Uid} |
     stop,
 
     DispatcherPid :: pid(),

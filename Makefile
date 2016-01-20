@@ -1,10 +1,9 @@
-all: dialyzer install ct
+all: check install ct
 
 install:
 	@./config/install.sh
 
-check:
-	@./config/rebar3 do dialyzer, edoc
+check: dialyzer edoc
 
 cu: clean_upgrade
 

@@ -18,7 +18,7 @@
     timestamp/0,
     hot_code_replace/1,
     index_of/2,
-    until_process_terminated/2,
+    until_process_terminated/1,
     increase_vsn/3,
     hot_code_upgrade/0,
     q/0,
@@ -147,23 +147,19 @@ index_of(Item, [_ | Tail], Pos) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec until_process_terminated(PidOrName, DetectPeriodInMilli) -> ok when
-    PidOrName :: pid() | erlang:registered_name(),
-    DetectPeriodInMilli :: pos_integer(). % generic integer
-until_process_terminated(PidOrName, DetectPeriodInMilli) ->
-    IsTerminatedFun = case is_pid(PidOrName) of
-                          true ->
-                              fun() -> process_info(PidOrName) end;
-                          false ->
-                              fun() -> whereis(PidOrName) end
-                      end,
-    until_process_terminated(IsTerminatedFun(), IsTerminatedFun, DetectPeriodInMilli).
-until_process_terminated(undefined, _, _) ->
-    ok;
-until_process_terminated(_, IsTerminatedFun, DetectPeriodInMilli) ->
-    timer:sleep(DetectPeriodInMilli),
-    IsProcessTerminated = IsTerminatedFun(),
-    until_process_terminated(IsProcessTerminated, IsTerminatedFun, IsTerminatedFun).
+-spec until_process_terminated(PidOrName) -> ok when
+    PidOrName :: erlang:monitor_process_identifier().
+until_process_terminated(PidOrName) ->
+    if
+        PidOrName /= undefined ->
+            MonitorRef = monitor(process, PidOrName),
+            receive
+                {'DOWN', MonitorRef, process, _, _} ->
+                    ok
+            end;
+        true ->
+            ok
+    end.
 
 %%--------------------------------------------------------------------
 %% @doc

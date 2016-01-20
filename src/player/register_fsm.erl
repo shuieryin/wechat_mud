@@ -357,7 +357,7 @@ input_born_month({MonthBin, DispatcherPid}, #state{self = #player_profile{lang =
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{born_month = BornMonth} = PlayerProfile, born_type_info_map = BornTypeInfoMap} = State) when Answer == <<"y">> orelse Answer == <<"yes">> ->
+input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{uid = PlayerUid, born_month = BornMonth} = PlayerProfile, born_type_info_map = BornTypeInfoMap} = State) when Answer == <<"y">> orelse Answer == <<"yes">> ->
     #npc_born_info{name_nls_key = StubNpcNameNlsKey, description_nls_key = DescriptionNlsKey, self_description_nls_key = SelfDescriptionNlsKey} = common_server:random_npc(),
 
     #born_type_info{
@@ -388,7 +388,8 @@ input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{born_m
 
     UpdatedState = State#state{self = FinalPlayerProfile},
 
-    ok = login_server:registration_done(FinalPlayerProfile, DispatcherPid),
+    ok = login_server:registration_done(FinalPlayerProfile),
+    ok = login_server:login(DispatcherPid, PlayerUid),
     {stop, normal, UpdatedState};
 input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{lang = Lang, uid = Uid}, born_type_info_map = BornTypeInfoMap}) when Answer == <<"n">> orelse Answer == <<"no">> ->
     nls_server:response_content([{nls, please_input_id}], Lang, DispatcherPid),
