@@ -12,10 +12,16 @@
 -author("shuieryin").
 
 %% API
--export([exec/3]).
+-export([
+    exec/3,
+    from_init/3,
+    to_settle/3,
+    feedback/3
+]).
 
 -include("../data_type/scene_info.hrl").
 -include("../data_type/player_profile.hrl").
+-include("../data_type/skill.hrl").
 
 %%%===================================================================
 %%% API
@@ -34,19 +40,106 @@
 exec(DispatcherPid, Uid, Args) ->
     [SkillId, TargetArgs] = re:split(Args, <<"\s+on\s+">>),
     {ok, TargetId, Sequence} = cm:parse_target_id(TargetArgs),
-    TargetContent = #target_content{
-        actions = [perform_target, under_perform, performed],
-        action_args = #perform_args{
+    CommandContext = #command_context{
+        command_func = from_init,
+        command_args = #perform_args{
             skill_id = SkillId
         },
         dispatcher_pid = DispatcherPid,
-        target = TargetId,
+        target_name = TargetId,
         sequence = Sequence,
-        target_bin = TargetArgs,
+        target_name_bin = TargetArgs,
         self_targeted_message = [{nls, attack_self}, <<"\n">>]
     },
 
-    cm:target(Uid, TargetContent).
+    cm:execute_command(Uid, CommandContext).
+
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Command callback function for source player initialization.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec from_init(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
+    CommandContext :: #command_context{},
+    State :: #player_state{},
+    StateName :: player_fsm:player_state_name(),
+    UpdatedStateName :: StateName,
+    UpdatedState :: State.
+from_init(#command_context{self_targeted_message = SelfMessage, dispatcher_pid = DispatcherPid, target_name = TargetId, command_args = #perform_args{skill_id = SkillId} = PerformArgs} = CommandContext, #player_state{self = #player_profile{id = SrcPlayerId, scene = CurSceneName, player_status = #player_status{attack = SrcAttack}} = PlayerProfile, skill_map = SkillMap} = State, StateName) ->
+    UpdatedState =
+        if
+            SrcPlayerId == TargetId ->
+                player_fsm:do_response_content(State, SelfMessage, DispatcherPid);
+            true ->
+                case maps:get(SkillId, SkillMap, undefined) of
+                    undefined ->
+                        player_fsm:do_response_content(State, [{nls, no_such_skill, [SkillId]}], DispatcherPid);
+                    _ ->
+                        ValueBindings = erl_eval:add_binding(src_attack, SrcAttack, erl_eval:new_bindings()),
+                        UpdatedCommandContext = CommandContext#command_context{
+                            command_func = to_settle,
+                            scene = CurSceneName,
+                            from = player_fsm:simple_player(PlayerProfile),
+                            command_args = PerformArgs#perform_args{
+                                value_bindings = ValueBindings
+                            }
+                        },
+                        scene_fsm:general_target(UpdatedCommandContext),
+                        State
+                end
+        end,
+
+    {ok, StateName, UpdatedState}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Command callback function for target player settlement.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec to_settle(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
+    CommandContext :: #command_context{},
+    State :: #player_state{},
+    StateName :: player_fsm:player_state_name(),
+    UpdatedStateName :: StateName,
+    UpdatedState :: State.
+to_settle(#command_context{command_args = #perform_args{skill_id = SkillId, value_bindings = ValueBindings} = PerformArgs, from = #simple_player{uid = SrcUid, name = SrcName}} = CommandContext, #player_state{skill_map = SkillMap, self = #player_profile{player_status = #player_status{defence = TargetDefense, hp = TargetHp} = TargetPlayerStatus} = TargetPlayerProfile} = State, StateName) ->
+    #{SkillId := #skill{damage_formula = DamageFormula}} = SkillMap,
+    FinalBindings = erl_eval:add_binding(target_defense, TargetDefense, ValueBindings),
+    {value, DamageValue, _} = erl_eval:exprs(DamageFormula, FinalBindings),
+    UpdatedTargetStatus = TargetPlayerStatus#player_status{hp = TargetHp - DamageValue},
+    UnderAttackMessage = {nls, attack_under_attack_desc, [SrcName, {nls, unarmed}]},
+    DamageMessage = {nls, damage_desc, [integer_to_binary(DamageValue)]},
+    UpdatedState = player_fsm:append_message_local([UnderAttackMessage, <<"\n">>, DamageMessage, <<"\n">>], battle, State),
+
+    UpdatedCommandContext = CommandContext#command_context{
+        command_func = feedback,
+        command_args = PerformArgs#perform_args{
+            damage_value = DamageValue
+        }
+    },
+    ok = cm:execute_command(SrcUid, UpdatedCommandContext),
+    {ok, StateName, UpdatedState#player_state{self = TargetPlayerProfile#player_profile{player_status = UpdatedTargetStatus}}}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Command callback function for feeding back to source player.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec feedback(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
+    CommandContext :: #command_context{},
+    State :: #player_state{},
+    StateName :: player_fsm:player_state_name(),
+    UpdatedStateName :: StateName,
+    UpdatedState :: State.
+feedback(#command_context{to = #simple_player{name = TargetName}, command_args = #perform_args{damage_value = DamageValue}, dispatcher_pid = DispatcherPid}, State, StateName) ->
+    AttackMessage = {nls, attack_desc, [TargetName, {nls, unarmed}]},
+    DamageMessage = {nls, damage_desc, [integer_to_binary(DamageValue)]},
+    UpdatedState = player_fsm:do_response_content(State, [AttackMessage, <<"\n">>, DamageMessage, <<"\n">>], DispatcherPid),
+    {ok, StateName, UpdatedState}.
 
 %%%===================================================================
 %%% Internal functions (N/A)

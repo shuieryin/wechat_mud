@@ -31,8 +31,9 @@
     uuid/0,
     rr/2,
     parse_target_id/1,
-    target/2,
-    general_target/2
+    general_target/2,
+    execute_command/2,
+    execute_sync_command/2
 ]).
 
 -type valid_type() :: atom | binary | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple | map.
@@ -372,34 +373,42 @@ parse_target_id(TargetArgs) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% This function is an aggregate function for executing action on target.
-%% gen_fsm only.
+%% This function is for skipping the "from_init" stage and usually
+%% called by command exec function.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec target(Uid, TargetContent) -> ok when
+-spec general_target(Uid, CommandContext) -> ok when
     Uid :: player_fsm:uid(),
-    TargetContent :: #target_content{}.
-target(Uid, #target_content{actions = [Action | _]} = TargetContent) ->
-    gen_fsm:send_event(Uid, {Action, TargetContent}).
+    CommandContext :: #command_context{}.
+general_target(Uid, CommandContext) ->
+    gen_fsm:send_event(Uid, {general_target, CommandContext}).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% This function is an aggregate function for executing action on target.
-%% gen_fsm only.
-%%
-%% The difference between target/2 is that no need to specify simulation
-%% function on the current state event but uses common event "general_target".
-%%
-%% @see target/2.
+%% This is a general function for executing command in different states.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec general_target(Uid, TargetContent) -> ok when
-    Uid :: player_fsm:uid(),
-    TargetContent :: #target_content{}.
-general_target(Uid, TargetContent) ->
-    gen_fsm:send_event(Uid, {general_target, TargetContent}).
+-spec execute_command(FsmId, CommandContext) -> ok when
+    FsmId :: player_fsm:uid() | npc_fsm_manager:npc_fsm_id() | scene_fsm:scene_name(),
+    CommandContext :: #command_context{}.
+execute_command(FsmId, CommandContext) ->
+    gen_fsm:send_event(FsmId, {execute_command, CommandContext}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% This is a general function for executing command in different states
+%% for getting result.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec execute_sync_command(FsmId, CommandContext) -> Result when
+    FsmId :: player_fsm:uid() | npc_fsm_manager:npc_fsm_id() | scene_fsm:scene_name(),
+    CommandContext :: #command_context{},
+    Result :: term(). % generic term
+execute_sync_command(FsmId, CommandContext) ->
+    gen_fsm:sync_send_event(FsmId, {execute_command, CommandContext}).
 
 %%%===================================================================
 %%% Internal functions

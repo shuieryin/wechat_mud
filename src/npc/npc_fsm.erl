@@ -36,11 +36,11 @@
 -include("../data_type/scene_info.hrl").
 -include("../data_type/player_profile.hrl").
 
--record(state, {
-    npc_profile :: #npc_born_info{}
-}).
+-type npc_state_name() :: battle | non_battle | state_name.
 
--type state_name() :: state_name | non_battle.
+-export_type([
+    npc_state_name/0
+]).
 
 %%%===================================================================
 %%% API
@@ -78,12 +78,12 @@ start_link(#npc_born_info{npc_fsm_id = NpcFsmId} = NpcProfile) ->
     {stop, Reason} |
     ignore when
 
-    StateName :: state_name(),
-    StateData :: #state{},
+    StateName :: npc_state_name(),
+    StateData :: #npc_state{},
     Reason :: term(), % generic term
     NpcProfile :: #npc_born_info{}.
 init(NpcProfile) ->
-    {ok, non_battle, #state{npc_profile = NpcProfile}}.
+    {ok, non_battle, #npc_state{npc_profile = NpcProfile}}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -98,24 +98,18 @@ init(NpcProfile) ->
     {next_state, NextStateName, NextState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Event :: {under_look, TargetContent},
+    Event :: {execute_command, CommandContext},
 
-    TargetContent :: #target_content{},
+    CommandContext :: #command_context{},
 
-    State :: #state{},
-    NextStateName :: state_name(),
+    State :: #npc_state{},
+    NextStateName :: npc_state_name(),
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-non_battle({under_look, #target_content{from = #simple_player{uid = SrcUid}, actions = [_ | RestActions]} = TargetContent}, #state{npc_profile = #npc_born_info{description_nls_key = DescriptionNlsKey}} = State) ->
-    TargetDescription = [{nls, DescriptionNlsKey}, <<"\n">>],
-
-    UpdatedTargetContent = TargetContent#target_content{
-        actions = RestActions,
-        action_args = TargetDescription
-    },
-    ok = cm:target(SrcUid, UpdatedTargetContent),
-    {next_state, non_battle, State}.
+non_battle({execute_command, #command_context{command = CommandModule, command_func = CommandStage} = CommandContext}, State) ->
+    {ok, NextStateName, UpdatedState} = CommandModule:CommandStage(CommandContext, State, battle),
+    {next_state, NextStateName, UpdatedState}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -134,8 +128,8 @@ non_battle({under_look, #target_content{from = #simple_player{uid = SrcUid}, act
     {stop, Reason, NewState} when
 
     Event :: term(), % generic term
-    State :: #state{},
-    NextStateName :: state_name(),
+    State :: #npc_state{},
+    NextStateName :: npc_state_name(),
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
@@ -165,8 +159,8 @@ state_name(_Event, State) ->
     Reply :: ok,
 
     From :: {pid(), term()}, % generic term
-    State :: #state{},
-    NextStateName :: state_name(),
+    State :: #npc_state{},
+    NextStateName :: npc_state_name(),
     NextState :: State,
     Reason :: normal | term(), % generic term
     NewState :: State.
@@ -189,8 +183,8 @@ state_name(_Event, _From, State) ->
     {stop, Reason, NewStateData} when
 
     Event :: term(), % generic term
-    StateName :: state_name(),
-    StateData :: #state{},
+    StateName :: npc_state_name(),
+    StateData :: #npc_state{},
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
@@ -218,7 +212,7 @@ handle_event(_Event, StateName, State) ->
     Reply :: ok,
 
     From :: {pid(), Tag :: term()}, % generic term
-    StateName :: state_name(),
+    StateName :: npc_state_name(),
     StateData :: term(),
     NextStateName :: StateName,
     NewStateData :: StateData,
@@ -242,8 +236,8 @@ handle_sync_event(_Event, _From, StateName, State) ->
     {stop, Reason, NewStateData} when
 
     Info :: term(), % generic term
-    StateName :: state_name(),
-    StateData :: #state{},
+    StateName :: npc_state_name(),
+    StateData :: #npc_state{},
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: normal | term(). % generic term
@@ -262,8 +256,8 @@ handle_info(_Info, StateName, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(Reason, StateName, StateData) -> ok when
     Reason :: normal | shutdown | {shutdown, term()} | term(), % generic term
-    StateName :: state_name(),
-    StateData :: #state{}.
+    StateName :: npc_state_name(),
+    StateData :: #npc_state{}.
 terminate(_Reason, _StateName, _State) ->
     ok.
 
@@ -276,8 +270,8 @@ terminate(_Reason, _StateName, _State) ->
 %%--------------------------------------------------------------------
 -spec code_change(OldVsn, StateName, StateData, Extra) -> {ok, NextStateName, NewStateData} when
     OldVsn :: term() | {down, term()}, % generic term
-    StateName :: state_name(),
-    StateData :: #state{},
+    StateName :: npc_state_name(),
+    StateData :: #npc_state{},
     Extra :: term(), % generic term
     NextStateName :: StateName,
     NewStateData :: StateData.
@@ -297,7 +291,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
     Opt :: 'normal' | 'terminate',
     StatusData :: [PDict | State],
     PDict :: [{Key :: term(), Value :: term()}], % generic term
-    State :: #state{},
+    State :: #npc_state{},
     Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_fsm:format_status(Opt, StatusData).

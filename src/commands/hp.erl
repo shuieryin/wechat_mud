@@ -12,7 +12,13 @@
 -author("shuieryin").
 
 %% API
--export([exec/2]).
+-export([
+    exec/2,
+    show_hp/3
+]).
+
+-include("../data_type/scene_info.hrl").
+-include("../data_type/player_profile.hrl").
 
 %%%===================================================================
 %%% API
@@ -28,7 +34,28 @@
     Uid :: player_fsm:uid(),
     DispatcherPid :: pid().
 exec(DispatcherPid, Uid) ->
-    player_fsm:hp(DispatcherPid, Uid).
+    CommandContext = #command_context{
+        command_func = show_hp,
+        dispatcher_pid = DispatcherPid
+    },
+    cm:execute_command(Uid, CommandContext).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Display player hp status.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec show_hp(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
+    CommandContext :: #command_context{},
+    State :: #player_state{},
+    StateName :: player_fsm:player_state_name(),
+    UpdatedStateName :: StateName,
+    UpdatedState :: State.
+show_hp(#command_context{dispatcher_pid = DispatcherPid}, #player_state{self = #player_profile{player_status = #player_status{hp = Hp, l_hp = MaxHp}}} = State, StateName) ->
+    Message = [<<"hp: ">>, integer_to_binary(Hp), <<" / ">>, integer_to_binary(MaxHp), <<"\n">>],
+    UpdatedState = player_fsm:do_response_content(State, Message, DispatcherPid),
+    {ok, StateName, UpdatedState}.
 
 %%%===================================================================
 %%% Internal functions (N/A)

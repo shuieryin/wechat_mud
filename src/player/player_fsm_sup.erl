@@ -17,7 +17,7 @@
 %% API
 -export([
     start_link/0,
-    add_child/1,
+    add_child/2,
     start/0,
     stop/0
 ]).
@@ -69,10 +69,11 @@ stop() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec add_child(PlayerProfile) -> supervisor:startchild_ret() when
-    PlayerProfile :: #player_profile{}.
-add_child(PlayerProfile) ->
-    supervisor:start_child(?MODULE, [PlayerProfile]).
+-spec add_child(Uid, DispatcherPid) -> supervisor:startchild_ret() when
+    Uid :: player_fsm:uid(),
+    DispatcherPid :: pid().
+add_child(Uid, DispatcherPid) ->
+    supervisor:start_child(?MODULE, [Uid, DispatcherPid]).
 
 %%%===================================================================
 %%% Supervisor callbacks

@@ -14,11 +14,15 @@
 %% API
 -export([
     exec/3,
-    parse_direction/1
+    parse_direction/1,
+    go_direction/3
 ]).
 
 -type directions() :: east | south | west | north | northeast | southeast | southwest | northwest.
 -export_type([directions/0]).
+
+-include("../data_type/scene_info.hrl").
+-include("../data_type/player_profile.hrl").
 
 %%%===================================================================
 %%% API
@@ -40,7 +44,43 @@
     DispatcherPid :: pid(),
     Direction :: directions().
 exec(DispatcherPid, Uid, Direction) ->
-    player_fsm:go_direction(DispatcherPid, Uid, Direction).
+    CommandContext = #command_context{
+        command_func = go_direction,
+        command_args = Direction,
+        dispatcher_pid = DispatcherPid
+    },
+    cm:execute_command(Uid, CommandContext).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Go to direction.
+%%
+%% This function does the followings:
+%%
+%% 1. Checks if current scene is linked to the target scene, if so go to
+%% step 2, otherwise remind user the direction is invalid.
+%%
+%% 2. Leave the current scene, enter the target scene, and display the
+%% target scene info to user.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec go_direction(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
+    CommandContext :: #command_context{},
+    State :: #player_state{},
+    StateName :: player_fsm:player_state_name(),
+    UpdatedStateName :: StateName,
+    UpdatedState :: State.
+go_direction(#command_context{command_args = Direction, dispatcher_pid = DispatcherPid}, #player_state{self = #player_profile{scene = CurSceneName, uid = Uid} = PlayerProfile} = State, StateName) ->
+    {TargetSceneName, UpdatedState} =
+        case scene_fsm:go_direction(CurSceneName, Uid, Direction) of
+            undefined ->
+                {CurSceneName, player_fsm:do_response_content(State, [{nls, invalid_exit}], DispatcherPid)};
+            NewSceneName ->
+                ok = scene_fsm:enter(NewSceneName, DispatcherPid, player_fsm:simple_player(PlayerProfile), CurSceneName),
+                {NewSceneName, State}
+        end,
+    {ok, StateName, UpdatedState#player_state{self = PlayerProfile#player_profile{scene = TargetSceneName}}}.
 
 %%--------------------------------------------------------------------
 %% @doc

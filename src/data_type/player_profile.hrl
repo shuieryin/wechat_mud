@@ -60,3 +60,16 @@
     value_bindings :: erl_eval:bindings(),
     damage_value :: non_neg_integer()
 }).
+
+-record(mailbox, {
+    battle = [] :: [player_fsm:mail_object()],
+    scene = [] :: [player_fsm:mail_object()],
+    other = [] :: [player_fsm:mail_object()]
+}).
+
+-record(player_state, {
+    self :: #player_profile{},
+    mail_box :: #mailbox{},
+    lang_map :: nls_server:lang_map(),
+    skill_map :: player_fsm:skill_map()
+}).

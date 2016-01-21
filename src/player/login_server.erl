@@ -182,7 +182,7 @@ delete_player(Uid) ->
     DispatcherPid :: pid(),
     Uid :: player_fsm:uid().
 login(DispatcherPid, Uid) ->
-    gen_server:cast(?MODULE, {login, DispatcherPid, Uid}).
+    gen_server:call(?MODULE, {login, DispatcherPid, Uid}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -205,7 +205,7 @@ is_uid_logged_in(Uid) ->
     DispatcherPid :: pid(),
     Uid :: player_fsm:uid().
 logout(DispatcherPid, Uid) ->
-    gen_server:cast(?MODULE, {logout, DispatcherPid, Uid}).
+    gen_server:call(?MODULE, {logout, DispatcherPid, Uid}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -280,7 +280,8 @@ init([]) ->
     Request :: {is_uid_registered | is_in_registration | delete_user, Uid} |
     get_registered_player_uids |
     {registration_done, PlayerProfile} |
-    {login, DispatcherPid, Uid},
+    {login, DispatcherPid, Uid} |
+    {logout, DispatcherPid, Uid},
 
     Reply :: IsUidRegistered | IsIdRegistered | IsInRegistration | IsUserLoggedIn | ok,
 
@@ -341,16 +342,18 @@ handle_call({login, DispatcherPid, Uid}, _From, #state{logged_in_uids_set = Logg
     UpdatedLoggedInUidsSet =
         case gb_sets:is_element(Uid, LoggedInUidsSet) of
             false ->
-                #player_profile{scene = CurSceneName} = PlayerProfile = redis_client_server:get(Uid),
-                player_fsm_sup:add_child(PlayerProfile),
-                scene_fsm:enter(CurSceneName, DispatcherPid, player_fsm:simple_player(PlayerProfile), undefined),
+                {ok, _} = player_fsm_sup:add_child(Uid, DispatcherPid),
                 gb_sets:add(Uid, LoggedInUidsSet);
             true ->
                 ok = player_fsm:response_content(Uid, [{nls, already_login}], DispatcherPid),
                 LoggedInUidsSet
         end,
 
-    {noreply, State#state{logged_in_uids_set = UpdatedLoggedInUidsSet}}.
+    {reply, ok, State#state{logged_in_uids_set = UpdatedLoggedInUidsSet}};
+handle_call({logout, DispatcherPid, Uid}, _From, State) ->
+    ok = player_fsm:response_content(Uid, [{nls, already_logout}], DispatcherPid),
+    UpdatedState = logout(internal, Uid, State),
+    {reply, ok, UpdatedState}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -383,24 +386,6 @@ handle_cast({register_uid, DispatcherPid, Uid}, #state{born_type_info_map = Born
                 error_logger:error_msg("Failed to start register fsm.~nUid:~p~nReason:~p~n", [Uid, Reason]),
                 State
         end,
-    {noreply, UpdatedState};
-handle_cast({login, DispatcherPid, Uid}, #state{logged_in_uids_set = LoggedInUidsSet} = State) ->
-    UpdatedLoggedInUidsSet =
-        case gb_sets:is_element(Uid, LoggedInUidsSet) of
-            false ->
-                #player_profile{scene = CurSceneName} = PlayerProfile = redis_client_server:get(Uid),
-                player_fsm_sup:add_child(PlayerProfile),
-                scene_fsm:enter(CurSceneName, DispatcherPid, player_fsm:simple_player(PlayerProfile), undefined),
-                gb_sets:add(Uid, LoggedInUidsSet);
-            true ->
-                ok = player_fsm:response_content(Uid, [{nls, already_login}], DispatcherPid),
-                LoggedInUidsSet
-        end,
-
-    {noreply, State#state{logged_in_uids_set = UpdatedLoggedInUidsSet}};
-handle_cast({logout, DispatcherPid, Uid}, State) ->
-    ok = player_fsm:response_content(Uid, [{nls, already_logout}], DispatcherPid),
-    UpdatedState = logout(internal, Uid, State),
     {noreply, UpdatedState};
 handle_cast(stop, State) ->
     {stop, normal, State}.
@@ -505,7 +490,8 @@ logout(internal, Uid, #state{logged_in_uids_set = LoggedInUidsSet} = State) ->
             false ->
                 LoggedInUidsSet;
             true ->
-                spawn(player_fsm, logout, [Uid]),
+                ok = player_fsm:logout(Uid),
+%%                spawn(player_fsm, logout, [Uid]),
                 gb_sets:del_element(Uid, LoggedInUidsSet)
         end,
     State#state{logged_in_uids_set = UpdatedLoggedInUidsSet}.

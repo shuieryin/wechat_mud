@@ -58,7 +58,7 @@
 -type lang_map() :: #{key() => value()}.
 -type key_pos() :: non_neg_integer(). % generic integer
 -type keys_map() :: #{key_pos() => field_name()}.
--type nls_replacements() :: [value()].
+-type nls_replacements() :: [value() | nls_object()].
 -type nls_object() :: {nls, key()} | {nls, key(), nls_replacements()} | value().
 -type nls_map() :: #{support_lang() => lang_map()}.
 

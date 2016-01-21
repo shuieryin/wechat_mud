@@ -12,7 +12,13 @@
 -author("shuieryin").
 
 %% API
--export([exec/3]).
+-export([
+    exec/3,
+    switch_lang/3
+]).
+
+-include("../data_type/scene_info.hrl").
+-include("../data_type/player_profile.hrl").
 
 %%%===================================================================
 %%% API
@@ -41,11 +47,39 @@ exec(DispatcherPid, Uid, RawTargetLang) ->
         _ ->
             case nls_server:is_valid_lang(RawTargetLang) of
                 true ->
-                    player_fsm:switch_lang(DispatcherPid, Uid, binary_to_atom(RawTargetLang, utf8));
+                    CommandContext = #command_context{
+                        command_func = switch_lang,
+                        command_args = binary_to_atom(RawTargetLang, utf8),
+                        dispatcher_pid = DispatcherPid
+                    },
+                    cm:execute_command(Uid, CommandContext);
                 false ->
                     player_fsm:response_content(Uid, [{nls, invalid_lang}, RawTargetLang, <<"\n\n">>, {nls, lang_help}], DispatcherPid)
             end
     end.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Switches player language.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec switch_lang(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
+    CommandContext :: #command_context{},
+    State :: #player_state{},
+    StateName :: player_fsm:player_state_name(),
+    UpdatedStateName :: StateName,
+    UpdatedState :: State.
+switch_lang(#command_context{command_args = TargetLang, dispatcher_pid = DispatcherPid}, #player_state{self = #player_profile{uid = Uid} = PlayerProfile} = State, StateName) ->
+    TargetLangMap = nls_server:get_lang_map(TargetLang),
+    UpdatedState = player_fsm:do_response_content(
+        State#player_state{lang_map = TargetLangMap},
+        [{nls, lang_switched}],
+        DispatcherPid
+    ),
+    UpdatedPlayerProfile = PlayerProfile#player_profile{lang = TargetLang},
+    ok = redis_client_server:async_set(Uid, UpdatedPlayerProfile, true),
+    {ok, StateName, UpdatedState#player_state{self = UpdatedPlayerProfile}}.
 
 %%%===================================================================
 %%% Internal functions (N/A)

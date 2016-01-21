@@ -16,16 +16,21 @@
 %% API
 -export([
     exec/2,
-    exec/3
+    exec/3,
+    being_look/3,
+    feedback/3,
+    look_scene/3
 ]).
 
 -type sequence() :: pos_integer(). % generic integer
--type target() :: atom(). % generic atom
 
 -include("../data_type/scene_info.hrl").
+-include("../data_type/player_profile.hrl").
+-include("../data_type/npc_born_info.hrl").
 
--export_type([sequence/0,
-    target/0]).
+-export_type([
+    sequence/0
+]).
 
 %%%===================================================================
 %%% API
@@ -41,7 +46,11 @@
     Uid :: player_fsm:uid(),
     DispatcherPid :: pid().
 exec(DispatcherPid, Uid) ->
-    player_fsm:look_scene(DispatcherPid, Uid).
+    CommandContext = #command_context{
+        command_func = look_scene,
+        dispatcher_pid = DispatcherPid
+    },
+    cm:execute_command(Uid, CommandContext).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -55,15 +64,86 @@ exec(DispatcherPid, Uid) ->
     TargetArgs :: binary().
 exec(DispatcherPid, Uid, TargetArgs) ->
     {ok, TargetId, Sequence} = cm:parse_target_id(TargetArgs),
-    TargetContent = #target_content{
-        actions = [under_look, looked],
+    CommandContext = #command_context{
+        command_func = being_look,
         dispatcher_pid = DispatcherPid,
-        target = TargetId,
+        target_name = TargetId,
         sequence = Sequence,
-        target_bin = TargetArgs,
+        target_name_bin = TargetArgs,
         self_targeted_message = [{nls, look_self}, <<"\n">>]
     },
-    cm:general_target(Uid, TargetContent).
+    cm:general_target(Uid, CommandContext).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Command callback function for target player settlement.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec being_look(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
+    CommandContext :: #command_context{},
+    State :: #player_state{},
+    StateName :: player_fsm:player_state_name(),
+    UpdatedStateName :: StateName,
+    UpdatedState :: State.
+being_look(#command_context{from = #simple_player{uid = SrcUid, name = SrcName}} = CommandContext, #player_state{self = #player_profile{uid = TargetPlayerUid, description = Description, self_description = SelfDescription}} = State, StateName) ->
+    TargetDescription = if
+                            SrcUid == TargetPlayerUid ->
+                                SelfDescription;
+                            true ->
+                                Description
+                        end,
+
+    UpdatedCommandContext = CommandContext#command_context{
+        command_func = feedback,
+        command_args = [TargetDescription, <<"\n">>]
+    },
+    ok = cm:execute_command(SrcUid, UpdatedCommandContext),
+
+    SceneMessage = [SrcName, {nls, under_look}, <<"\n">>],
+    UpdatedState = player_fsm:append_message_local(SceneMessage, scene, State),
+    {ok, StateName, UpdatedState};
+being_look(#command_context{from = #simple_player{uid = SrcUid}} = CommandContext, #npc_state{npc_profile = #npc_born_info{description_nls_key = DescriptionNlsKey}} = State, StateName) ->
+    TargetDescription = [{nls, DescriptionNlsKey}, <<"\n">>],
+
+    UpdatedCommandContext = CommandContext#command_context{
+        command_func = feedback,
+        command_args = TargetDescription
+    },
+    ok = cm:execute_command(SrcUid, UpdatedCommandContext),
+    {ok, StateName, State}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Command callback function for feeding back to source player.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec feedback(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
+    CommandContext :: #command_context{},
+    State :: #player_state{},
+    StateName :: player_fsm:player_state_name(),
+    UpdatedStateName :: StateName,
+    UpdatedState :: State.
+feedback(#command_context{command_args = TargetDescription, dispatcher_pid = DispatcherPid}, State, StateName) ->
+    UpdatedState = player_fsm:do_response_content(State, TargetDescription, DispatcherPid),
+    {ok, StateName, UpdatedState}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Display the current scene by response current scene info to player.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec look_scene(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
+    CommandContext :: #command_context{},
+    State :: #player_state{},
+    StateName :: player_fsm:player_state_name(),
+    UpdatedStateName :: StateName,
+    UpdatedState :: State.
+look_scene(#command_context{dispatcher_pid = DispatcherPid}, #player_state{self = #player_profile{scene = SceneName, uid = Uid}} = State, StateName) ->
+    scene_fsm:show_scene(SceneName, Uid, DispatcherPid),
+    {ok, StateName, State}.
 
 %%%===================================================================
 %%% Internal functions (N/A)
