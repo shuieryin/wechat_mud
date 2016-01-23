@@ -40,7 +40,7 @@
 exec(DispatcherPid, Uid, TargetArgs) ->
     {ok, TargetId, Sequence} = cm:parse_target_id(TargetArgs),
     CommandContext = #command_context{
-        command_func = from_init,
+        command_func = to_settle,
         dispatcher_pid = DispatcherPid,
         target_name = TargetId,
         sequence = Sequence,
@@ -62,7 +62,7 @@ exec(DispatcherPid, Uid, TargetArgs) ->
     UpdatedStateName :: StateName,
     UpdatedState :: State.
 to_settle(#command_context{from = #simple_player{uid = SrcUid, name = SrcName}} = CommandContext, State, StateName) ->
-    Message = [{nls, under_attack, [SrcName]}],
+    Message = [{nls, under_attack, [SrcName]}, <<"\n">>],
     UpdatedState = player_fsm:append_message_local(Message, battle, State),
 
     UpdatedCommandContext = CommandContext#command_context{

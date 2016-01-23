@@ -28,7 +28,8 @@
     is_id_registered/1,
     start/0,
     stop/0,
-    get_registered_player_uids/0
+    get_registered_player_uids/0,
+    logout_all_players/0
 ]).
 
 %% gen_server callbacks
@@ -207,6 +208,17 @@ is_uid_logged_in(Uid) ->
 logout(DispatcherPid, Uid) ->
     gen_server:call(?MODULE, {logout, DispatcherPid, Uid}).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Force logout all players. This is function is called when stopping server only.
+%% @see cm:q/0.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec logout_all_players() -> ok.
+logout_all_players() ->
+    gen_server:call(?MODULE, logout_all_players).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -353,7 +365,9 @@ handle_call({login, DispatcherPid, Uid}, _From, #state{logged_in_uids_set = Logg
 handle_call({logout, DispatcherPid, Uid}, _From, State) ->
     ok = player_fsm:response_content(Uid, [{nls, already_logout}], DispatcherPid),
     UpdatedState = logout(internal, Uid, State),
-    {reply, ok, UpdatedState}.
+    {reply, ok, UpdatedState};
+handle_call(logout_all_players, _From, #state{logged_in_uids_set = LoggedInUidsSet} = State) ->
+    {reply, logout_all_players(LoggedInUidsSet), State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -491,7 +505,41 @@ logout(internal, Uid, #state{logged_in_uids_set = LoggedInUidsSet} = State) ->
                 LoggedInUidsSet;
             true ->
                 ok = player_fsm:logout(Uid),
-%%                spawn(player_fsm, logout, [Uid]),
                 gb_sets:del_element(Uid, LoggedInUidsSet)
         end,
     State#state{logged_in_uids_set = UpdatedLoggedInUidsSet}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Logout all players.
+%% @see logout_all_players/0.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec logout_all_players(LoggedInUidsSet) -> ok when
+    LoggedInUidsSet :: gb_sets:set().
+logout_all_players(LoggedInUidsSet) ->
+    case gb_sets:is_empty(LoggedInUidsSet) of
+        true ->
+            ok;
+        false ->
+            Iter = gb_sets:iterator(LoggedInUidsSet),
+            do_logout_all_players(gb_sets:next(Iter))
+    end.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Logout all players.
+%% @see logout_all_players/1.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec do_logout_all_players(Next) -> ok when
+    Next :: {Uid, Iter} | none,
+    Uid :: player_fsm:uid(),
+    Iter :: gb_sets:iter().
+do_logout_all_players({Uid, Iter}) ->
+    ok = player_fsm:logout(Uid),
+    do_logout_all_players(gb_sets:next(Iter));
+do_logout_all_players(none) ->
+    ok.

@@ -77,7 +77,7 @@ from_init(#command_context{self_targeted_message = SelfMessage, dispatcher_pid =
                     undefined ->
                         player_fsm:do_response_content(State, [{nls, no_such_skill, [SkillId]}], DispatcherPid);
                     _ ->
-                        ValueBindings = erl_eval:add_binding(src_attack, SrcAttack, erl_eval:new_bindings()),
+                        ValueBindings = erl_eval:add_binding('SrcAttack', SrcAttack, erl_eval:new_bindings()),
                         UpdatedCommandContext = CommandContext#command_context{
                             command_func = to_settle,
                             scene = CurSceneName,
@@ -107,13 +107,20 @@ from_init(#command_context{self_targeted_message = SelfMessage, dispatcher_pid =
     UpdatedState :: State.
 to_settle(#command_context{command_args = #perform_args{skill_id = SkillId, value_bindings = ValueBindings} = PerformArgs, from = #simple_player{uid = SrcUid, name = SrcName}} = CommandContext, #player_state{skill_map = SkillMap, self = #player_profile{player_status = #player_status{defence = TargetDefense, hp = TargetHp} = TargetPlayerStatus} = TargetPlayerProfile} = State, StateName) ->
     #{SkillId := #skill{damage_formula = DamageFormula}} = SkillMap,
-    FinalBindings = erl_eval:add_binding(target_defense, TargetDefense, ValueBindings),
-    {value, DamageValue, _} = erl_eval:exprs(DamageFormula, FinalBindings),
+    FinalBindings = erl_eval:add_binding('TargetDefense', TargetDefense, ValueBindings),
+    {value, RawDamageValue, _} = erl_eval:exprs(DamageFormula, FinalBindings),
+    DamageValue =
+        if
+            RawDamageValue < 0 ->
+                0;
+            true ->
+                list_to_integer(float_to_list(RawDamageValue, [{decimals, 0}]))
+        end,
+
     UpdatedTargetStatus = TargetPlayerStatus#player_status{hp = TargetHp - DamageValue},
     UnderAttackMessage = {nls, attack_under_attack_desc, [SrcName, {nls, unarmed}]},
     DamageMessage = {nls, damage_desc, [integer_to_binary(DamageValue)]},
     UpdatedState = player_fsm:append_message_local([UnderAttackMessage, <<"\n">>, DamageMessage, <<"\n">>], battle, State),
-
     UpdatedCommandContext = CommandContext#command_context{
         command_func = feedback,
         command_args = PerformArgs#perform_args{

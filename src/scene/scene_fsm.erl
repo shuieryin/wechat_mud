@@ -29,7 +29,8 @@
     get_exits_map/1,
     general_target/1,
     morning/2,
-    morning/3
+    morning/3,
+    player_quit/2
 ]).
 
 %% gen_fsm callbacks
@@ -191,6 +192,63 @@ get_exits_map(CurSceneName) ->
 
 %%--------------------------------------------------------------------
 %% @doc
+%% Notification from player process that is terminated and remove the
+%% player from current scene.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec player_quit(SceneName, Uid) -> ok when
+    SceneName :: scene_name(),
+    Uid :: player_fsm:uid().
+player_quit(SceneName, Uid) ->
+    gen_fsm:send_all_state_event(SceneName, {player_quit, Uid}).
+
+%%%===================================================================
+%%% gen_fsm callbacks
+%%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Whenever a gen_fsm is started using gen_fsm:start/[3,4] or
+%% gen_fsm:start_link/[3,4], this function is called by the new
+%% process to initialize.
+%%
+%% Initializes empty uid map in scene state.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec init(SceneInfo) ->
+    {ok, StateName, StateData} |
+    {ok, StateName, StateData, timeout() | hibernate} |
+    {stop, Reason} |
+    ignore when
+
+    SceneInfo :: #scene_info{},
+    StateName :: secene_state_name(),
+    StateData :: #scene_state{},
+    Reason :: term(). % generic term
+init(#scene_info{id = SceneName, npcs = NpcsSpec, exits = ExitsMap} = SceneInfo) ->
+    io:format("scene server ~p starting...", [SceneName]),
+
+    SceneNpcFsmList = npc_fsm_manager:new_npcs(NpcsSpec),
+    ExitsScenes = maps:fold(
+        fun(CurExit, CurSceneName, AccExitsScenes) ->
+            AccExitsScenes#{CurSceneName => CurExit}
+        end, #{}, ExitsMap),
+
+    State = #scene_state{
+        scene_info = SceneInfo,
+        scene_object_list = SceneNpcFsmList,
+        exits_scenes = ExitsScenes,
+        exits_description = gen_exits_desc(ExitsMap)
+    },
+
+    io:format("started~n"),
+    {ok, morning, State}.
+
+%%--------------------------------------------------------------------
+%% @doc
 %% Scene morning time.
 %%
 %% @end
@@ -239,50 +297,6 @@ morning({execute_command, #command_context{command = CommandModule, command_func
 morning({execute_command, #command_context{command = CommandModule, command_func = CommandStage} = CommandContext}, _From, State) ->
     {ok, Result, NextStateName, UpdatedState} = CommandModule:CommandStage(CommandContext, State, morning),
     {reply, Result, NextStateName, UpdatedState}.
-
-%%%===================================================================
-%%% gen_fsm callbacks
-%%%===================================================================
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Whenever a gen_fsm is started using gen_fsm:start/[3,4] or
-%% gen_fsm:start_link/[3,4], this function is called by the new
-%% process to initialize.
-%%
-%% Initializes empty uid map in scene state.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec init(SceneInfo) ->
-    {ok, StateName, StateData} |
-    {ok, StateName, StateData, timeout() | hibernate} |
-    {stop, Reason} |
-    ignore when
-
-    SceneInfo :: #scene_info{},
-    StateName :: secene_state_name(),
-    StateData :: #scene_state{},
-    Reason :: term(). % generic term
-init(#scene_info{id = SceneName, npcs = NpcsSpec, exits = ExitsMap} = SceneInfo) ->
-    io:format("scene server ~p starting...", [SceneName]),
-
-    SceneNpcFsmList = npc_fsm_manager:new_npcs(NpcsSpec),
-    ExitsScenes = maps:fold(
-        fun(CurExit, CurSceneName, AccExitsScenes) ->
-            AccExitsScenes#{CurSceneName => CurExit}
-        end, #{}, ExitsMap),
-
-    State = #scene_state{
-        scene_info = SceneInfo,
-        scene_object_list = SceneNpcFsmList,
-        exits_scenes = ExitsScenes,
-        exits_description = gen_exits_desc(ExitsMap)
-    },
-
-    io:format("started~n"),
-    {ok, morning, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -359,7 +373,8 @@ state_name(_Event, _From, State) ->
     {enter, DispatcherPid, SimplePlayer, FromSceneName} |
     {leave, Uid} |
     {look_scene, Uid, DispatcherPid} |
-    {general_target, CommandContext},
+    {general_target, CommandContext} |
+    {player_quit, Uid},
 
     SimplePlayer :: #simple_player{},
     FromSceneName :: scene_name(),
@@ -408,7 +423,9 @@ handle_event({general_target, #command_context{from = #simple_player{uid = SrcUi
                 end,
             ok = cm:execute_command(TargetUidOrFsmId, UpdatedCommandContext)
     end,
-    {next_state, StateName, State}.
+    {next_state, StateName, State};
+handle_event({player_quit, Uid}, StateName, State) ->
+    {next_state, StateName, remove_scene_object(Uid, State)}.
 
 
 %%--------------------------------------------------------------------

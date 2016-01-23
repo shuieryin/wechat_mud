@@ -28,6 +28,7 @@
     append_message_local/3,
     simple_player/1,
     non_battle/2,
+    non_battle/3,
     battle/2
 ]).
 
@@ -163,7 +164,7 @@ response_content(Uid, ContentList, DispatcherPid) ->
 -spec logout(Uid) -> ok when
     Uid :: uid().
 logout(Uid) ->
-    gen_fsm:send_event(Uid, logout).
+    gen_fsm:sync_send_event(Uid, logout).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -190,15 +191,15 @@ append_message(Uid, Message, MailType) ->
     MailType :: mail_type(),
     State :: #player_state{},
     UpdatedState :: State.
-append_message_local(Message, battle, #player_state{mail_box = #mailbox{battle = SceneMessages} = MailBox} = State) ->
+append_message_local(Message, battle, #player_state{mail_box = #mailbox{scene = SceneMessages} = MailBox} = State) ->
     UpdatedSceneMessages = [Message | SceneMessages],
-    State#player_state{mail_box = MailBox#mailbox{battle = UpdatedSceneMessages}};
+    State#player_state{mail_box = MailBox#mailbox{scene = UpdatedSceneMessages}};
 append_message_local(Message, scene, #player_state{mail_box = #mailbox{scene = SceneMessages} = MailBox} = State) ->
     UpdatedSceneMessages = [Message | SceneMessages],
     State#player_state{mail_box = MailBox#mailbox{scene = UpdatedSceneMessages}};
-append_message_local(Message, other, #player_state{mail_box = #mailbox{other = SceneMessages} = MailBox} = State) ->
+append_message_local(Message, other, #player_state{mail_box = #mailbox{scene = SceneMessages} = MailBox} = State) ->
     UpdatedSceneMessages = [Message | SceneMessages],
-    State#player_state{mail_box = MailBox#mailbox{other = UpdatedSceneMessages}}.
+    State#player_state{mail_box = MailBox#mailbox{scene = UpdatedSceneMessages}}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -287,8 +288,7 @@ init({Uid, DispatcherPid}) ->
 
     Event ::
     {general_target, CommandContext} |
-    {execute_command, CommandContext} |
-    logout,
+    {execute_command, CommandContext},
 
     CommandContext :: #command_context{},
     Reason :: logout,
@@ -312,11 +312,38 @@ non_battle({general_target, #command_context{target_name = TargetId, self_target
     {next_state, non_battle, UpdatedState};
 non_battle({execute_command, #command_context{command = CommandModule, command_func = CommandStage} = CommandContext}, State) ->
     {ok, NextStateName, UpdatedState} = CommandModule:CommandStage(CommandContext, State, non_battle),
-    {next_state, NextStateName, UpdatedState};
-non_battle(logout, #player_state{self = #player_profile{scene = CurSceneName, uid = Uid} = PlayerProfile} = State) ->
-    true = redis_client_server:set(Uid, PlayerProfile, true),
+    {next_state, NextStateName, UpdatedState}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Refer to below functions for details.
+%%
+%% @see logout/1.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec non_battle(Event, From, State) ->
+    {next_state, NextStateName, NextState} |
+    {next_state, NextStateName, NextState, timeout() | hibernate} |
+    {reply, Reply, NextStateName, NextState} |
+    {reply, Reply, NextStateName, NextState, timeout() | hibernate} |
+    {stop, Reason, NewState} |
+    {stop, Reason, Reply, NewState} when
+
+    Event :: logout,
+    Reply :: ok,
+
+    From :: {pid(), term()}, % generic term
+    State :: #player_state{},
+    NextStateName :: player_state_name(),
+    NextState :: State,
+    Reason :: normal | term(), % generic term
+    NewState :: State.
+non_battle(logout, From, #player_state{self = #player_profile{scene = CurSceneName, uid = Uid} = PlayerProfile} = State) ->
     scene_fsm:leave(CurSceneName, Uid),
+    true = redis_client_server:set(Uid, PlayerProfile, true),
     error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
+    gen_fsm:reply(From, ok),
     {stop, normal, State}.
 
 %%--------------------------------------------------------------------
@@ -513,8 +540,14 @@ handle_info(_Info, StateName, State) ->
     Reason :: normal | shutdown | {shutdown, term()} | term(), % generic term
     StateName :: player_state_name(),
     StateData :: #player_state{}.
-terminate(_Reason, _StateName, _StateData) ->
-    ok.
+terminate(Reason, _StateName, #player_state{self = #player_profile{uid = Uid} = PlayerProfile}) ->
+    case Reason of
+        normal ->
+            ok;
+        _ ->
+            true = redis_client_server:set(Uid, PlayerProfile, true),
+            ok
+    end.
 
 %%--------------------------------------------------------------------
 %% @private

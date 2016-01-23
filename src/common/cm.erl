@@ -201,6 +201,7 @@ hot_code_upgrade() ->
 %%--------------------------------------------------------------------
 -spec q() -> no_return().
 q() ->
+    ok = login_server:logout_all_players(),
     os:cmd("redis-cli shutdown"),
     init:stop().
 
