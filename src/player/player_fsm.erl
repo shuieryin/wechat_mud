@@ -311,8 +311,8 @@ non_battle({general_target, #command_context{target_name = TargetId, self_target
                 State
         end,
     {next_state, non_battle, UpdatedState};
-non_battle({execute_command, #command_context{command = CommandModule, command_func = CommandStage} = CommandContext}, State) ->
-    {ok, NextStateName, UpdatedState} = CommandModule:CommandStage(CommandContext, State, non_battle),
+non_battle({execute_command, #command_context{command = CommandModule, command_func = CommandFunc} = CommandContext}, State) ->
+    {ok, NextStateName, UpdatedState} = CommandModule:CommandFunc(CommandContext, State, non_battle),
     {next_state, NextStateName, UpdatedState}.
 
 %%--------------------------------------------------------------------
@@ -369,8 +369,8 @@ non_battle(logout, From, #player_state{self = #player_profile{scene = CurSceneNa
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-battle({execute_command, #command_context{command = CommandModule, command_func = CommandStage} = CommandContext}, State) ->
-    {ok, NextStateName, UpdatedState} = CommandModule:CommandStage(CommandContext, State, battle),
+battle({execute_command, #command_context{command = CommandModule, command_func = CommandFunc} = CommandContext}, State) ->
+    {ok, NextStateName, UpdatedState} = CommandModule:CommandFunc(CommandContext, State, battle),
     {next_state, NextStateName, UpdatedState}.
 
 %%--------------------------------------------------------------------

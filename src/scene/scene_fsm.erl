@@ -267,8 +267,8 @@ init(#scene_info{id = SceneName, npcs = NpcsSpec, exits = ExitsMap} = SceneInfo)
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-morning({execute_command, #command_context{command = CommandModule, command_func = CommandStage} = CommandContext}, State) ->
-    {ok, NextStateName, UpdatedState} = CommandModule:CommandStage(CommandContext, State, morning),
+morning({execute_command, #command_context{command = CommandModule, command_func = CommandFunc} = CommandContext}, State) ->
+    {ok, NextStateName, UpdatedState} = CommandModule:CommandFunc(CommandContext, State, morning),
     {next_state, NextStateName, UpdatedState}.
 
 %%--------------------------------------------------------------------
@@ -294,8 +294,8 @@ morning({execute_command, #command_context{command = CommandModule, command_func
     NextState :: State,
     Reason :: normal | term(), % generic term
     NewState :: State.
-morning({execute_command, #command_context{command = CommandModule, command_func = CommandStage} = CommandContext}, _From, State) ->
-    {ok, Result, NextStateName, UpdatedState} = CommandModule:CommandStage(CommandContext, State, morning),
+morning({execute_command, #command_context{command = CommandModule, command_func = CommandFunc} = CommandContext}, _From, State) ->
+    {ok, Result, NextStateName, UpdatedState} = CommandModule:CommandFunc(CommandContext, State, morning),
     {reply, Result, NextStateName, UpdatedState}.
 
 %%--------------------------------------------------------------------
@@ -388,21 +388,28 @@ state_name(_Event, _From, State) ->
     NewStateData :: StateData,
     Reason :: term(). % generic term
 handle_event({enter, DispatcherPid, #simple_player{uid = Uid, name = PlayerName} = SimplePlayer, FromSceneName}, StateName, #scene_state{scene_object_list = SceneObjectList, exits_scenes = ExitsScenes} = State) ->
-    ok = do_show_scene(State, Uid, DispatcherPid),
+    {ok, IsPlayerExist} = do_show_scene(State, Uid, DispatcherPid),
     EnterSceneMessage = case FromSceneName of
                             undefined ->
                                 [{nls, enter_scene, [PlayerName]}, <<"\n">>];
                             _ ->
                                 [{nls, enter_scene_from, [PlayerName, {nls, maps:get(FromSceneName, ExitsScenes)}]}, <<"\n">>]
                         end,
-    broadcast(State, EnterSceneMessage, scene, []),
-    {next_state, StateName, State#scene_state{scene_object_list = [SimplePlayer | SceneObjectList]}};
+    UpdatedState =
+        case IsPlayerExist of
+            true ->
+                State;
+            false ->
+                broadcast(State, EnterSceneMessage, scene, []),
+                State#scene_state{scene_object_list = [SimplePlayer | SceneObjectList]}
+        end,
+    {next_state, StateName, UpdatedState};
 handle_event({leave, Uid}, StateName, #scene_state{scene_object_list = SceneObjectList} = State) ->
     #simple_player{name = PlayerName} = scene_player_by_uid(SceneObjectList, Uid),
     broadcast(State, [{nls, leave_scene, [PlayerName, {nls, unknown}]}, <<"\n">>], scene, [Uid]),
     {next_state, StateName, remove_scene_object(Uid, State)};
 handle_event({show_scene, Uid, DispatcherPid}, StateName, State) ->
-    ok = do_show_scene(State, Uid, DispatcherPid),
+    {ok, _} = do_show_scene(State, Uid, DispatcherPid),
     {next_state, StateName, State};
 handle_event({general_target, #command_context{from = #simple_player{uid = SrcUid}, dispatcher_pid = DispatcherPid, target_name = TargetId, sequence = Sequence, target_name_bin = TargetBin} = CommandContext}, StateName, #scene_state{scene_object_list = SceneObjectList} = State) ->
     TargetSceneObject = grab_target_scene_objects(SceneObjectList, TargetId, Sequence),
@@ -626,16 +633,17 @@ gen_exits_desc(ExitsMap) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec gen_characters_name_list(SceneObjectList, CallerUid) -> CharacterNameList when
+-spec gen_characters_name_list(SceneObjectList, CallerUid) -> {IsCallerExist, CharacterNameList} when
     SceneObjectList :: [scene_object()],
     CallerUid :: player_fsm:uid(),
-    CharacterNameList :: [nls_server:nls_object()].
+    CharacterNameList :: [nls_server:nls_object()],
+    IsCallerExist :: boolean().
 gen_characters_name_list(SceneObjectList, CallerUid) ->
     case length(SceneObjectList) of
         0 ->
-            [];
+            {false, []};
         _ ->
-            gen_character_name(SceneObjectList, CallerUid, [<<"\n">>])
+            gen_character_name(SceneObjectList, CallerUid, [<<"\n">>], false)
     end.
 
 %%--------------------------------------------------------------------
@@ -644,25 +652,29 @@ gen_characters_name_list(SceneObjectList, CallerUid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec gen_character_name(SceneObjectList, CallerUid, AccSceneObjectNameList) -> SceneObjectNameList when
+-spec gen_character_name(SceneObjectList, CallerUid, AccSceneObjectNameList, IsCallerExist) -> {UpdatedIsCallerExist, SceneObjectNameList} when
     SceneObjectList :: [scene_object()],
     CallerUid :: player_fsm:uid(),
     AccSceneObjectNameList :: [nls_server:nls_object()],
-    SceneObjectNameList :: AccSceneObjectNameList.
-gen_character_name([], _, AccList) ->
-    case AccList of
-        [<<"\n">>] ->
-            [];
-        _ ->
-            AccList
-    end;
-gen_character_name([#simple_npc{npc_id = NpcId, npc_name = NpcName} | Tail], CallerUid, AccSceneObjectNameList) ->
+    SceneObjectNameList :: AccSceneObjectNameList,
+    IsCallerExist :: boolean(),
+    UpdatedIsCallerExist :: IsCallerExist.
+gen_character_name([], _, AccList, UpdatedIsCallerExist) ->
+    SceneObjectNameList =
+        case AccList of
+            [<<"\n">>] ->
+                [];
+            _ ->
+                AccList
+        end,
+    {UpdatedIsCallerExist, SceneObjectNameList};
+gen_character_name([#simple_npc{npc_id = NpcId, npc_name = NpcName} | Tail], CallerUid, AccSceneObjectNameList, IsCallerExist) ->
     NpcIdForDisplay = re:replace(NpcId, "_", " ", [global, {return, binary}]),
-    gen_character_name(Tail, CallerUid, [NpcName, <<" (">>, NpcIdForDisplay, <<")">>, <<"\n">>] ++ AccSceneObjectNameList);
-gen_character_name([#simple_player{uid = CallerUid} | Tail], CallerUid, AccCharactersNameList) ->
-    gen_character_name(Tail, CallerUid, AccCharactersNameList);
-gen_character_name([#simple_player{name = PlayerName, id = Id} | Tail], CallerUid, AccSceneObjectNameList) ->
-    gen_character_name(Tail, CallerUid, [PlayerName, <<" (">>, Id, <<")">>, <<"\n">>] ++ AccSceneObjectNameList).
+    gen_character_name(Tail, CallerUid, [NpcName, <<" (">>, NpcIdForDisplay, <<")">>, <<"\n">>] ++ AccSceneObjectNameList, IsCallerExist);
+gen_character_name([#simple_player{uid = CallerUid} | Tail], CallerUid, AccCharactersNameList, _) ->
+    gen_character_name(Tail, CallerUid, AccCharactersNameList, true);
+gen_character_name([#simple_player{name = PlayerName, id = Id} | Tail], CallerUid, AccSceneObjectNameList, IsCallerExist) ->
+    gen_character_name(Tail, CallerUid, [PlayerName, <<" (">>, Id, <<")">>, <<"\n">>] ++ AccSceneObjectNameList, IsCallerExist).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -671,22 +683,25 @@ gen_character_name([#simple_player{name = PlayerName, id = Id} | Tail], CallerUi
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec do_show_scene(State, Uid, DispatcherPid) -> ok when
+-spec do_show_scene(State, Uid, DispatcherPid) -> {ok, IsCallerExist} when
     DispatcherPid :: pid(),
     State :: #scene_state{},
-    Uid :: player_fsm:uid().
+    Uid :: player_fsm:uid(),
+    IsCallerExist :: boolean().
 do_show_scene(#scene_state{scene_info = #scene_info{title = SceneTitle, desc = SceneDesc}, scene_object_list = SceneObjectList, exits_description = ExitsDescription}, Uid, DispatcherPid) ->
+    {IsCallerExist, SceneObjectNameList} = gen_characters_name_list(SceneObjectList, Uid),
     ContentList = lists:flatten([
         {nls, SceneTitle},
         <<"\n\n">>,
         {nls, SceneDesc},
         <<"\n\n">>,
-        gen_characters_name_list(SceneObjectList, Uid),
+        SceneObjectNameList,
         {nls, obvious_exits},
         <<"\n">>,
         ExitsDescription
     ]),
-    player_fsm:response_content(Uid, ContentList, DispatcherPid).
+    ok = player_fsm:response_content(Uid, ContentList, DispatcherPid),
+    {ok, IsCallerExist}.
 
 %%--------------------------------------------------------------------
 %% @doc

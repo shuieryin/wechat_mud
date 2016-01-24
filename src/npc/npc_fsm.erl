@@ -144,8 +144,8 @@ init(NpcProfile) ->
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-non_battle({execute_command, #command_context{command = CommandModule, command_func = CommandStage} = CommandContext}, State) ->
-    {ok, NextStateName, UpdatedState} = CommandModule:CommandStage(CommandContext, State, battle),
+non_battle({execute_command, #command_context{command = CommandModule, command_func = CommandFunc} = CommandContext}, State) ->
+    {ok, NextStateName, UpdatedState} = CommandModule:CommandFunc(CommandContext, State, non_battle),
     {next_state, NextStateName, UpdatedState}.
 
 %%--------------------------------------------------------------------
