@@ -24,7 +24,7 @@
     from :: scene_fsm:scene_object(),
     to :: scene_fsm:scene_object(),
     dispatcher_pid :: pid(),
-    target_name :: player_fsm:id() | npc_fsm_manager:npc_type(),
+    target_name :: player_fsm:id() | npc_fsm:npc_id(),
     sequence :: non_neg_integer(),
     target_name_bin :: binary(),
     self_targeted_message :: [nls_server:nls_object()]

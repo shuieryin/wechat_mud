@@ -40,7 +40,7 @@
 -define(SERVER, ?MODULE).
 -define(DEFAULT_WECHAT_DEBUG_MODE, true).
 
--include("../data_type/npc_born_info.hrl").
+-include("../data_type/npc_profile.hrl").
 
 -record(common_config, {
     is_wechat_debug :: boolean()
@@ -174,7 +174,7 @@ get_runtime_data(DataName, RecordName) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec random_npc() -> NpcProfile when
-    NpcProfile :: #npc_born_info{}.
+    NpcProfile :: #npc_profile{}.
 random_npc() ->
     gen_server:call(?MODULE, random_npc).
 
@@ -256,7 +256,7 @@ handle_call({set_wechat_debug, IsWechatDebug}, _From, #state{common_config = Com
 handle_call({get_runtime_data, Phases}, _From, #state{runtime_datas = RuntimeDatasMap} = State) ->
     TargetRuntimeData = runtime_data(Phases, RuntimeDatasMap),
     {reply, TargetRuntimeData, State};
-handle_call(random_npc, _From, #state{runtime_datas = #{npc_born_info := NpcsRuntimeDataMap}} = State) ->
+handle_call(random_npc, _From, #state{runtime_datas = #{npc_profile := NpcsRuntimeDataMap}} = State) ->
     RandomKey = cm:random_from_list(maps:keys(NpcsRuntimeDataMap)),
     #{RandomKey := RandomNpc} = NpcsRuntimeDataMap,
     {reply, RandomNpc, State}.

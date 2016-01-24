@@ -26,7 +26,7 @@
 
 -include("../data_type/scene_info.hrl").
 -include("../data_type/player_profile.hrl").
--include("../data_type/npc_born_info.hrl").
+-include("../data_type/npc_profile.hrl").
 
 -export_type([
     sequence/0
@@ -103,12 +103,12 @@ being_look(#command_context{from = #simple_player{uid = SrcUid, name = SrcName}}
     SceneMessage = [SrcName, {nls, under_look}, <<"\n">>],
     UpdatedState = player_fsm:append_message_local(SceneMessage, scene, State),
     {ok, StateName, UpdatedState};
-being_look(#command_context{from = #simple_player{uid = SrcUid}} = CommandContext, #npc_state{npc_profile = #npc_born_info{description_nls_key = DescriptionNlsKey}} = State, StateName) ->
-    TargetDescription = [{nls, DescriptionNlsKey}, <<"\n">>],
+being_look(#command_context{from = #simple_player{uid = SrcUid}} = CommandContext, #npc_state{self = #npc_profile{character_desc = TargetDescription}} = State, StateName) ->
+    Message = [TargetDescription, <<"\n">>],
 
     UpdatedCommandContext = CommandContext#command_context{
         command_func = feedback,
-        command_args = TargetDescription
+        command_args = Message
     },
     ok = cm:execute_command(SrcUid, UpdatedCommandContext),
     {ok, StateName, State}.

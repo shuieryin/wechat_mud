@@ -219,7 +219,7 @@ process_request(Req) ->
             ReturnContent =
                 case whereis(Uid) of % login_server:is_uid_logged_in(Uid)
                     undefined ->
-                        case whereis(register_fsm:fsm_server_name(Uid)) of % login_server:is_in_registration(Uid)
+                        case whereis(register_fsm:register_server_name(Uid)) of % login_server:is_in_registration(Uid)
                             undefined ->
                                 case login_server:is_uid_registered(Uid) of
                                     false ->

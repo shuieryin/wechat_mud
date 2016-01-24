@@ -25,7 +25,7 @@
     input_gender/2,
     input_born_month/2,
     input_confirmation/2,
-    fsm_server_name/1,
+    register_server_name/1,
     current_player_profile/1,
     stop/1
 ]).
@@ -47,7 +47,7 @@
 -define(ID_RULE_REGEX, "^[a-zA-Z0-9]{6,10}$").
 
 -include("../data_type/player_profile.hrl").
--include("../data_type/npc_born_info.hrl").
+-include("../data_type/npc_profile.hrl").
 
 -type state_name() :: select_lang | input_id | input_gender | input_born_month | input_confirmation | state_name.
 -type born_type_info_map() :: #{player_fsm:born_month() => #born_type_info{}}.
@@ -83,7 +83,7 @@
     DispatcherPid :: pid(),
     BornTypeInfoMap :: register_fsm:born_type_info_map().
 start_link(DispatcherPid, Uid, BornTypeInfoMap) ->
-    gen_fsm:start_link({local, fsm_server_name(Uid)}, ?MODULE, {Uid, DispatcherPid, BornTypeInfoMap}, []).
+    gen_fsm:start_link({local, register_server_name(Uid)}, ?MODULE, {Uid, DispatcherPid, BornTypeInfoMap}, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -94,7 +94,7 @@ start_link(DispatcherPid, Uid, BornTypeInfoMap) ->
 -spec stop(Uid) -> ok when
     Uid :: player_fsm:uid().
 stop(Uid) ->
-    gen_fsm:send_all_state_event(fsm_server_name(Uid), stop).
+    gen_fsm:send_all_state_event(register_server_name(Uid), stop).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -109,7 +109,7 @@ stop(Uid) ->
     Input :: binary(),
     DispatcherPid :: pid().
 input(DispatcherPid, Uid, Input) ->
-    gen_fsm:send_event(fsm_server_name(Uid), {Input, DispatcherPid}).
+    gen_fsm:send_event(register_server_name(Uid), {Input, DispatcherPid}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -121,7 +121,7 @@ input(DispatcherPid, Uid, Input) ->
     Uid :: player_fsm:uid(),
     CurrentPlayerProfile :: #player_profile{}.
 current_player_profile(Uid) ->
-    gen_fsm:sync_send_all_state_event(fsm_server_name(Uid), current_player_profile).
+    gen_fsm:sync_send_all_state_event(register_server_name(Uid), current_player_profile).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -129,10 +129,10 @@ current_player_profile(Uid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec fsm_server_name(Uid) -> RegisterFsmName when
+-spec register_server_name(Uid) -> PlayerServerName when
     Uid :: player_fsm:uid(),
-    RegisterFsmName :: erlang:registered_name().
-fsm_server_name(Uid) ->
+    PlayerServerName :: erlang:registered_name().
+register_server_name(Uid) ->
     list_to_atom(atom_to_list(Uid) ++ "_register_fsm").
 
 %%%===================================================================
@@ -358,7 +358,7 @@ input_born_month({MonthBin, DispatcherPid}, #state{self = #player_profile{lang =
     NewState :: State,
     Reason :: term(). % generic term
 input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{uid = PlayerUid, born_month = BornMonth} = PlayerProfile, born_type_info_map = BornTypeInfoMap} = State) when Answer == <<"y">> orelse Answer == <<"yes">> ->
-    #npc_born_info{name_nls_key = StubNpcNameNlsKey, description_nls_key = DescriptionNlsKey, self_description_nls_key = SelfDescriptionNlsKey} = common_server:random_npc(),
+    #npc_profile{npc_name = NpcName, character_desc = CharacterDescription, self_description = SelfDescription} = common_server:random_npc(),
 
     #born_type_info{
         attack = L_attack,
@@ -370,11 +370,11 @@ input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{uid = 
     FinalPlayerProfile = PlayerProfile#player_profile{
         register_time = cm:timestamp(),
         scene = ?BORN_SCENE,
-        name = {nls, StubNpcNameNlsKey},
-        description = {nls, DescriptionNlsKey},
-        self_description = {nls, SelfDescriptionNlsKey},
+        name = NpcName,
+        description = CharacterDescription,
+        self_description = SelfDescription,
         born_type = BornType,
-        player_status = #player_status{
+        battle_status = #battle_status{
             attack = L_attack,
             l_attack = L_attack,
             defence = L_defense,

@@ -33,7 +33,9 @@
     parse_target_id/1,
     general_target/2,
     execute_command/2,
-    execute_sync_command/2
+    execute_sync_command/2,
+    rb/0,
+    module_src_path/1
 ]).
 
 -type valid_type() :: atom | binary | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple | map.
@@ -308,9 +310,15 @@ type_values(ModuleName, TypeName) ->
     TypeKey = {type, TypeName, 0},
     case dict:is_key(TypeKey, TypeDict) of
         true ->
-            {{ModuleName, {ModulePath, _}, {type, _, _, TypeList}, []}, any}
-                = dict:fetch({type, TypeName, 0}, TypeDict),
-            [TypeAtom || {_, _, TypeAtom} <- TypeList];
+            {{ModuleName, {ModulePath, _}, RawValues, []}, any}
+                = dict:fetch(TypeKey, TypeDict),
+
+            case RawValues of
+                {type, _, _, TypeList} ->
+                    [TypeAtom || {_, _, TypeAtom} <- TypeList];
+                {_, _, TypeAtom} ->
+                    [TypeAtom]
+            end;
         false ->
             undefined
     end.
@@ -354,7 +362,7 @@ rr(Start, End) ->
 %%--------------------------------------------------------------------
 -spec parse_target_id(TargetArgs) -> {ok, TargetId, Sequence} when
     TargetArgs :: binary(),
-    TargetId :: player_fsm:id() | npc_fsm_manager:npc_type(),
+    TargetId :: player_fsm:id() | npc_fsm:npc_id(),
     Sequence :: non_neg_integer().
 parse_target_id(TargetArgs) ->
     [RawSequence | Rest] = lists:reverse(re:split(TargetArgs, <<" ">>)),
@@ -391,11 +399,11 @@ general_target(Uid, CommandContext) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec execute_command(FsmId, CommandContext) -> ok when
-    FsmId :: player_fsm:uid() | npc_fsm_manager:npc_fsm_id() | scene_fsm:scene_name(),
+-spec execute_command(Uid, CommandContext) -> ok when
+    Uid :: player_fsm:uid() | npc_fsm:npc_uid() | scene_fsm:scene_name(),
     CommandContext :: #command_context{}.
-execute_command(FsmId, CommandContext) ->
-    gen_fsm:send_event(FsmId, {execute_command, CommandContext}).
+execute_command(Uid, CommandContext) ->
+    gen_fsm:send_event(Uid, {execute_command, CommandContext}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -404,12 +412,34 @@ execute_command(FsmId, CommandContext) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec execute_sync_command(FsmId, CommandContext) -> Result when
-    FsmId :: player_fsm:uid() | npc_fsm_manager:npc_fsm_id() | scene_fsm:scene_name(),
+-spec execute_sync_command(ProcessName, CommandContext) -> Result when
+    ProcessName :: player_fsm:uid() | npc_fsm:npc_uid() | scene_fsm:scene_name(),
     CommandContext :: #command_context{},
     Result :: term(). % generic term
-execute_sync_command(FsmId, CommandContext) ->
-    gen_fsm:sync_send_event(FsmId, {execute_command, CommandContext}).
+execute_sync_command(ProcessName, CommandContext) ->
+    gen_fsm:sync_send_event(ProcessName, {execute_command, CommandContext}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Random boolean value.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec rb() -> boolean().
+rb() ->
+    random:uniform() > 0.499.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Get source path by module name.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec module_src_path(ModuleName) -> SrcPath when
+    ModuleName :: module(),
+    SrcPath :: file:filename().
+module_src_path(ModuleName) ->
+    get_module_src_path(ModuleName:module_info(compile)).
 
 %%%===================================================================
 %%% Internal functions
@@ -439,18 +469,6 @@ increase_vsn([CurDepthVersionNumStr | Tail], VersionDepth, Increment, CurDepth, 
                 CurDepthVersionNumStr
         end,
     increase_vsn(Tail, VersionDepth, Increment, CurDepth + 1, [UpdatedVersionNum | AccVersion]).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Get source path by module name.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec module_src_path(ModuleName) -> SrcPath when
-    ModuleName :: module(),
-    SrcPath :: file:filename().
-module_src_path(ModuleName) ->
-    get_module_src_path(ModuleName:module_info(compile)).
 
 %%--------------------------------------------------------------------
 %% @doc

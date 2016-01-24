@@ -28,7 +28,8 @@
     do_response_content/3,
     get_lang_map/1,
     start/0,
-    stop/0
+    stop/0,
+    fill_in_content/3
 ]).
 
 %% gen_server callbacks
@@ -205,6 +206,34 @@ do_response_content(LangMap, NlsObjectList, DispatcherPid) ->
     LangMap :: lang_map().
 get_lang_map(Lang) ->
     gen_server:call(?SERVER, {get_lang_map, Lang}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Replace "${any()}" in binary with replacements in order:
+%%      "ab${content_abbrv}ef" replace ["cd"] =
+%%                  "abcdef";
+%%      "ab${}ef" replace ["cd"] =
+%%                  "abcdef";
+%%      "ab${content_abbrv}ef" replace ["cd", "will_be_ignore"] =
+%%                  "abcdef";
+%%      "ab${content_abbrv}ef" replace [] =
+%%                  "ab${content_abbrv}ef";
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec fill_in_content(SrcContent, Replacements, AccContent) -> FinalContent when
+    SrcContent :: value(),
+    Replacements :: [value()],
+    AccContent :: SrcContent,
+    FinalContent :: AccContent.
+fill_in_content(<<"${}", Rest/binary>>, [Replacement | Replacements], AccContent) ->
+    fill_in_content(Rest, Replacements, <<AccContent/binary, Replacement/binary>>);
+fill_in_content(<<"${", _IgnoreOneByte, Rest/binary>>, Replacements, AccContent) ->
+    fill_in_content(<<"${", Rest/binary>>, Replacements, AccContent);
+fill_in_content(<<Byte, Rest/binary>>, Replacements, AccContent) ->
+    fill_in_content(Rest, Replacements, <<AccContent/binary, Byte>>);
+fill_in_content(<<>>, _Replacements, FinalContent) ->
+    FinalContent.
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -540,31 +569,3 @@ read_nls_file(NlsFileName, AccNlsMap) ->
     {ok, NlsMap} = ecsv:process_csv_file_with(NlsFile, fun read_line/2, {0, AccNlsMap}),
     ok = file:close(NlsFile),
     NlsMap.
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Replace "${any()}" in binary with replacements in order:
-%%      "ab${content_abbrv}ef" replace ["cd"] =
-%%                  "abcdef";
-%%      "ab${}ef" replace ["cd"] =
-%%                  "abcdef";
-%%      "ab${content_abbrv}ef" replace ["cd", "will_be_ignore"] =
-%%                  "abcdef";
-%%      "ab${content_abbrv}ef" replace [] =
-%%                  "ab${content_abbrv}ef";
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec fill_in_content(SrcContent, Replacements, AccContent) -> FinalContent when
-    SrcContent :: value(),
-    Replacements :: [value()],
-    AccContent :: SrcContent,
-    FinalContent :: AccContent.
-fill_in_content(<<"${}", Rest/binary>>, [Replacement | Replacements], AccContent) ->
-    fill_in_content(Rest, Replacements, <<AccContent/binary, Replacement/binary>>);
-fill_in_content(<<"${", _IgnoreOneByte, Rest/binary>>, Replacements, AccContent) ->
-    fill_in_content(<<"${", Rest/binary>>, Replacements, AccContent);
-fill_in_content(<<Byte, Rest/binary>>, Replacements, AccContent) ->
-    fill_in_content(Rest, Replacements, <<AccContent/binary, Byte>>);
-fill_in_content(<<>>, _Replacements, FinalContent) ->
-    FinalContent.

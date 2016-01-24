@@ -8,6 +8,11 @@
 %%%-------------------------------------------------------------------
 -author("shuieryin").
 
+-ifndef(BATTLE_STATUS).
+-include("../data_type/battle.hrl").
+-define(BATTLE_STATUS, 1).
+-endif.
+
 -record(avatar_profile, {
     name :: player_fsm:name(),
     description :: [nls_server:nls_object()]
@@ -19,17 +24,6 @@
     defence :: integer(),
     hp :: integer(),
     dexterity :: integer()
-}).
-
--record(player_status, {
-    attack :: integer(),
-    l_attack :: integer(),
-    defence :: integer(),
-    l_defence :: integer(),
-    hp :: integer(),
-    l_hp :: integer(),
-    dexterity :: integer(),
-    l_dexterity :: integer()
 }).
 
 -record(player_profile, {
@@ -45,18 +39,25 @@
     register_time :: pos_integer(),
     scene :: scene_fsm:scene_name(),
     avatar_profile :: #avatar_profile{},
-    player_status :: #player_status{}
+    battle_status :: #battle_status{}
 }).
 
 -record(simple_player, {
     uid :: player_fsm:uid(),
     name :: player_fsm:name(),
     id :: player_fsm:id(),
-    name_description :: nls_server:nls_object()
+    character_description :: nls_server:nls_object()
+}).
+
+-record(skill, {
+    skill_id :: player_fsm:skill_id(),
+    skill_seq :: integer(),
+    damage_formula :: erl_eval:expression_list(),
+    buff :: [term()] % generic term
 }).
 
 -record(perform_args, {
-    skill_id :: player_fsm:skill_id(),
+    skill :: #skill{},
     value_bindings :: erl_eval:bindings(),
     damage_value :: non_neg_integer()
 }).

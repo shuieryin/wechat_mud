@@ -26,7 +26,7 @@
 
 -define(SERVER, ?MODULE).
 
--include("../data_type/npc_born_info.hrl").
+-include("../data_type/npc_profile.hrl").
 
 %%%===================================================================
 %%% API functions
@@ -59,7 +59,7 @@ stop() ->
 %% @end
 %%--------------------------------------------------------------------
 -spec add_child(NpcProfile) -> supervisor:startchild_ret() when
-    NpcProfile :: #npc_born_info{}.
+    NpcProfile :: #npc_profile{}.
 add_child(NpcProfile) ->
     supervisor:start_child(?MODULE, [NpcProfile]).
 

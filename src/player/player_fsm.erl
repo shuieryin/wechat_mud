@@ -54,13 +54,13 @@
 -type command_func() :: atom(). % generic atom
 
 -include("../data_type/player_profile.hrl").
--include("../data_type/npc_born_info.hrl").
--include("../data_type/skill.hrl").
+-include("../data_type/npc_profile.hrl").
 -include("../data_type/scene_info.hrl").
 
 -type mail_type() :: battle | scene | other.
 -type skill_id() :: binary().
 -type skill_map() :: #{skill_id() => #skill{}}.
+-type skills() :: attack.
 
 -type command_args() :: #perform_args{} | term(). % generic term
 -type player_state_name() :: battle | non_battle | state_name.
@@ -76,7 +76,8 @@
     skill_map/0,
     mail_object/0,
     player_state_name/0,
-    command_func/0
+    command_func/0,
+    skills/0
 ]).
 
 %%%===================================================================
@@ -209,7 +210,7 @@ append_message_local(Message, other, #player_state{mail_box = #mailbox{scene = S
 %%--------------------------------------------------------------------
 -spec simple_player(#player_profile{}) -> #simple_player{}.
 simple_player(#player_profile{uid = Uid, name = Name, id = Id, self_description = SelfDescription}) ->
-    #simple_player{uid = Uid, name = Name, id = Id, name_description = SelfDescription}.
+    #simple_player{uid = Uid, name = Name, id = Id, character_description = SelfDescription}.
 
 %%--------------------------------------------------------------------
 %% @doc

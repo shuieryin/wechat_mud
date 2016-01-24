@@ -32,7 +32,7 @@ test() ->
     Self = self(),
     TestUid = cm:uuid(),
     [TestId | _] = re:split(atom_to_list(TestUid), "-"),
-    FsmId = register_fsm:fsm_server_name(TestUid),
+    FsmId = register_fsm:register_server_name(TestUid),
 
     login_server:register_uid(Self, TestUid),
 

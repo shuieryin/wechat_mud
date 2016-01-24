@@ -27,18 +27,26 @@
     handle_info/3,
     terminate/3,
     code_change/4,
-    format_status/2
+    format_status/2,
+    simple_npc/1
 ]).
 
 -define(SERVER, ?MODULE).
 
--include("../data_type/npc_born_info.hrl").
+-include("../data_type/npc_profile.hrl").
 -include("../data_type/scene_info.hrl").
 -include("../data_type/player_profile.hrl").
+
+-type npc_uid() :: atom(). % generic atom
+-type npc_id() :: binary(). % generic binary
+-type npc_name() :: nls_server:nls_object().
 
 -type npc_state_name() :: battle | non_battle | state_name.
 
 -export_type([
+    npc_uid/0,
+    npc_id/0,
+    npc_name/0,
     npc_state_name/0
 ]).
 
@@ -55,9 +63,19 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec start_link(NpcProfile) -> gen:start_ret() when
-    NpcProfile :: #npc_born_info{}.
-start_link(#npc_born_info{npc_fsm_id = NpcFsmId} = NpcProfile) ->
-    gen_fsm:start_link({local, NpcFsmId}, ?MODULE, NpcProfile, []).
+    NpcProfile :: #npc_profile{}.
+start_link(#npc_profile{npc_uid = NpcUid} = NpcProfile) ->
+    gen_fsm:start_link({local, NpcUid}, ?MODULE, NpcProfile, []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Returns simple npc record.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec simple_npc(#npc_profile{}) -> #simple_npc{}.
+simple_npc(#npc_profile{npc_uid = NpcUid, npc_id = NpcId, npc_name = NpcName}) ->
+    #simple_npc{npc_uid = NpcUid, npc_id = NpcId, npc_name = NpcName}.
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -81,9 +99,28 @@ start_link(#npc_born_info{npc_fsm_id = NpcFsmId} = NpcProfile) ->
     StateName :: npc_state_name(),
     StateData :: #npc_state{},
     Reason :: term(), % generic term
-    NpcProfile :: #npc_born_info{}.
+    NpcProfile :: #npc_profile{}.
 init(NpcProfile) ->
-    {ok, non_battle, #npc_state{npc_profile = NpcProfile}}.
+    #npc_profile{
+        attack = L_attack,
+        defence = L_defense,
+        hp = L_hp,
+        dexterity = L_dexterity
+    } = NpcProfile,
+    State = #npc_state{
+        self = NpcProfile,
+        battle_status = #battle_status{
+            attack = L_attack,
+            l_attack = L_attack,
+            defence = L_defense,
+            l_defence = L_defense,
+            hp = L_hp,
+            l_hp = L_hp,
+            dexterity = L_dexterity,
+            l_dexterity = L_dexterity
+        }
+    },
+    {ok, non_battle, State}.
 
 %%--------------------------------------------------------------------
 %% @doc

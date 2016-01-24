@@ -21,7 +21,7 @@
 
 -include("../data_type/scene_info.hrl").
 -include("../data_type/player_profile.hrl").
--include("../data_type/skill.hrl").
+-include("../data_type/npc_profile.hrl").
 
 %%%===================================================================
 %%% API
@@ -42,9 +42,7 @@ exec(DispatcherPid, Uid, Args) ->
     {ok, TargetId, Sequence} = cm:parse_target_id(TargetArgs),
     CommandContext = #command_context{
         command_func = from_init,
-        command_args = #perform_args{
-            skill_id = SkillId
-        },
+        command_args = SkillId,
         dispatcher_pid = DispatcherPid,
         target_name = TargetId,
         sequence = Sequence,
@@ -67,7 +65,7 @@ exec(DispatcherPid, Uid, Args) ->
     StateName :: player_fsm:player_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
-from_init(#command_context{self_targeted_message = SelfMessage, dispatcher_pid = DispatcherPid, target_name = TargetId, command_args = #perform_args{skill_id = SkillId} = PerformArgs} = CommandContext, #player_state{self = #player_profile{id = SrcPlayerId, scene = CurSceneName, player_status = #player_status{attack = SrcAttack}} = PlayerProfile, skill_map = SkillMap} = State, StateName) ->
+from_init(#command_context{self_targeted_message = SelfMessage, dispatcher_pid = DispatcherPid, target_name = TargetId, command_args = SkillId} = CommandContext, #player_state{self = #player_profile{id = SrcPlayerId, scene = CurSceneName, battle_status = #battle_status{attack = SrcAttack}} = PlayerProfile, skill_map = SkillMap} = State, StateName) ->
     UpdatedState =
         if
             SrcPlayerId == TargetId ->
@@ -76,14 +74,15 @@ from_init(#command_context{self_targeted_message = SelfMessage, dispatcher_pid =
                 case maps:get(SkillId, SkillMap, undefined) of
                     undefined ->
                         player_fsm:do_response_content(State, [{nls, no_such_skill, [SkillId]}], DispatcherPid);
-                    _ ->
+                    Skill ->
                         ValueBindings = erl_eval:add_binding('SrcAttack', SrcAttack, erl_eval:new_bindings()),
                         UpdatedCommandContext = CommandContext#command_context{
                             command_func = to_settle,
                             scene = CurSceneName,
                             from = player_fsm:simple_player(PlayerProfile),
-                            command_args = PerformArgs#perform_args{
-                                value_bindings = ValueBindings
+                            command_args = #perform_args{
+                                value_bindings = ValueBindings,
+                                skill = Skill
                             }
                         },
                         scene_fsm:general_target(UpdatedCommandContext),
@@ -101,12 +100,11 @@ from_init(#command_context{self_targeted_message = SelfMessage, dispatcher_pid =
 %%--------------------------------------------------------------------
 -spec to_settle(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
     CommandContext :: #command_context{},
-    State :: #player_state{},
-    StateName :: player_fsm:player_state_name(),
+    State :: #player_state{} | #npc_state{},
+    StateName :: player_fsm:player_state_name() | npc_fsm:npc_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
-to_settle(#command_context{command_args = #perform_args{skill_id = SkillId, value_bindings = ValueBindings} = PerformArgs, from = #simple_player{uid = SrcUid, name = SrcName}} = CommandContext, #player_state{skill_map = SkillMap, self = #player_profile{player_status = #player_status{defence = TargetDefense, hp = TargetHp} = TargetPlayerStatus} = TargetPlayerProfile} = State, StateName) ->
-    #{SkillId := #skill{damage_formula = DamageFormula}} = SkillMap,
+to_settle(#command_context{command_args = #perform_args{skill = #skill{damage_formula = DamageFormula}, value_bindings = ValueBindings} = PerformArgs, from = #simple_player{uid = SrcUid, name = SrcName}} = CommandContext, #player_state{self = #player_profile{battle_status = #battle_status{defence = TargetDefense, hp = TargetHp} = TargetBattleStatus} = TargetPlayerProfile} = State, StateName) ->
     FinalBindings = erl_eval:add_binding('TargetDefense', TargetDefense, ValueBindings),
     {value, RawDamageValue, _} = erl_eval:exprs(DamageFormula, FinalBindings),
     DamageValue =
@@ -117,7 +115,7 @@ to_settle(#command_context{command_args = #perform_args{skill_id = SkillId, valu
                 list_to_integer(float_to_list(RawDamageValue, [{decimals, 0}]))
         end,
 
-    UpdatedTargetStatus = TargetPlayerStatus#player_status{hp = TargetHp - DamageValue},
+    UpdatedTargetStatus = TargetBattleStatus#battle_status{hp = TargetHp - DamageValue},
     UnderAttackMessage = {nls, attack_under_attack_desc, [SrcName, {nls, unarmed}]},
     DamageMessage = {nls, damage_desc, [integer_to_binary(DamageValue)]},
     UpdatedState = player_fsm:append_message_local([UnderAttackMessage, <<"\n">>, DamageMessage, <<"\n">>], battle, State),
@@ -128,7 +126,27 @@ to_settle(#command_context{command_args = #perform_args{skill_id = SkillId, valu
         }
     },
     ok = cm:execute_command(SrcUid, UpdatedCommandContext),
-    {ok, StateName, UpdatedState#player_state{self = TargetPlayerProfile#player_profile{player_status = UpdatedTargetStatus}}}.
+    {ok, StateName, UpdatedState#player_state{self = TargetPlayerProfile#player_profile{battle_status = UpdatedTargetStatus}}};
+to_settle(#command_context{command_args = #perform_args{skill = #skill{damage_formula = DamageFormula}, value_bindings = ValueBindings} = PerformArgs, from = #simple_player{uid = SrcUid}} = CommandContext, #npc_state{battle_status = #battle_status{defence = TargetDefense, hp = TargetHp} = TargetBattleStatus} = State, StateName) ->
+    FinalBindings = erl_eval:add_binding('TargetDefense', TargetDefense, ValueBindings),
+    {value, RawDamageValue, _} = erl_eval:exprs(DamageFormula, FinalBindings),
+    DamageValue =
+        if
+            RawDamageValue < 0 ->
+                0;
+            true ->
+                list_to_integer(float_to_list(RawDamageValue, [{decimals, 0}]))
+        end,
+
+    UpdatedTargetStatus = TargetBattleStatus#battle_status{hp = TargetHp - DamageValue},
+    UpdatedCommandContext = CommandContext#command_context{
+        command_func = feedback,
+        command_args = PerformArgs#perform_args{
+            damage_value = DamageValue
+        }
+    },
+    ok = cm:execute_command(SrcUid, UpdatedCommandContext),
+    {ok, StateName, State#npc_state{battle_status = UpdatedTargetStatus}}.
 
 %%--------------------------------------------------------------------
 %% @doc

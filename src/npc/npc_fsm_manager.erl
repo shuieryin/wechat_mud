@@ -34,21 +34,20 @@
 
 -define(SERVER, ?MODULE).
 
--type npc_fsm_id() :: atom(). % generic atom
--type npc_type() :: binary(). % generic binary
 -type npc_amount() :: pos_integer(). % generic integer
--type npc_spec() :: {npc_type(), npc_amount()}.
--type npc_fsm() :: #{npc_fsm_id() => npc_fsm_id()}.
+-type npc_spec() :: {npc_fsm:npc_id(), npc_amount()}.
+-type npcs_map() :: #{npc_fsm:npc_uid() => npc_fsm:npc_uid()}.
 
--include("../data_type/npc_born_info.hrl").
+-include("../data_type/npc_profile.hrl").
 
 -record(state, {
-    npc_fsms_map :: npc_fsm(),
-    npc_fsm_ids_bank :: gb_sets:set(npc_fsm_id())
+    npc_fsms_map :: npcs_map(),
+    npc_fsm_ids_bank :: gb_sets:set(npc_fsm:npc_uid())
 }).
 
--export_type([npc_type/0,
-    npc_spec/0]).
+-export_type([
+    npc_spec/0
+]).
 
 %%%===================================================================
 %%% API
@@ -81,15 +80,15 @@ stop() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec new_npcs(NpcsSpec) -> SceneNpcFsmList when
+-spec new_npcs(NpcsSpec) -> SceneNpcsList when
     NpcsSpec :: [npc_spec()] | undefined,
-    SceneNpcFsmList :: [#simple_npc_fsm{}].
+    SceneNpcsList :: [#simple_npc{}].
 new_npcs(undefined) ->
     [];
 new_npcs(NpcsSpec) ->
-    {SceneNpcFsmList, NpcFsmMap} = traverse_npcspec(NpcsSpec),
-    gen_server:cast(?MODULE, {new_npcs, NpcFsmMap}),
-    SceneNpcFsmList.
+    {SceneNpcsList, NpcsMap} = traverse_npcspec(NpcsSpec),
+    gen_server:cast(?MODULE, {new_npcs, NpcsMap}),
+    SceneNpcsList.
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -154,16 +153,16 @@ handle_call(_Request, _From, State) ->
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: {new_npcs, NewNpcFsmsMap} | stop,
+    Request :: {new_npcs, NewNpcsMap} | stop,
 
-    NewNpcFsmsMap :: npc_fsm(),
+    NewNpcsMap :: npcs_map(),
 
     State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
-handle_cast({new_npcs, NewNpcFsmsMap}, #state{npc_fsms_map = NpcFsmsMap} = State) ->
-    UpdatedNpcFsmsMap = maps:merge(NpcFsmsMap, NewNpcFsmsMap),
-    {noreply, State#state{npc_fsms_map = UpdatedNpcFsmsMap}};
+handle_cast({new_npcs, NewNpcsMap}, #state{npc_fsms_map = NpcsMap} = State) ->
+    UpdatedNpcsMap = maps:merge(NpcsMap, NewNpcsMap),
+    {noreply, State#state{npc_fsms_map = UpdatedNpcsMap}};
 handle_cast(stop, State) ->
     {stop, normal, State}.
 
@@ -256,10 +255,10 @@ format_status(Opt, StatusData) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec traverse_npcspec(NpcsSpec) -> {SceneNpcFsmList, NpcFsmMap} when
+-spec traverse_npcspec(NpcsSpec) -> {SceneNpcsList, NpcsMap} when
     NpcsSpec :: [npc_spec()],
-    SceneNpcFsmList :: [#simple_npc_fsm{}],
-    NpcFsmMap :: #{npc_fsm_id() => npc_fsm_id()}.
+    SceneNpcsList :: [#simple_npc{}],
+    NpcsMap :: npcs_map().
 traverse_npcspec(NpcsSpec) ->
     io:format("NpcsSpec:~p~n", [NpcsSpec]),
     traverse_npcspec(NpcsSpec, [], #{}).
@@ -271,18 +270,18 @@ traverse_npcspec(NpcsSpec) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec traverse_npcspec(NpcsSpec, AccNpcFsmList, AccNpcFsmMap) -> {NpcFsmList, NpcFsmMap} when
+-spec traverse_npcspec(NpcsSpec, AccNpcsList, AccNpcsMap) -> {NpcsList, NpcsMap} when
     NpcsSpec :: [npc_spec()],
-    AccNpcFsmList :: [#simple_npc_fsm{}],
-    AccNpcFsmMap :: #{npc_fsm_id() => npc_fsm_id()},
-    NpcFsmList :: AccNpcFsmList,
-    NpcFsmMap :: AccNpcFsmMap.
-traverse_npcspec([], AccNpcFsmList, AccNpcFsmMap) ->
-    {AccNpcFsmList, AccNpcFsmMap};
-traverse_npcspec([{NpcType, Amount} | Tail], AccNpcFsmList, AccNpcFsmMap) ->
-    NpcBornProfile = common_server:get_runtime_data(npc_born_info, NpcType),
-    {UpdatedAccNpcFsmList, UpdatedAccNpcFsmMap} = new_npc(Amount, NpcBornProfile, AccNpcFsmList, AccNpcFsmMap),
-    traverse_npcspec(Tail, UpdatedAccNpcFsmList, UpdatedAccNpcFsmMap).
+    AccNpcsList :: [#simple_npc{}],
+    AccNpcsMap :: npcs_map(),
+    NpcsList :: AccNpcsList,
+    NpcsMap :: AccNpcsMap.
+traverse_npcspec([], AccNpcsList, AccNpcsMap) ->
+    {AccNpcsList, AccNpcsMap};
+traverse_npcspec([{NpcId, Amount} | Tail], AccNpcsList, AccNpcsMap) ->
+    NpcBornProfile = common_server:get_runtime_data(npc_profile, NpcId),
+    {UpdatedAccNpcsList, UpdatedAccNpcsMap} = new_npc(Amount, NpcBornProfile, AccNpcsList, AccNpcsMap),
+    traverse_npcspec(Tail, UpdatedAccNpcsList, UpdatedAccNpcsMap).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -290,17 +289,19 @@ traverse_npcspec([{NpcType, Amount} | Tail], AccNpcFsmList, AccNpcFsmMap) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec new_npc(Amount, NpcBornProfile, AccNpcFsmList, AccOverallNpcFsmMap) -> {NpcFsmList, OverallNpcFsmMap} when
+-spec new_npc(Amount, NpcBornProfile, AccNpcsList, AccOverallNpcsMap) -> {NpcsList, OverallNpcsMap} when
     Amount :: npc_amount(),
-    NpcBornProfile :: #npc_born_info{},
-    AccNpcFsmList :: [#simple_npc_fsm{}],
-    AccOverallNpcFsmMap :: #{npc_fsm_id() => npc_fsm_id()},
-    NpcFsmList :: AccNpcFsmList,
-    OverallNpcFsmMap :: AccOverallNpcFsmMap.
-new_npc(0, _, AccNpcFsmList, AccOverallNpcFsmMap) ->
-    {AccNpcFsmList, AccOverallNpcFsmMap};
-new_npc(Amount, #npc_born_info{npc_id = NpcType, name_nls_key = NameNlsKey} = NpcBornProfile, AccNpcFsmList, AccOverallNpcFsmMap) ->
-    NpcFsmId = cm:uuid(),
-    NpcProfile = NpcBornProfile#npc_born_info{npc_fsm_id = NpcFsmId},
+    NpcBornProfile :: #npc_profile{},
+    AccNpcsList :: [#simple_npc{}],
+    AccOverallNpcsMap :: npcs_map(),
+    NpcsList :: AccNpcsList,
+    OverallNpcsMap :: AccOverallNpcsMap.
+new_npc(0, _, AccNpcsList, AccOverallNpcsMap) ->
+    {AccNpcsList, AccOverallNpcsMap};
+new_npc(Amount, NpcBornProfile, AccNpcsList, AccOverallNpcsMap) ->
+    NpcUid = cm:uuid(),
+    NpcProfile = NpcBornProfile#npc_profile{
+        npc_uid = NpcUid
+    },
     npc_fsm_sup:add_child(NpcProfile),
-    new_npc(Amount - 1, NpcBornProfile, [#simple_npc_fsm{npc_fsm_id = NpcFsmId, npc_type = NpcType, npc_name_nls_key = NameNlsKey} | AccNpcFsmList], AccOverallNpcFsmMap#{NpcFsmId => NpcFsmId}).
+    new_npc(Amount - 1, NpcBornProfile, [npc_fsm:simple_npc(NpcProfile) | AccNpcsList], AccOverallNpcsMap#{NpcUid => NpcUid}).

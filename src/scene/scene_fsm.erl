@@ -25,7 +25,7 @@
     leave/2,
     show_scene/3,
     go_direction/3,
-    get_scene_object_list/1,
+    scene_object_list/1,
     get_exits_map/1,
     general_target/1,
     morning/2,
@@ -47,11 +47,11 @@
 ]).
 
 -include("../data_type/scene_info.hrl").
--include("../data_type/npc_born_info.hrl").
+-include("../data_type/npc_profile.hrl").
 -include("../data_type/player_profile.hrl").
 
--type scene_object() :: #simple_player{} | #simple_npc_fsm{}.
--type scene_character_name() :: npc_fsm_manager:npc_type() | player_fsm:uid().
+-type scene_object() :: #simple_player{} | #simple_npc{}.
+-type scene_character_name() :: npc_fsm:npc_id() | player_fsm:uid().
 -type scene_name() :: atom(). % generic atom
 -type exits_map() :: #{direction:directions() => nls_server:key()}.
 -type exits_scenes() :: #{scene_name() => direction:directions()}.
@@ -174,10 +174,10 @@ general_target(#command_context{scene = SceneName} = CommandContext) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_scene_object_list(CurSceneName) -> [scene_object()] when
+-spec scene_object_list(CurSceneName) -> [scene_object()] when
     CurSceneName :: scene_name().
-get_scene_object_list(CurSceneName) ->
-    gen_fsm:sync_send_all_state_event(CurSceneName, get_scene_object_list).
+scene_object_list(CurSceneName) ->
+    gen_fsm:sync_send_all_state_event(CurSceneName, scene_object_list).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -231,7 +231,7 @@ player_quit(SceneName, Uid) ->
 init(#scene_info{id = SceneName, npcs = NpcsSpec, exits = ExitsMap} = SceneInfo) ->
     io:format("scene server ~p starting...", [SceneName]),
 
-    SceneNpcFsmList = npc_fsm_manager:new_npcs(NpcsSpec),
+    SceneNpcsList = npc_fsm_manager:new_npcs(NpcsSpec),
     ExitsScenes = maps:fold(
         fun(CurExit, CurSceneName, AccExitsScenes) ->
             AccExitsScenes#{CurSceneName => CurExit}
@@ -239,7 +239,7 @@ init(#scene_info{id = SceneName, npcs = NpcsSpec, exits = ExitsMap} = SceneInfo)
 
     State = #scene_state{
         scene_info = SceneInfo,
-        scene_object_list = SceneNpcFsmList,
+        scene_object_list = SceneNpcsList,
         exits_scenes = ExitsScenes,
         exits_description = gen_exits_desc(ExitsMap)
     },
@@ -414,14 +414,14 @@ handle_event({general_target, #command_context{from = #simple_player{uid = SrcUi
                 to = TargetSceneObject
             },
 
-            TargetUidOrFsmId =
+            TargetUid =
                 case TargetSceneObject of
-                    #simple_npc_fsm{npc_fsm_id = TargetNpcFsmId} ->
-                        TargetNpcFsmId;
+                    #simple_npc{npc_uid = TargetNpcUid} ->
+                        TargetNpcUid;
                     #simple_player{uid = TargetPlayerUid} ->
                         TargetPlayerUid
                 end,
-            ok = cm:execute_command(TargetUidOrFsmId, UpdatedCommandContext)
+            ok = cm:execute_command(TargetUid, UpdatedCommandContext)
     end,
     {next_state, StateName, State};
 handle_event({player_quit, Uid}, StateName, State) ->
@@ -454,12 +454,12 @@ grab_target_scene_objects(SceneObjectList, TargetCharacterName, Sequence) ->
     Sequence :: look:sequence(),
     Counter :: pos_integer(), % generic integer
     TargetSceneObject :: scene_object() | undefined.
-grab_target_scene_objects([#simple_npc_fsm{npc_type = TargetNpcType} = SceneObject | _], TargetNpcType, Sequence, Sequence) ->
+grab_target_scene_objects([#simple_npc{npc_id = TargetNpcId} = SceneObject | _], TargetNpcId, Sequence, Sequence) ->
     SceneObject;
 grab_target_scene_objects([#simple_player{id = TargetPlayerId} = SceneObject | _], TargetPlayerId, Sequence, Sequence) ->
     SceneObject;
-grab_target_scene_objects([#simple_npc_fsm{npc_type = TargetNpcType} | Tail], TargetNpcType, Sequence, Counter) ->
-    grab_target_scene_objects(Tail, TargetNpcType, Sequence, Counter + 1);
+grab_target_scene_objects([#simple_npc{npc_id = TargetNpcId} | Tail], TargetNpcId, Sequence, Counter) ->
+    grab_target_scene_objects(Tail, TargetNpcId, Sequence, Counter + 1);
 grab_target_scene_objects([#simple_player{id = TargetPlayerId} | Tail], TargetPlayerId, Sequence, Counter) ->
     grab_target_scene_objects(Tail, TargetPlayerId, Sequence, Counter + 1);
 grab_target_scene_objects([_ | Tail], TargetName, Sequence, Counter) ->
@@ -474,7 +474,7 @@ grab_target_scene_objects([], _, _, _) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec remove_scene_object(SceneObjectKey, State) -> UpdatedState when
-    SceneObjectKey :: npc_fsm_manager:npc_fsm_id() | player_fsm:uid(),
+    SceneObjectKey :: npc_fsm:npc_uid() | player_fsm:uid(),
     State :: #scene_state{},
     UpdatedState :: State.
 remove_scene_object(SceneObjectKey, #scene_state{scene_object_list = SceneObjectList} = State) ->
@@ -498,7 +498,7 @@ remove_scene_object(SceneObjectKey, #scene_state{scene_object_list = SceneObject
     {stop, Reason, NewStateData} when
 
     Event :: {go_direction, Uid, TargetDirection} |
-    get_scene_object_list |
+    scene_object_list |
     get_exits_map,
     Reply :: SceneName,
 
@@ -524,7 +524,7 @@ handle_sync_event({go_direction, Uid, TargetDirection}, _From, StateName, #scene
         end,
 
     {reply, TargetSceneName, StateName, UpdatedState};
-handle_sync_event(get_scene_object_list, _From, StateName, #scene_state{scene_object_list = SceneObjectList} = State) ->
+handle_sync_event(scene_object_list, _From, StateName, #scene_state{scene_object_list = SceneObjectList} = State) ->
     {reply, SceneObjectList, StateName, State};
 handle_sync_event(get_exits_map, _From, StateName, #scene_state{scene_info = #scene_info{exits = ExitsMap}} = State) ->
     {reply, ExitsMap, StateName, State}.
@@ -656,9 +656,9 @@ gen_character_name([], _, AccList) ->
         _ ->
             AccList
     end;
-gen_character_name([#simple_npc_fsm{npc_type = NpcType, npc_name_nls_key = NpcNameNlsKey} | Tail], CallerUid, AccSceneObjectNameList) ->
-    NpcTypeForDisplay = re:replace(NpcType, "_", " ", [global, {return, binary}]),
-    gen_character_name(Tail, CallerUid, [{nls, NpcNameNlsKey}, <<" (">>, NpcTypeForDisplay, <<")">>, <<"\n">>] ++ AccSceneObjectNameList);
+gen_character_name([#simple_npc{npc_id = NpcId, npc_name = NpcName} | Tail], CallerUid, AccSceneObjectNameList) ->
+    NpcIdForDisplay = re:replace(NpcId, "_", " ", [global, {return, binary}]),
+    gen_character_name(Tail, CallerUid, [NpcName, <<" (">>, NpcIdForDisplay, <<")">>, <<"\n">>] ++ AccSceneObjectNameList);
 gen_character_name([#simple_player{uid = CallerUid} | Tail], CallerUid, AccCharactersNameList) ->
     gen_character_name(Tail, CallerUid, AccCharactersNameList);
 gen_character_name([#simple_player{name = PlayerName, id = Id} | Tail], CallerUid, AccSceneObjectNameList) ->

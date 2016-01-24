@@ -25,7 +25,7 @@
 -define(SERVER, common_server).
 
 -include_lib("wechat_mud_test.hrl").
--include_lib("wechat_mud/src/data_type/npc_born_info.hrl").
+-include_lib("wechat_mud/src/data_type/npc_profile.hrl").
 
 %%%===================================================================
 %%% API
@@ -62,8 +62,8 @@ postcondition(_ModelState, {call, ?SERVER, get_runtime_data, Args}, Result) ->
         2 ->
             record_not_undefined(Result)
     end;
-postcondition(_ModelState, {call, ?SERVER, random_npc, []}, #npc_born_info{npc_fsm_id = NpcFsmId}) ->
-    #npc_born_info{npc_fsm_id = NewNpcFsmId} = common_server:get_runtime_data(npc_born_info, NpcFsmId),
+postcondition(_ModelState, {call, ?SERVER, random_npc, []}, #npc_profile{npc_uid = NpcFsmId}) ->
+    #npc_profile{npc_uid = NewNpcFsmId} = common_server:get_runtime_data(npc_profile, NpcFsmId),
     NewNpcFsmId == NpcFsmId.
 
 %%%===================================================================
