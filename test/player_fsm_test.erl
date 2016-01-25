@@ -51,7 +51,7 @@ test(_Config) ->
         fun perform/1
     ],
 
-    ?assert(proper:quickcheck(?FORALL(_L, integer(), run_test(RandomFuncs, ModelState)), 100)),
+    ?assert(proper:quickcheck(?FORALL(_L, integer(), run_test(RandomFuncs, ModelState)), 200)),
     logout:exec(Self, CurrentPlayerUid).
 
 run_test(RandomFuncs, ModelState) ->
@@ -100,32 +100,28 @@ perform(#state{pid = Self, player_uid = PlayerUid}) ->
     CurrentSceneName = player_fsm:current_scene_name(PlayerUid),
     SceneObjectList = scene_fsm:scene_object_list(CurrentSceneName),
 
-    FilterFunc =
-        fun(Elem) ->
-            case Elem of
-                #simple_player{} ->
-                    true;
-                #simple_npc{} ->
-                    true;
-                _ ->
-                    false
-            end
-        end,
-
-    ConvertFunc =
-        fun(Elem) ->
-            case Elem of
-                #simple_player{id = TargetId} ->
-                    TargetId;
-                #simple_npc{npc_id = TargetId} ->
-                    TargetId
-            end
-        end,
-
-    IdList = [ConvertFunc(SceneObject) || SceneObject <- SceneObjectList, FilterFunc(SceneObject)],
+    IdList = [perform_convert(SceneObject) || SceneObject <- SceneObjectList, perform_filter(SceneObject)],
 
     CommandContent = <<"perform ${skill} on ${target_id}">>,
     Skills = cm:type_values(player_fsm, skills),
     SkillName = atom_to_binary(?ONE_OF(Skills), utf8),
     Command = nls_server:fill_in_content(CommandContent, [SkillName, ?ONE_OF(IdList)], <<>>),
     ?assertMatch(ok, perform:exec(Self, PlayerUid, Command)).
+
+perform_filter(Elem) ->
+    case Elem of
+        #simple_player{} ->
+            true;
+        #simple_npc{} ->
+            true;
+        _ ->
+            false
+    end.
+
+perform_convert(Elem) ->
+    case Elem of
+        #simple_player{id = TargetId} ->
+            TargetId;
+        #simple_npc{npc_id = TargetId} ->
+            TargetId
+    end.
