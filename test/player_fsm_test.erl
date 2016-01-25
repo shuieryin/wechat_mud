@@ -32,8 +32,8 @@
 
 test(_Config) ->
     Self = self(),
-    RegisteredUidsSet = login_server:get_registered_player_uids(),
-    CurrentPlayerUid = ?ONE_OF(gb_sets:to_list(RegisteredUidsSet)),
+    LoggedInUidsSet = login_server:logged_in_player_uids(),
+    CurrentPlayerUid = ?ONE_OF(gb_sets:to_list(LoggedInUidsSet)),
     ValidLangs = cm:type_values(nls_server, support_lang),
 
     ModelState = #state{

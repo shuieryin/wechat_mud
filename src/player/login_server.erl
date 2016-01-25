@@ -28,8 +28,9 @@
     is_id_registered/1,
     start/0,
     stop/0,
-    get_registered_player_uids/0,
-    logout_all_players/0
+    registered_player_uids/0,
+    logout_all_players/0,
+    logged_in_player_uids/0
 ]).
 
 %% gen_server callbacks
@@ -117,13 +118,13 @@ is_id_registered(Id) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Checks if id has been registered.
+%% Retrieves all registered player uids.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_registered_player_uids() -> uid_set().
-get_registered_player_uids() ->
-    gen_server:call(?MODULE, get_registered_player_uids).
+-spec registered_player_uids() -> uid_set().
+registered_player_uids() ->
+    gen_server:call(?MODULE, registered_player_uids).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -219,6 +220,16 @@ logout(DispatcherPid, Uid) ->
 logout_all_players() ->
     gen_server:call(?MODULE, logout_all_players).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Retrieves all logged in player uids.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec logged_in_player_uids() -> uid_set().
+logged_in_player_uids() ->
+    gen_server:call(?MODULE, logged_in_player_uids).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -290,7 +301,8 @@ init([]) ->
     {stop, Reason, NewState} when
 
     Request :: {is_uid_registered | is_in_registration | delete_user, Uid} |
-    get_registered_player_uids |
+    registered_player_uids |
+    logged_in_player_uids |
     {registration_done, PlayerProfile} |
     {login, DispatcherPid, Uid} |
     {logout, DispatcherPid, Uid},
@@ -327,8 +339,10 @@ handle_call({delete_user, Uid}, _From, #state{registered_uids_set = RegisteredUi
     {reply, ok, LoggedOutState#state{registered_uids_set = UpdatedRegisteredUidsSet}};
 handle_call({is_uid_logged_in, Uid}, _From, #state{logged_in_uids_set = LoggedUidsSet} = State) ->
     {reply, gb_sets:is_element(Uid, LoggedUidsSet), State};
-handle_call(get_registered_player_uids, _From, #state{registered_uids_set = RegisteredUidsSet} = State) ->
+handle_call(registered_player_uids, _From, #state{registered_uids_set = RegisteredUidsSet} = State) ->
     {reply, RegisteredUidsSet, State};
+handle_call(logged_in_player_uids, _From, #state{logged_in_uids_set = LoggedInUidsSet} = State) ->
+    {reply, LoggedInUidsSet, State};
 handle_call({registration_done, #player_profile{uid = Uid, id = Id} = PlayerProfile}, _From, #state{registering_uids_set = RegisteringUidsSet, registered_uids_set = RegisteredUidsSet, registered_ids_set = RegisteredIdsSet} = State) ->
     UpdatedRegisteredUidsSet = gb_sets:add(Uid, RegisteredUidsSet),
 
