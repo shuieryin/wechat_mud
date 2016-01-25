@@ -451,7 +451,9 @@ module_src_path(ModuleName) ->
 -spec pp(ReturnContentBinary) -> ok when
     ReturnContentBinary :: binary().
 pp(ReturnContentBinary) ->
-    error_logger:info_msg(unicode:characters_to_list(re:replace(ReturnContentBinary, <<"\n">>, <<"~n">>, [global, {return, binary}]))).
+    Content = re:replace(ReturnContentBinary, <<"\n">>, <<"~n">>, [global, {return, binary}]),
+    NewLine = <<"~n">>,
+    error_logger:info_msg(unicode:characters_to_list(<<Content/binary, NewLine/binary>>)).
 
 %%%===================================================================
 %%% Internal functions

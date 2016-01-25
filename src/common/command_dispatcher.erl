@@ -211,8 +211,8 @@ process_request(Req) ->
         parse_failed ->
             error_logger:info_msg("Parse xml request failed:~tp~n", [Req]),
             ?EMPTY_CONTENT;
-        #wechat_post_params{'ToUserName' = PlatformId, 'FromUserName' = UidBin} = ReqParams ->
-            error_logger:info_msg("ReqParams:~tp~n", [ReqParams]),
+        #wechat_post_params{'Content' = RawInputBin, 'ToUserName' = PlatformId, 'FromUserName' = UidBin} = ReqParams ->
+            error_logger:info_msg("User input:~tp~n", [RawInputBin]),
 
             Uid = binary_to_atom(UidBin, utf8),
             {RawInput, FuncExec} = gen_action_from_message_type(ReqParams),
@@ -361,7 +361,7 @@ handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
                 false ->
                     case direction:parse_direction(RawModuleName) of
                         undefined ->
-                            throw(not_direction);
+                            throw(invalid_command);
                         Direction ->
                             direction:module_info(),
                             {direction, [Direction]}
