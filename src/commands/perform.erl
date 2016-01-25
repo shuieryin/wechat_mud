@@ -156,11 +156,16 @@ to_settle(#command_context{command_args = #perform_args{skill = #skill{damage_fo
 %%--------------------------------------------------------------------
 -spec feedback(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
     CommandContext :: #command_context{},
-    State :: #player_state{},
-    StateName :: player_fsm:player_state_name(),
+    State :: #player_state{} | #npc_state{},
+    StateName :: player_fsm:player_state_name() | npc_fsm:npc_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
 feedback(#command_context{to = #simple_player{name = TargetName}, command_args = #perform_args{damage_value = DamageValue}, dispatcher_pid = DispatcherPid}, State, StateName) ->
+    AttackMessage = {nls, attack_desc, [TargetName, {nls, unarmed}]},
+    DamageMessage = {nls, damage_desc, [integer_to_binary(DamageValue)]},
+    UpdatedState = player_fsm:do_response_content(State, [AttackMessage, <<"\n">>, DamageMessage, <<"\n">>], DispatcherPid),
+    {ok, StateName, UpdatedState};
+feedback(#command_context{to = #simple_npc{npc_name = TargetName}, command_args = #perform_args{damage_value = DamageValue}, dispatcher_pid = DispatcherPid}, State, StateName) ->
     AttackMessage = {nls, attack_desc, [TargetName, {nls, unarmed}]},
     DamageMessage = {nls, damage_desc, [integer_to_binary(DamageValue)]},
     UpdatedState = player_fsm:do_response_content(State, [AttackMessage, <<"\n">>, DamageMessage, <<"\n">>], DispatcherPid),
