@@ -252,7 +252,7 @@ process_request(Req) ->
                     _ ->
                         try
                             ReturnContentBinary = list_to_binary(lists:flatten(cm:remove_last_newline(ReturnContent))),
-                            error_logger:info_msg("ReplyContent:~tp~n", [ReturnContentBinary]),
+                            spawn(cm, pp, [ReturnContentBinary]),
                             compose_xml_response(UidBin, PlatformId, ReturnContentBinary)
                         catch
                             Type:Reason ->
@@ -261,8 +261,6 @@ process_request(Req) ->
                                 <<>>
                         end
                 end,
-
-%%             error_logger:info_msg("Response:~ts~n", [binary_to_list(Response)]),
             Response
     end.
 

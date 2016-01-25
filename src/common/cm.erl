@@ -35,7 +35,8 @@
     execute_command/2,
     execute_sync_command/2,
     rb/0,
-    module_src_path/1
+    module_src_path/1,
+    pp/1
 ]).
 
 -type valid_type() :: atom | binary | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple | map.
@@ -440,6 +441,17 @@ rb() ->
     SrcPath :: file:filename().
 module_src_path(ModuleName) ->
     get_module_src_path(ModuleName:module_info(compile)).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Pretty print binary.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec pp(ReturnContentBinary) -> ok when
+    ReturnContentBinary :: binary().
+pp(ReturnContentBinary) ->
+    error_logger:info_msg(unicode:characters_to_list(re:replace(ReturnContentBinary, <<"\n">>, <<"~n">>, [global, {return, binary}]))).
 
 %%%===================================================================
 %%% Internal functions
