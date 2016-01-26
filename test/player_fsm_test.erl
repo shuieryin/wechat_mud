@@ -48,10 +48,11 @@ test(_Config) ->
         fun go_direction/1,
         fun hp/1,
         fun lang/1,
-        fun perform/1
+        fun perform/1,
+        fun attack/1
     ],
 
-    ?assert(proper:quickcheck(?FORALL(_L, integer(), run_test(RandomFuncs, ModelState)), 200)),
+    ?assert(proper:quickcheck(?FORALL(_L, integer(), run_test(RandomFuncs, ModelState)), 600)),
     logout:exec(Self, CurrentPlayerUid).
 
 run_test(RandomFuncs, ModelState) ->
@@ -97,10 +98,7 @@ lang(#state{pid = Self, player_uid = PlayerUid, valid_langs = ValidLangs}) ->
     ?assertMatch(ok, lang:exec(Self, PlayerUid, ?ONE_OF([<<"all">>, atom_to_binary(?ONE_OF(ValidLangs), utf8), <<"kr">>]))).
 
 perform(#state{pid = Self, player_uid = PlayerUid}) ->
-    CurrentSceneName = player_fsm:current_scene_name(PlayerUid),
-    SceneObjectList = scene_fsm:scene_object_list(CurrentSceneName),
-
-    IdList = [perform_convert(SceneObject) || SceneObject <- SceneObjectList, perform_filter(SceneObject)],
+    IdList = scene_targets(PlayerUid),
 
     CommandContent = <<"perform ${skill} on ${target_id}">>,
     Skills = cm:type_values(player_fsm, skills),
@@ -113,9 +111,9 @@ perform_filter(Elem) ->
         #simple_player{} ->
             true;
         #simple_npc{} ->
-            true;
-        _ ->
-            false
+            true
+%%        _ ->
+%%            false
     end.
 
 perform_convert(Elem) ->
@@ -125,3 +123,14 @@ perform_convert(Elem) ->
         #simple_npc{npc_id = TargetId} ->
             TargetId
     end.
+
+attack(#state{pid = Self, player_uid = PlayerUid}) ->
+    TargetId = ?ONE_OF(scene_targets(PlayerUid)),
+    Command = <<<<"attack ">>/binary, TargetId/binary>>,
+    ?assertMatch(ok, attack:exec(Self, PlayerUid, Command)).
+
+scene_targets(PlayerUid) ->
+    CurrentSceneName = player_fsm:current_scene_name(PlayerUid),
+    SceneObjectList = scene_fsm:scene_object_list(CurrentSceneName),
+
+    [perform_convert(SceneObject) || SceneObject <- SceneObjectList, perform_filter(SceneObject)].

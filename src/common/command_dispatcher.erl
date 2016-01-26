@@ -351,36 +351,36 @@ gen_action_from_message_type(#wechat_post_params{'MsgType' = MsgType, 'Event' = 
     RawCommandArgs :: [binary()],
     ReturnContent :: [nls_server:value()].
 handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
-    try
-        RawModuleName = parse_raw_command(ModuleNameBin),
+    RawModuleName = parse_raw_command(ModuleNameBin),
 
-        {ModuleName, CommandArgs} =
-            case is_command_exist(RawModuleName) of
-                true ->
-                    {binary_to_atom(RawModuleName, utf8), RawCommandArgs};
-                false ->
-                    case direction:parse_direction(RawModuleName) of
-                        undefined ->
-                            throw(invalid_command);
-                        Direction ->
-                            direction:module_info(),
-                            {direction, [Direction]}
-                    end
-            end,
-
-        Arity = length(CommandArgs),
-        Args = [Uid | CommandArgs],
-
-        ModuleName:module_info(), % call module_info in order to make function_exported works
-        case erlang:function_exported(ModuleName, exec, Arity + 2) of
+    CommandInfo =
+        case is_command_exist(RawModuleName) of
             true ->
-                pending_content(ModuleName, exec, Args);
+                {binary_to_atom(RawModuleName, utf8), RawCommandArgs};
             false ->
-                nls_server:get_nls_content([{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(binary_to_list(RawModuleName) ++ "_help")}], player_fsm:get_lang(Uid))
-        end
-    catch
-        Type:Reason ->
-            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
+                case direction:parse_direction(RawModuleName) of
+                    undefined ->
+                        invalid_command;
+                    Direction ->
+                        direction:module_info(),
+                        {direction, [Direction]}
+                end
+        end,
+
+    case CommandInfo of
+        {ModuleName, CommandArgs} ->
+            Arity = length(CommandArgs),
+            Args = [Uid | CommandArgs],
+
+            ModuleName:module_info(), % call module_info in order to make function_exported works
+            case erlang:function_exported(ModuleName, exec, Arity + 2) of
+                true ->
+                    pending_content(ModuleName, exec, Args);
+                false ->
+                    nls_server:get_nls_content([{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(binary_to_list(RawModuleName) ++ "_help")}], player_fsm:get_lang(Uid))
+            end;
+
+        invalid_command ->
             nls_server:get_nls_content([{nls, invalid_command}, ModuleNameBin], player_fsm:get_lang(Uid))
     end.
 

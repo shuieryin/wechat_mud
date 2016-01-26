@@ -36,7 +36,8 @@
     execute_sync_command/2,
     rb/0,
     module_src_path/1,
-    pp/1
+    pp/1,
+    show_errors/1
 ]).
 
 -type valid_type() :: atom | binary | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple | map.
@@ -454,6 +455,19 @@ pp(ReturnContentBinary) ->
     Content = re:replace(ReturnContentBinary, <<"\n">>, <<"~n">>, [global, {return, binary}]),
     NewLine = <<"~n">>,
     error_logger:info_msg(unicode:characters_to_list(<<Content/binary, NewLine/binary>>)).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Show show last given number of errors.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec show_errors(Limit) -> ok when
+    Limit :: non_neg_integer().
+show_errors(Limit) when is_integer(Limit) ->
+    rb:start([{type, [error_report, error]}, {max, Limit}]),
+    rb:list(),
+    ok.
 
 %%%===================================================================
 %%% Internal functions
