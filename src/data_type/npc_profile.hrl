@@ -33,5 +33,6 @@
 
 -record(npc_state, {
     self :: #npc_profile{},
-    battle_status :: #battle_status{}
+    battle_status :: #battle_status{},
+    battle_status_ri = record_info(fields, battle_status) :: [atom()] % generic atom % battle status record info
 }).

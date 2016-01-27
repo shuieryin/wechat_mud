@@ -49,10 +49,16 @@
     character_description :: nls_server:nls_object()
 }).
 
+-record(skill_formula, {
+    formula :: erl_eval:expression_list(),
+    from_var_names :: [atom()], % generic atom
+    to_var_names :: [atom()] % generic atom
+}).
+
 -record(skill, {
     skill_id :: player_fsm:skill_id(),
     skill_seq :: integer(),
-    damage_formula :: erl_eval:expression_list(),
+    skill_formula :: #skill_formula{},
     buff :: [term()] % generic term
 }).
 
@@ -72,5 +78,6 @@
     self :: #player_profile{},
     mail_box :: #mailbox{},
     lang_map :: nls_server:lang_map(),
-    skill_map :: player_fsm:skill_map()
+    skill_map :: player_fsm:skill_map(),
+    battle_status_ri = record_info(fields, battle_status) :: [atom()] % generic atom % battle status record info
 }).

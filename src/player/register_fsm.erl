@@ -361,7 +361,7 @@ input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{uid = 
     #npc_profile{npc_name = NpcName, character_desc = CharacterDescription, self_description = SelfDescription} = common_server:random_npc(),
 
     #born_type_info{
-        attack = L_attack,
+        attack = L_strength,
         defense = L_defense,
         hp = L_hp,
         dexterity = L_dexterity
@@ -375,14 +375,14 @@ input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{uid = 
         self_description = SelfDescription,
         born_type = BornType,
         battle_status = #battle_status{
-            attack = L_attack,
-            l_attack = L_attack,
-            defense = L_defense,
-            l_defense = L_defense,
-            hp = L_hp,
-            l_hp = L_hp,
-            dexterity = L_dexterity,
-            l_dexterity = L_dexterity
+            'Strength' = L_strength,
+            'M_attack' = L_strength,
+            'Defense' = L_defense,
+            'M_defense' = L_defense,
+            'Hp' = L_hp,
+            'L_hp' = L_hp,
+            'Dexterity' = L_dexterity,
+            'L_dexterity' = L_dexterity
         }
     },
 

@@ -37,7 +37,10 @@
     rb/0,
     module_src_path/1,
     pp/1,
-    show_errors/1
+    show_errors/1,
+    collect_record_value/4,
+    strings_to_atoms/1,
+    binaries_to_atoms/1
 ]).
 
 -type valid_type() :: atom | binary | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple | map.
@@ -469,6 +472,46 @@ show_errors(Limit) when is_integer(Limit) ->
     rb:list(),
     ok.
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Collect record value and put it in binding for undefined value only.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec collect_record_value(RecordInfo, Record, NewFieldNames, ExistingFieldBindings) -> UpdatedFieldBindings when
+    RecordInfo :: [atom()], % generic atom
+    Record :: tuple(), % generic tuple
+    NewFieldNames :: [atom()], % generic atom
+    ExistingFieldBindings :: erl_eval:bindings(),
+    UpdatedFieldBindings :: ExistingFieldBindings.
+collect_record_value(RecordNames, Record, NewFieldNames, ExistingFieldBindings) ->
+    [_ | DataList] = tuple_to_list(Record),
+    do_collect_record_value(RecordNames, DataList, NewFieldNames, ExistingFieldBindings).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Convert list of strings to list of atoms.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec strings_to_atoms(StringList) -> AtomList when
+    StringList :: [string()],
+    AtomList :: [atom()]. % generic atom
+strings_to_atoms(StringList) ->
+    [list_to_atom(String) || String <- StringList].
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Convert list of strings to list of atoms.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec binaries_to_atoms(BinaryList) -> AtomList when
+    BinaryList :: [binary()],
+    AtomList :: [atom()]. % generic atom
+binaries_to_atoms(StringList) ->
+    [binary_to_atom(Bin, utf8) || Bin <- StringList].
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
@@ -512,3 +555,30 @@ get_module_src_path([{source, SrcPath} | _]) ->
     SrcPath;
 get_module_src_path([_ | Rest]) ->
     get_module_src_path(Rest).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Implementation function for collect_record_value/3.
+%% @see collect_record_value/3.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec do_collect_record_value(RecordNames, DataList, FieldNames, AccFieldBindings) -> FinalFieldBingdings when
+    RecordNames :: [atom()], % generic atom
+    DataList :: [term()], % generic term
+    FieldNames :: [atom()], % generic atom
+    AccFieldBindings :: erl_eval:bindings(),
+    FinalFieldBingdings :: AccFieldBindings.
+do_collect_record_value([FieldName | RestRecordNames], [FieldValue | RestDataList], FieldNames, AccFieldBindings) ->
+    {UpdatedFieldNames, UpdatedAccFieldBindings}
+        = case cm:index_of(FieldName, FieldNames) of
+              -1 ->
+                  {FieldNames, AccFieldBindings};
+              _ ->
+                  {lists:delete(FieldName, FieldNames), erl_eval:add_binding(FieldName, FieldValue, AccFieldBindings)}
+          end,
+    do_collect_record_value(RestRecordNames, RestDataList, UpdatedFieldNames, UpdatedAccFieldBindings);
+do_collect_record_value([], [], _, FinalFieldBingdings) ->
+    FinalFieldBingdings;
+do_collect_record_value(_, _, [], FinalFieldBingdings) ->
+    FinalFieldBingdings.

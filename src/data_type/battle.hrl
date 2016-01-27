@@ -9,12 +9,12 @@
 -author("shuieryin").
 
 -record(battle_status, {
-    attack :: integer(),
-    l_attack :: integer(),
-    defense :: integer(),
-    l_defense :: integer(),
-    hp :: integer(),
-    l_hp :: integer(),
-    dexterity :: integer(),
-    l_dexterity :: integer()
+    'Strength' :: integer(),
+    'M_attack' :: integer(),
+    'Defense' :: integer(),
+    'M_defense' :: integer(),
+    'Hp' :: integer(),
+    'L_hp' :: integer(),
+    'Dexterity' :: integer(),
+    'L_dexterity' :: integer()
 }).

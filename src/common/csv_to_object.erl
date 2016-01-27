@@ -34,6 +34,8 @@
 -type field_infos() :: [field_info()].
 -type csv_to_object() :: #{key() => csv_data()}.
 
+-include("../data_type/player_profile.hrl").
+
 -export_type([csv_data/0,
     csv_to_object/0]).
 
@@ -231,16 +233,48 @@ traverse_column([RawValue | TailValues], [{_, FieldType} | TailFieldInfos], AccV
                             {ok, Tokens, _} = erl_scan:string(RawValue),
                             {ok, Exprs} = erl_parse:parse_exprs(Tokens),
                             Exprs;
+                        skill ->
+                            {FromValueNames, RawValue2} = collect_formula_value_names(list_to_binary(RawValue), "From"),
+                            {ToValueNames, RawValue3} = collect_formula_value_names(RawValue2, "To"),
+
+                            {ok, Tokens, _} = erl_scan:string(binary_to_list(RawValue3)),
+                            {ok, Exprs} = erl_parse:parse_exprs(Tokens),
+                            #skill_formula{
+                                formula = Exprs,
+                                from_var_names = FromValueNames,
+                                to_var_names = ToValueNames
+                            };
                         _ ->
                             RawValue
                     end
             end
         catch
-            Type:Report ->
-                error_logger:error_msg("Type:~p~nReport:~p~n", [Type, Report]),
+            Type:Reason ->
+                error_logger:error_msg("traverse_column failed~nRawValue:~p~nType:~p~nReason:~p~nStackTrace:~p~n", [RawValue, Type, Reason, erlang:get_stacktrace()]),
                 RawValue
         end,
     traverse_column(TailValues, TailFieldInfos, [Value | AccValues]).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Collect value names form formula.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec collect_formula_value_names(RawValue, ObjectName) -> {ValueNames, UpdatedRawValue} when
+    RawValue :: binary(),
+    ObjectName :: string(),
+    ValueNames :: [atom()], % generic atom
+    UpdatedRawValue :: binary().
+collect_formula_value_names(RawValue, ObjectName) ->
+    MatchRE = list_to_binary("\\$" ++ ObjectName ++ "\.([A-z0-9]*)[\s|.]{1}"),
+    case re:run(RawValue, MatchRE, [global, {capture, all_but_first, binary}]) of
+        {match, Matched} ->
+            ReplaceRE = list_to_binary("\\$" ++ ObjectName ++ "\."),
+            {cm:binaries_to_atoms(lists:flatten(Matched)), re:replace(RawValue, ReplaceRE, <<"">>, [global, {return, binary}])};
+        _ ->
+            {[], RawValue}
+    end.
 
 %%--------------------------------------------------------------------
 %% @doc

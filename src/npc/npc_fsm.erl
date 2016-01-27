@@ -102,7 +102,7 @@ simple_npc(#npc_profile{npc_uid = NpcUid, npc_id = NpcId, npc_name = NpcName}) -
     NpcProfile :: #npc_profile{}.
 init(NpcProfile) ->
     #npc_profile{
-        attack = L_attack,
+        attack = L_strength,
         defense = L_defense,
         hp = L_hp,
         dexterity = L_dexterity
@@ -110,14 +110,14 @@ init(NpcProfile) ->
     State = #npc_state{
         self = NpcProfile,
         battle_status = #battle_status{
-            attack = L_attack,
-            l_attack = L_attack,
-            defense = L_defense,
-            l_defense = L_defense,
-            hp = L_hp,
-            l_hp = L_hp,
-            dexterity = L_dexterity,
-            l_dexterity = L_dexterity
+            'Strength' = L_strength,
+            'M_attack' = L_strength,
+            'Defense' = L_defense,
+            'M_defense' = L_defense,
+            'Hp' = L_hp,
+            'L_hp' = L_hp,
+            'Dexterity' = L_dexterity,
+            'L_dexterity' = L_dexterity
         }
     },
     {ok, non_battle, State}.
