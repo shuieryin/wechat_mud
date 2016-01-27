@@ -20,7 +20,7 @@
     character_desc :: nls_server:nls_object(),
     self_description :: nls_server:nls_object(),
     attack :: integer(),
-    defence :: integer(),
+    defense :: integer(),
     hp :: integer(),
     dexterity :: integer()
 }).

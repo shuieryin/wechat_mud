@@ -11,8 +11,8 @@
 -record(battle_status, {
     attack :: integer(),
     l_attack :: integer(),
-    defence :: integer(),
-    l_defence :: integer(),
+    defense :: integer(),
+    l_defense :: integer(),
     hp :: integer(),
     l_hp :: integer(),
     dexterity :: integer(),

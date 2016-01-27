@@ -362,7 +362,7 @@ input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{uid = 
 
     #born_type_info{
         attack = L_attack,
-        defence = L_defense,
+        defense = L_defense,
         hp = L_hp,
         dexterity = L_dexterity
     } = BornType = maps:get(BornMonth, BornTypeInfoMap),
@@ -377,8 +377,8 @@ input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{uid = 
         battle_status = #battle_status{
             attack = L_attack,
             l_attack = L_attack,
-            defence = L_defense,
-            l_defence = L_defense,
+            defense = L_defense,
+            l_defense = L_defense,
             hp = L_hp,
             l_hp = L_hp,
             dexterity = L_dexterity,

@@ -21,7 +21,7 @@
 -record(born_type_info, {
     born_type :: player_fsm:born_month(),
     attack :: integer(),
-    defence :: integer(),
+    defense :: integer(),
     hp :: integer(),
     dexterity :: integer()
 }).

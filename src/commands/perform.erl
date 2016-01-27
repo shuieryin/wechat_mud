@@ -104,7 +104,7 @@ from_init(#command_context{self_targeted_message = SelfMessage, dispatcher_pid =
     StateName :: player_fsm:player_state_name() | npc_fsm:npc_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
-to_settle(#command_context{command_args = #perform_args{skill = #skill{damage_formula = DamageFormula}, value_bindings = ValueBindings} = PerformArgs, from = #simple_player{uid = SrcUid, name = SrcName}} = CommandContext, #player_state{self = #player_profile{battle_status = #battle_status{defence = TargetDefense, hp = TargetHp} = TargetBattleStatus} = TargetPlayerProfile} = State, StateName) ->
+to_settle(#command_context{command_args = #perform_args{skill = #skill{damage_formula = DamageFormula}, value_bindings = ValueBindings} = PerformArgs, from = #simple_player{uid = SrcUid, name = SrcName}} = CommandContext, #player_state{self = #player_profile{battle_status = #battle_status{defense = TargetDefense, hp = TargetHp} = TargetBattleStatus} = TargetPlayerProfile} = State, StateName) ->
     FinalBindings = erl_eval:add_binding('TargetDefense', TargetDefense, ValueBindings),
     {value, RawDamageValue, _} = erl_eval:exprs(DamageFormula, FinalBindings),
     DamageValue =
@@ -127,7 +127,7 @@ to_settle(#command_context{command_args = #perform_args{skill = #skill{damage_fo
     },
     ok = cm:execute_command(SrcUid, UpdatedCommandContext),
     {ok, StateName, UpdatedState#player_state{self = TargetPlayerProfile#player_profile{battle_status = UpdatedTargetStatus}}};
-to_settle(#command_context{command_args = #perform_args{skill = #skill{damage_formula = DamageFormula}, value_bindings = ValueBindings} = PerformArgs, from = #simple_player{uid = SrcUid}} = CommandContext, #npc_state{battle_status = #battle_status{defence = TargetDefense, hp = TargetHp} = TargetBattleStatus} = State, StateName) ->
+to_settle(#command_context{command_args = #perform_args{skill = #skill{damage_formula = DamageFormula}, value_bindings = ValueBindings} = PerformArgs, from = #simple_player{uid = SrcUid}} = CommandContext, #npc_state{battle_status = #battle_status{defense = TargetDefense, hp = TargetHp} = TargetBattleStatus} = State, StateName) ->
     FinalBindings = erl_eval:add_binding('TargetDefense', TargetDefense, ValueBindings),
     {value, RawDamageValue, _} = erl_eval:exprs(DamageFormula, FinalBindings),
     DamageValue =

@@ -103,7 +103,7 @@ simple_npc(#npc_profile{npc_uid = NpcUid, npc_id = NpcId, npc_name = NpcName}) -
 init(NpcProfile) ->
     #npc_profile{
         attack = L_attack,
-        defence = L_defense,
+        defense = L_defense,
         hp = L_hp,
         dexterity = L_dexterity
     } = NpcProfile,
@@ -112,8 +112,8 @@ init(NpcProfile) ->
         battle_status = #battle_status{
             attack = L_attack,
             l_attack = L_attack,
-            defence = L_defense,
-            l_defence = L_defense,
+            defense = L_defense,
+            l_defense = L_defense,
             hp = L_hp,
             l_hp = L_hp,
             dexterity = L_dexterity,
