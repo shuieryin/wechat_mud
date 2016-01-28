@@ -428,7 +428,7 @@ compose_xml_response(UidBin, PlatformIdBin, ContentBin) ->
     Req :: cowboy_req:req(),
     ReqParams :: #wechat_post_params{} | parse_failed.
 parse_xml_request(Req) ->
-    {ok, Message, Req} = cowboy_req:body(Req),
+    {ok, Message, _UpdatedReq} = cowboy_req:body(Req),
     case Message of
         <<>> ->
             parse_failed;
