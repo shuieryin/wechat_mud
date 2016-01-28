@@ -135,11 +135,13 @@ gen_scene_child_list() ->
     Type :: supervisor:worker(),
     SceneChild :: scene_child().
 populate_scene_child([_CityName | SceneValues], Restart, Shutdown, Type) ->
-    [Verify | _] = SceneValues,
+    [Verify | _RestSceneValues] = SceneValues,
     case Verify of
         undefined ->
             undefined;
-        _ ->
-            #scene_info{id = Id} = SceneInfo = list_to_tuple([scene_info | SceneValues]),
+        _Verify ->
+            #scene_info{
+                id = Id
+            } = SceneInfo = list_to_tuple([scene_info | SceneValues]),
             {Id, {scene_fsm, start_link, [SceneInfo]}, Restart, Shutdown, Type, [scene_fsm]}
     end.

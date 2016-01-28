@@ -36,7 +36,7 @@ exec(DispatcherPid, Uid) ->
     case whereis(Uid) of
         undefined ->
             login_server:register_uid(DispatcherPid, Uid);
-        _ ->
+        _Pid ->
             player_fsm:response_content(Uid, [{nls, please_logout_first}], DispatcherPid)
     end.
 

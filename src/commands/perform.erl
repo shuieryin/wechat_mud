@@ -156,7 +156,7 @@ to_settle(
     } = State,
     StateName
 ) ->
-    {_, UpdatedTargetBattleStatus} = skill_calc(CommandContext, TargetBattleStatus, BattleStatusRi),
+    {_DamageValue, UpdatedTargetBattleStatus} = skill_calc(CommandContext, TargetBattleStatus, BattleStatusRi),
     {
         ok,
         StateName,
@@ -198,7 +198,7 @@ skill_calc(
     BattleStatusRi
 ) ->
     FinalBindings = cm:collect_record_value(BattleStatusRi, TargetBattleStatus, ToVarNames, ValueBindings),
-    {value, RawDamageValue, _} = erl_eval:exprs(SkillFormula, FinalBindings),
+    {value, RawDamageValue, _NewBindings} = erl_eval:exprs(SkillFormula, FinalBindings),
     DamageValue =
         if
             RawDamageValue < 0 ->

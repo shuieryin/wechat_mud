@@ -90,7 +90,7 @@ start(Req) ->
                     case EchoStr of
                         undefined ->
                             process_request(Req);
-                        _ ->
+                        _EchoStr ->
                             error_logger:info_msg("Connectivity success~n", []),
                             EchoStr
                     end;
@@ -236,7 +236,7 @@ process_request(Req) ->
                                                 nls_server:get_nls_content([{nls, please_login}], zh)
                                         end
                                 end;
-                            _ ->
+                            _RegisterPid ->
                                 if
                                     unsubscribe == RawInput ->
                                         register_fsm:stop(Uid),
@@ -245,7 +245,7 @@ process_request(Req) ->
                                         pending_content(register_fsm, input, [Uid, RawInput])
                                 end
                         end;
-                    _ ->
+                    _PlayerPid ->
                         FuncExec(Uid)
                 end,
 
@@ -253,7 +253,7 @@ process_request(Req) ->
                 case ReturnContent of
                     no_response ->
                         <<>>;
-                    _ ->
+                    _ReturnContent ->
                         try
                             ReturnContentBinary = list_to_binary(lists:flatten(cm:remove_last_newline(ReturnContent))),
                             spawn(cm, pp, [ReturnContentBinary]),
@@ -316,7 +316,7 @@ gen_action_from_message_type(
                             handle_input(Uid, <<"logout">>, []),
                             no_response
                         end};
-                _ ->
+                _Event ->
                     {no_reply,
                         fun(_Uid) ->
                             no_response
@@ -329,7 +329,7 @@ gen_action_from_message_type(
                 fun(Uid) ->
                     handle_input(Uid, ModuleNameBin, RawCommandArgs)
                 end};
-        _ ->
+        _MsgType ->
             {<<>>,
                 fun(Uid) ->
                     nls_server:get_nls_content([{nls, message_type_not_support}], player_fsm:get_lang(Uid))
@@ -428,12 +428,12 @@ compose_xml_response(UidBin, PlatformIdBin, ContentBin) ->
     Req :: cowboy_req:req(),
     ReqParams :: #wechat_post_params{} | parse_failed.
 parse_xml_request(Req) ->
-    {ok, Message, _} = cowboy_req:body(Req),
+    {ok, Message, Req} = cowboy_req:body(Req),
     case Message of
         <<>> ->
             parse_failed;
-        _ ->
-            {ok, {"xml", [], Params}, _} = erlsom:simple_form(Message),
+        _Message ->
+            {ok, {"xml", [], Params}, _UpdatedOptions} = erlsom:simple_form(Message),
             unmarshall_params(Params, #wechat_post_params{})
     end.
 
@@ -501,7 +501,9 @@ gen_get_params(HeaderParams) ->
     Bin :: binary(),
     AccParamsMap :: map(), % generic map
     Params :: #wechat_get_params{}.
-gen_get_params(-1, _,
+gen_get_params(
+    -1,
+    _Bin,
     #{
         signature := Signature,
         timestamp := TimeStamp,
@@ -527,9 +529,9 @@ gen_get_params(Pos, Bin, ParamsMap) ->
     SrcBin :: binary(),
     KeyBin :: SrcBin,
     CurPos :: Pos.
-gen_req_param_key($&, KeyBinList, Pos, _) ->
+gen_req_param_key($&, KeyBinList, Pos, _SrcBin) ->
     {list_to_binary(KeyBinList), Pos};
-gen_req_param_key(CurByte, KeyBinList, -1, _) ->
+gen_req_param_key(CurByte, KeyBinList, -1, _SrcBin) ->
     {list_to_binary([CurByte | KeyBinList]), -1};
 gen_req_param_key(CurByte, KeyBinList, Pos, SrcBin) ->
     gen_req_param_key(binary:at(SrcBin, Pos), [CurByte | KeyBinList], Pos - 1, SrcBin).
@@ -547,7 +549,7 @@ gen_req_param_key(CurByte, KeyBinList, Pos, SrcBin) ->
     SrcBin :: binary(),
     ValueBin :: SrcBin,
     CurPos :: Pos.
-gen_get_param_value($=, ValueBinList, Pos, _) ->
+gen_get_param_value($=, ValueBinList, Pos, _SrcBin) ->
     {list_to_binary(ValueBinList), Pos};
 gen_get_param_value(CurByte, ValueBinList, Pos, SrcBin) ->
     gen_get_param_value(binary:at(SrcBin, Pos), [CurByte | ValueBinList], Pos - 1, SrcBin).

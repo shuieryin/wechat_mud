@@ -354,7 +354,7 @@ handle_call(
                      lists:member(TargetLang, ValidLangs);
                  atom ->
                      maps:is_key(TargetLang, NlsMap);
-                 _ ->
+                 _OtherType ->
                      false
              end,
     {reply, Result, State};
@@ -512,7 +512,7 @@ read_line({newline, NewLine}, {Counter, KeysMap, ValuesMap}) ->
 read_line({newline, NewLine}, {0, ValuesMap}) ->
     {KeysMap, NewValuesMap} = gen_keysmap(NewLine, #{}, 0, ValuesMap),
     {1, KeysMap, NewValuesMap};
-read_line({eof}, {_, _, FinalValuesMap}) ->
+read_line({eof}, {_Counter, _KeysMap, FinalValuesMap}) ->
     FinalValuesMap.
 
 %%--------------------------------------------------------------------
@@ -527,14 +527,14 @@ read_line({eof}, {_, _, FinalValuesMap}) ->
     ValuesMap :: lang_map(),
     Pos :: key_pos(),
     FinalKeysMap :: KeysMap.
-gen_keysmap([], KeysMap, _, ValuesMap) ->
+gen_keysmap([], KeysMap, _Pos, ValuesMap) ->
     {KeysMap, ValuesMap};
 gen_keysmap([RawKey | Tail], KeysMap, Pos, ValuesMap) ->
     Key = list_to_atom(RawKey),
     NewValuesMap = case Pos of
                        0 ->
                            ValuesMap;
-                       _ ->
+                       _Pos ->
                            case maps:is_key(Key, ValuesMap) of
                                false ->
                                    ValuesMap#{Key => #{}};
@@ -561,7 +561,7 @@ gen_keysmap([RawKey | Tail], KeysMap, Pos, ValuesMap) ->
     ValuesMap :: lang_map(),
     Pos :: key_pos(),
     FinalValuesMap :: ValuesMap.
-gen_valuesmap([], _, ValueMap, _) ->
+gen_valuesmap([], _KeysMap, ValueMap, _Pos) ->
     ValueMap;
 gen_valuesmap([[] | Tail], KeysMap, ValuesMap, Pos) ->
     gen_valuesmap(Tail, KeysMap, ValuesMap, Pos + 1);
@@ -591,7 +591,7 @@ gen_valuesmap([Value | Tail], KeysMap, ValuesMap, Pos) ->
     LangMap :: lang_map(),
     AccContentList :: [value()],
     ContentList :: AccContentList.
-fill_in_nls([], _, AccContentList) ->
+fill_in_nls([], _LangMap, AccContentList) ->
     lists:reverse(AccContentList);
 fill_in_nls([{nls, NlsKey} | Tail], LangMap, AccContentList) ->
     fill_in_nls(Tail, LangMap, [maps:get(NlsKey, LangMap) | AccContentList]);

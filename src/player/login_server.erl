@@ -410,7 +410,7 @@ handle_call(
                 id = ExistingId
             } ->
                 gb_sets:del_element(ExistingId, RegisteredIdsSet);
-            _ ->
+            _NotFound ->
                 RegisteredIdsSet
         end),
     ok = redis_client_server:async_set(registered_ids_set, UpdatedRegisteredIdsSet, false),
@@ -432,7 +432,7 @@ handle_call(
     UpdatedLoggedInUidsSet =
         case gb_sets:is_element(Uid, LoggedInUidsSet) of
             false ->
-                {ok, _} = player_fsm_sup:add_child(Uid, DispatcherPid),
+                {ok, _Pid} = player_fsm_sup:add_child(Uid, DispatcherPid),
                 gb_sets:add(Uid, LoggedInUidsSet);
             true ->
                 ok = player_fsm:response_content(Uid, [{nls, already_login}], DispatcherPid),
@@ -482,7 +482,7 @@ handle_cast(
 ) ->
     UpdatedState =
         case register_fsm_sup:add_child(DispatcherPid, Uid, BornTypeInfoMap) of
-            {ok, _} ->
+            {ok, _Pid} ->
                 error_logger:info_msg("Started register fsm successfully.~nUid:~p~n", [Uid]),
                 State#state{
                     registering_uids_set = gb_sets:add(Uid, State#state.registering_uids_set)

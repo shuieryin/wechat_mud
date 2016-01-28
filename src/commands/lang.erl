@@ -44,7 +44,7 @@ exec(DispatcherPid, Uid, RawTargetLang) ->
     case RawTargetLang of
         <<"all">> ->
             nls_server:show_langs(DispatcherPid, CurLang);
-        _ ->
+        _Args ->
             case nls_server:is_valid_lang(RawTargetLang) of
                 true ->
                     CommandContext = #command_context{

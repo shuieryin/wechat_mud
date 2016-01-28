@@ -440,7 +440,7 @@ handle_event(
     EnterSceneMessage = case FromSceneName of
                             undefined ->
                                 [{nls, enter_scene, [PlayerName]}, <<"\n">>];
-                            _ ->
+                            _FromSceneName ->
                                 [{nls, enter_scene_from, [PlayerName, {nls, maps:get(FromSceneName, ExitsScenes)}]}, <<"\n">>]
                         end,
     UpdatedState =
@@ -463,7 +463,7 @@ handle_event(
     broadcast(State, [{nls, leave_scene, [PlayerName, {nls, unknown}]}, <<"\n">>], scene, [Uid]),
     {next_state, StateName, remove_scene_object(Uid, State)};
 handle_event({show_scene, Uid, DispatcherPid}, StateName, State) ->
-    {ok, _} = do_show_scene(State, Uid, DispatcherPid),
+    {ok, _IsCallerExist} = do_show_scene(State, Uid, DispatcherPid),
     {next_state, StateName, State};
 handle_event(
     {
@@ -540,7 +540,7 @@ grab_target_scene_objects(
     [
         #simple_npc{
             npc_id = TargetNpcId
-        } = SceneObject | _
+        } = SceneObject | _RestSceneObjectList
     ],
     TargetNpcId,
     Sequence,
@@ -551,7 +551,7 @@ grab_target_scene_objects(
     [
         #simple_player{
             id = TargetPlayerId
-        } = SceneObject | _
+        } = SceneObject | _RestSceneObjectList
     ],
     TargetPlayerId,
     Sequence,
@@ -562,27 +562,27 @@ grab_target_scene_objects(
     [
         #simple_npc{
             npc_id = TargetNpcId
-        } | Tail
+        } | RestSceneObjectList
     ],
     TargetNpcId,
     Sequence,
     Counter
 ) ->
-    grab_target_scene_objects(Tail, TargetNpcId, Sequence, Counter + 1);
+    grab_target_scene_objects(RestSceneObjectList, TargetNpcId, Sequence, Counter + 1);
 grab_target_scene_objects(
     [
         #simple_player{
             id = TargetPlayerId
-        } | Tail
+        } | RestSceneObjectList
     ],
     TargetPlayerId,
     Sequence,
     Counter
 ) ->
-    grab_target_scene_objects(Tail, TargetPlayerId, Sequence, Counter + 1);
-grab_target_scene_objects([_ | Tail], TargetName, Sequence, Counter) ->
-    grab_target_scene_objects(Tail, TargetName, Sequence, Counter);
-grab_target_scene_objects([], _, _, _) ->
+    grab_target_scene_objects(RestSceneObjectList, TargetPlayerId, Sequence, Counter + 1);
+grab_target_scene_objects([_SceneObject | RestSceneObjectList], TargetName, Sequence, Counter) ->
+    grab_target_scene_objects(RestSceneObjectList, TargetName, Sequence, Counter);
+grab_target_scene_objects([], _TargetName, _Sequence, _Counter) ->
     undefined.
 
 %%--------------------------------------------------------------------
@@ -786,7 +786,7 @@ gen_characters_name_list(SceneObjectList, CallerUid) ->
     case length(SceneObjectList) of
         0 ->
             {false, []};
-        _ ->
+        _HasSceneObject ->
             gen_character_name(SceneObjectList, CallerUid, [<<"\n">>], false)
     end.
 
@@ -803,12 +803,12 @@ gen_characters_name_list(SceneObjectList, CallerUid) ->
     SceneObjectNameList :: AccSceneObjectNameList,
     IsCallerExist :: boolean(),
     UpdatedIsCallerExist :: IsCallerExist.
-gen_character_name([], _, AccList, UpdatedIsCallerExist) ->
+gen_character_name([], _CallerUid, AccList, UpdatedIsCallerExist) ->
     SceneObjectNameList =
         case AccList of
             [<<"\n">>] ->
                 [];
-            _ ->
+            _AccList ->
                 AccList
         end,
     {UpdatedIsCallerExist, SceneObjectNameList};
@@ -833,7 +833,7 @@ gen_character_name(
     ],
     CallerUid,
     AccCharactersNameList,
-    _
+    _IsCallerExist
 ) ->
     gen_character_name(Tail, CallerUid, AccCharactersNameList, true);
 gen_character_name(
@@ -920,7 +920,7 @@ broadcast(
                         true ->
                             do_nothing
                     end;
-                _ ->
+                _Other ->
                     do_nothing
             end
         end,

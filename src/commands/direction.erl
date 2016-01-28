@@ -140,7 +140,7 @@ parse_direction(<<"southeast">>) -> southeast;
 parse_direction(<<"southwest">>) -> southwest;
 parse_direction(<<"northwest">>) -> northwest;
 
-parse_direction(_) -> undefined.
+parse_direction(_InvalidDirection) -> undefined.
 
 %%%===================================================================
 %%% Internal functions (N/A)

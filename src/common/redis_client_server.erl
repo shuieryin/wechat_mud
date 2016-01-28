@@ -538,7 +538,7 @@ del(
     } = State
 ) ->
     IsDel = case eredis:q(RedisClientPid, ["DEL" | Keys]) of
-                {ok, _} -> % <<"OK">>
+                {ok, _ReturnTrue} -> % <<"OK">>
                     true;
                 {Type, Reason} ->
                     error_logger:error_msg("Redis del value failed~n Type:~p, Reason:~p~n", [Type, Reason]),

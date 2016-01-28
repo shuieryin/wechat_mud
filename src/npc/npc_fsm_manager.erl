@@ -307,7 +307,7 @@ traverse_npcspec([{NpcId, Amount} | Tail], AccNpcsList, AccNpcsMap) ->
     AccOverallNpcsMap :: npcs_map(),
     NpcsList :: AccNpcsList,
     OverallNpcsMap :: AccOverallNpcsMap.
-new_npc(0, _, AccNpcsList, AccOverallNpcsMap) ->
+new_npc(0, _NpcBornProfile, AccNpcsList, AccOverallNpcsMap) ->
     {AccNpcsList, AccOverallNpcsMap};
 new_npc(Amount, NpcBornProfile, AccNpcsList, AccOverallNpcsMap) ->
     NpcUid = cm:uuid(),

@@ -52,7 +52,7 @@ start_link() ->
 -spec init([]) ->
     {ok, {SupFlags :: supervisor:sup_flags(), [ChildSpec :: supervisor:child_spec()]}} | ignore.
 init([]) ->
-    [{AppName, _, _, _}] = release_handler:which_releases(permanent),
+    [{AppName, _AppVersion, _Applications, _ReleaseStatus}] = release_handler:which_releases(permanent),
     erlang:set_cookie(node(), list_to_atom(AppName)),
 
     RestartStrategy = one_for_one,

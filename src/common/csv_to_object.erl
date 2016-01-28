@@ -155,14 +155,18 @@ parse_file(FilePath, RowFun) ->
     FieldInfos :: field_infos(),
     AccRowValuesMap :: RowValuesMap,
     RecordName :: atom(), % generic atom
-    State :: {Counter, RowFun, FieldInfos, AccRowValuesMap, RecordName} | {0, RowFun, RecordName} | {_, _, _, RowValuesMap, _}.
+    State ::
+    {Counter, RowFun, FieldInfos, AccRowValuesMap, RecordName} |
+    {0, RowFun, RecordName} |
+    {_Counter, _RowFun, _FieldInfos, RowValuesMap, _RecordName}.
 traverse_rows({newline, NewRow}, {Counter, RowFun, FieldInfos, AccRowValuesMap, RecordName}) ->
-    [_, CurRowKey | _] = CurRowValues = traverse_column(NewRow, FieldInfos, [RecordName]),
+    [_UselessHead, CurRowKey | _RestCurRowValues] =
+        CurRowValues = traverse_column(NewRow, FieldInfos, [RecordName]),
     UpdatedAccRowValuesMap =
         case CurRowKey of
             undefined ->
                 AccRowValuesMap;
-            _ ->
+            _CurRowKey ->
                 case RowFun(CurRowValues) of
                     undefined ->
                         AccRowValuesMap;
@@ -174,7 +178,7 @@ traverse_rows({newline, NewRow}, {Counter, RowFun, FieldInfos, AccRowValuesMap, 
 traverse_rows({newline, NewRow}, {0, RowFun, RecordName}) ->
     FieldInfos = gen_fieldinfos(NewRow, []),
     {1, RowFun, FieldInfos, #{}, RecordName};
-traverse_rows({eof}, {_, _, _, RowValuesMap, _}) ->
+traverse_rows({eof}, {_Counter, _RowFun, _FieldInfos, RowValuesMap, _RecordName}) ->
     RowValuesMap.
 
 %%--------------------------------------------------------------------
@@ -207,15 +211,15 @@ gen_fieldinfos([RawFieldInfoStr | Tail], AccFieldInfos) ->
     FieldInfos :: field_infos(),
     AccValues :: [value()],
     FinalValues :: AccValues.
-traverse_column([], _, AccValues) ->
+traverse_column([], _FieldInfos, AccValues) ->
     lists:reverse(AccValues);
-traverse_column([RawValue | TailValues], [{_, FieldType} | TailFieldInfos], AccValues) ->
+traverse_column([RawValue | TailValues], [{_Key, FieldType} | TailFieldInfos], AccValues) ->
     Value =
         try
             case RawValue of
                 [] ->
                     undefined;
-                _ ->
+                _RawValue ->
                     case FieldType of
                         atom ->
                             list_to_atom(RawValue);
@@ -226,25 +230,25 @@ traverse_column([RawValue | TailValues], [{_, FieldType} | TailFieldInfos], AccV
                         float ->
                             list_to_float(RawValue);
                         term ->
-                            {ok, Tokens, _} = erl_scan:string(RawValue),
+                            {ok, Tokens, _EndLocation} = erl_scan:string(RawValue),
                             {ok, Term} = erl_parse:parse_term(Tokens),
                             Term;
                         exprs ->
-                            {ok, Tokens, _} = erl_scan:string(RawValue),
+                            {ok, Tokens, _EndLocation} = erl_scan:string(RawValue),
                             {ok, Exprs} = erl_parse:parse_exprs(Tokens),
                             Exprs;
                         skill ->
                             {FromValueNames, RawValue2} = collect_formula_value_names(list_to_binary(RawValue), "From"),
                             {ToValueNames, RawValue3} = collect_formula_value_names(RawValue2, "To"),
 
-                            {ok, Tokens, _} = erl_scan:string(binary_to_list(RawValue3)),
+                            {ok, Tokens, _EndLocation} = erl_scan:string(binary_to_list(RawValue3)),
                             {ok, Exprs} = erl_parse:parse_exprs(Tokens),
                             #skill_formula{
                                 formula = Exprs,
                                 from_var_names = FromValueNames,
                                 to_var_names = ToValueNames
                             };
-                        _ ->
+                        _FieldType ->
                             RawValue
                     end
             end
@@ -272,7 +276,7 @@ collect_formula_value_names(RawValue, ObjectName) ->
         {match, Matched} ->
             ReplaceRE = list_to_binary("\\$" ++ ObjectName ++ "\."),
             {cm:binaries_to_atoms(lists:flatten(Matched)), re:replace(RawValue, ReplaceRE, <<"">>, [global, {return, binary}])};
-        _ ->
+        nomatch ->
             {[], RawValue}
     end.
 
@@ -304,7 +308,7 @@ get_field_name_type(FieldNameInfoStr) ->
         case TailFieldTypeStr of
             [] ->
                 string;
-            [FieldTypeStr | _] ->
+            [FieldTypeStr | _RestFieldTypeStrs] ->
                 list_to_atom(FieldTypeStr)
         end,
     {FieldName, FieldType}.

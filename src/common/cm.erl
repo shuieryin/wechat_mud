@@ -20,7 +20,6 @@
     index_of/2,
     until_process_terminated/1,
     increase_vsn/3,
-    hot_code_upgrade/0,
     q/0,
     first_to_lower/1,
     remove_last_newline/1,
@@ -70,7 +69,7 @@ is_module_exist(Module) ->
                 _InfoList ->
                     true
             catch
-                _:_ ->
+                _ErrorType:_Reason ->
                     false
             end;
 
@@ -111,7 +110,7 @@ type_of(_X) -> unknown.
 -spec timestamp() -> Timestamp when
     Timestamp :: pos_integer(). % generic integer
 timestamp() ->
-    {Hour, Minute, _} = os:timestamp(),
+    {Hour, Minute, _Second} = os:timestamp(),
     Hour * 1000000 + Minute.
 
 %%--------------------------------------------------------------------
@@ -139,12 +138,6 @@ hot_code_replace(ModuleNameList) ->
     Pos :: -1 | pos_integer(). % generic integer
 index_of(Item, List) ->
     index_of(Item, List, 1).
-index_of(_, [], _) ->
-    -1;
-index_of(Elem, [Elem | _], Pos) ->
-    Pos;
-index_of(Item, [_ | Tail], Pos) ->
-    index_of(Item, Tail, Pos + 1).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -162,7 +155,7 @@ until_process_terminated(PidOrName) ->
         PidOrName /= undefined ->
             MonitorRef = monitor(process, PidOrName),
             receive
-                {'DOWN', MonitorRef, process, _, _} ->
+                {'DOWN', MonitorRef, process, _Pid, _Reason} ->
                     ok
             end;
         true ->
@@ -182,22 +175,6 @@ until_process_terminated(PidOrName) ->
     UpgradedVersion :: SourceVersion.
 increase_vsn(SourceVersion, VersionDepth, Increment) ->
     string:join(increase_vsn(string:tokens(SourceVersion, "."), VersionDepth, Increment, 1, []), ".").
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Hot code upgrade for hot fixes which only increase version number of the third depth.
-%%
-%% @end
-%%--------------------------------------------------------------------
-hot_code_upgrade() ->
-    [{AppName, CurVersion, _, _}] = release_handler:which_releases(permanent),
-    NewVersion = increase_vsn(CurVersion, 3, 1),
-    os:cmd("make OLD_VER=" ++ CurVersion ++ " NEW_VER=" ++ NewVersion ++ " upgrade"),
-    %MakeCommand = "erl -noshell -eval 'cd(\"/root/workspaces/wechat_mud\"),io:format(\"~ts~n\",[os:cmd(\"make OLD_VER=" ++ CurVersion ++ " NEW_VER=" ++ NewVersion ++ " upgrade\")]),init:stop()'",
-    %os:cmd(MakeCommand),
-    release_handler:unpack_release(AppName ++ "_" ++ NewVersion),
-    release_handler:install_release(NewVersion),
-    release_handler:make_permanent(NewVersion).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -238,7 +215,7 @@ remove_last_newline(SrcList) ->
     case lists:reverse(SrcList) of
         [<<"\n">> | Rest] ->
             lists:reverse(Rest);
-        _ ->
+        _NonNeedRemove ->
             SrcList
     end.
 
@@ -315,13 +292,13 @@ type_values(ModuleName, TypeName) ->
     TypeKey = {type, TypeName, 0},
     case dict:is_key(TypeKey, TypeDict) of
         true ->
-            {{ModuleName, {ModulePath, _}, RawValues, []}, any}
+            {{ModuleName, {ModulePath, _SigNum}, RawValues, []}, any}
                 = dict:fetch(TypeKey, TypeDict),
 
             case RawValues of
-                {type, _, _, TypeList} ->
-                    [TypeAtom || {_, _, TypeAtom} <- TypeList];
-                {_, _, TypeAtom} ->
+                {type, _SigNum, _ListType, TypeList} ->
+                    [TypeAtom || {_TypeType, _TypeSigNum, TypeAtom} <- TypeList];
+                {_TypeType, _SigNum, TypeAtom} ->
                     [TypeAtom]
             end;
         false ->
@@ -375,11 +352,11 @@ parse_target_id(TargetArgs) ->
         case Rest of
             [] ->
                 {RawSequence, 1};
-            _ ->
+            Rest ->
                 case re:run(RawSequence, "^[0-9]*$") of
-                    {match, _} ->
+                    {match, _Captured} ->
                         {cm:binary_join(lists:reverse(Rest), <<"_">>), binary_to_integer(RawSequence)};
-                    _ ->
+                    nomatch ->
                         {re:replace(TargetArgs, <<" ">>, <<"_">>, [global, {return, binary}]), 1}
                 end
         end,
@@ -478,15 +455,15 @@ show_errors(Limit) when is_integer(Limit) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec collect_record_value(RecordInfo, Record, NewFieldNames, ExistingFieldBindings) -> UpdatedFieldBindings when
-    RecordInfo :: [atom()], % generic atom
+-spec collect_record_value(RecordFieldNames, Record, NewFieldNames, ExistingFieldBindings) -> UpdatedFieldBindings when
+    RecordFieldNames :: [atom()], % generic atom
     Record :: tuple(), % generic tuple
     NewFieldNames :: [atom()], % generic atom
     ExistingFieldBindings :: erl_eval:bindings(),
     UpdatedFieldBindings :: ExistingFieldBindings.
-collect_record_value(RecordNames, Record, NewFieldNames, ExistingFieldBindings) ->
-    [_ | DataList] = tuple_to_list(Record),
-    do_collect_record_value(RecordNames, DataList, NewFieldNames, ExistingFieldBindings).
+collect_record_value(RecordFieldNames, Record, NewFieldNames, ExistingFieldBindings) ->
+    [_RecordName | DataList] = tuple_to_list(Record),
+    do_collect_record_value(RecordFieldNames, DataList, NewFieldNames, ExistingFieldBindings).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -529,8 +506,6 @@ binaries_to_atoms(StringList) ->
     CurDepth :: VersionDepth,
     AccVersion :: SourceVersion,
     UpgradedVersion :: SourceVersion.
-increase_vsn([], _, _, _, AccVersion) ->
-    lists:reverse(AccVersion);
 increase_vsn([CurDepthVersionNumStr | Tail], VersionDepth, Increment, CurDepth, AccVersion) ->
     UpdatedVersionNum =
         case CurDepth =:= VersionDepth of
@@ -539,7 +514,9 @@ increase_vsn([CurDepthVersionNumStr | Tail], VersionDepth, Increment, CurDepth, 
             false ->
                 CurDepthVersionNumStr
         end,
-    increase_vsn(Tail, VersionDepth, Increment, CurDepth + 1, [UpdatedVersionNum | AccVersion]).
+    increase_vsn(Tail, VersionDepth, Increment, CurDepth + 1, [UpdatedVersionNum | AccVersion]);
+increase_vsn([], _VersionDepth, _Increment, _CurDepth, UpgradedVersion) ->
+    lists:reverse(UpgradedVersion).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -551,9 +528,9 @@ increase_vsn([CurDepthVersionNumStr | Tail], VersionDepth, Increment, CurDepth, 
 -spec get_module_src_path(SourceCompileInfo) -> SrcPath when
     SourceCompileInfo :: any() | beam_lib:compinfo_entry(),
     SrcPath :: string().
-get_module_src_path([{source, SrcPath} | _]) ->
+get_module_src_path([{source, SrcPath} | _RestPaths]) ->
     SrcPath;
-get_module_src_path([_ | Rest]) ->
+get_module_src_path([_Other | Rest]) ->
     get_module_src_path(Rest).
 
 %%--------------------------------------------------------------------
@@ -563,22 +540,41 @@ get_module_src_path([_ | Rest]) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec do_collect_record_value(RecordNames, DataList, FieldNames, AccFieldBindings) -> FinalFieldBingdings when
-    RecordNames :: [atom()], % generic atom
+-spec do_collect_record_value(RecordFieldNames, DataList, TargetFieldNames, AccFieldBindings) -> FinalFieldBingdings when
+    RecordFieldNames :: [atom()], % generic atom
     DataList :: [term()], % generic term
-    FieldNames :: [atom()], % generic atom
+    TargetFieldNames :: [atom()], % generic atom
     AccFieldBindings :: erl_eval:bindings(),
     FinalFieldBingdings :: AccFieldBindings.
-do_collect_record_value([FieldName | RestRecordNames], [FieldValue | RestDataList], FieldNames, AccFieldBindings) ->
-    {UpdatedFieldNames, UpdatedAccFieldBindings}
-        = case cm:index_of(FieldName, FieldNames) of
+do_collect_record_value([FieldName | RestRecordFieldNames], [FieldValue | RestDataList], TargetFieldNames, AccFieldBindings) ->
+    {UpdatedTargetFieldNames, UpdatedAccFieldBindings}
+        = case cm:index_of(FieldName, TargetFieldNames) of
               -1 ->
-                  {FieldNames, AccFieldBindings};
-              _ ->
-                  {lists:delete(FieldName, FieldNames), erl_eval:add_binding(FieldName, FieldValue, AccFieldBindings)}
+                  {TargetFieldNames, AccFieldBindings};
+              _Exist ->
+                  {lists:delete(FieldName, TargetFieldNames), erl_eval:add_binding(FieldName, FieldValue, AccFieldBindings)}
           end,
-    do_collect_record_value(RestRecordNames, RestDataList, UpdatedFieldNames, UpdatedAccFieldBindings);
-do_collect_record_value([], [], _, FinalFieldBingdings) ->
+    do_collect_record_value(RestRecordFieldNames, RestDataList, UpdatedTargetFieldNames, UpdatedAccFieldBindings);
+do_collect_record_value([], [], _RestFieldNames, FinalFieldBingdings) ->
     FinalFieldBingdings;
-do_collect_record_value(_, _, [], FinalFieldBingdings) ->
+do_collect_record_value(_RestRecordFieldNames, _RestDataList, [], FinalFieldBingdings) ->
     FinalFieldBingdings.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Implementation function for index_of/2.
+%% @see index_of/2.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec index_of(Item, List, Pos) -> FinalPos when
+    Item :: term(), % generic term
+    List :: [term()], % generic term
+    Pos :: pos_integer(),
+    FinalPos :: -1 | pos_integer().
+index_of(_Item, [], _Pos) ->
+    -1;
+index_of(Elem, [Elem | _Tail], Pos) ->
+    Pos;
+index_of(Item, [_NotMatchItem | Tail], Pos) ->
+    index_of(Item, Tail, Pos + 1).

@@ -44,11 +44,10 @@ start_link(Port) ->
     Env = #{},
     Dispatch = cowboy_router:compile([{'_', [{'_', ?MODULE, Env}]}]),
     NumberOfAcceptors = 100,
-    Status = cowboy:start_http(ezwebframe, NumberOfAcceptors, [{port, Port}], [{env, [{dispatch, Dispatch}]}]),
-    case Status of
-        {error, _} ->
-            io:format("websockets could not be started -- port ~p probably in use~n", [Port]),
-            init:stop();
+    case cowboy:start_http(ezwebframe, NumberOfAcceptors, [{port, Port}], [{env, [{dispatch, Dispatch}]}]) of
+        {error, Reason} ->
+            error_logger:error_msg("websockets could not be started -- port ~p probably in use~nReason:~p~n", [Port, Reason]),
+            cm:q();
         {ok, _Pid} ->
             io:format("websockets started on port:~p~n", [Port])
     end,
@@ -80,7 +79,7 @@ init(Req, Env) ->
         ["/", "hapi", ModStr] ->
             Mod = list_to_atom(ModStr),
             {ok, cowboy_req:reply(200, "", apply(Mod, start, [Req]), Req), Env};
-        _ ->
+        _Resource ->
             {ok, cowboy_req:reply(200, "", "", Req), Env}
     end.
 
@@ -99,7 +98,7 @@ websocket_handle({text, Msg}, Req, Pid) ->
     case catch decode(Msg) of
         {'EXIT', _Why} ->
             Pid ! {invalidMessageNotJSON, Msg};
-        {struct, _} = Z ->
+        {struct, _Props} = Z ->
             X1 = atomize(Z),
             Pid ! {self(), X1};
         Other ->
@@ -114,13 +113,13 @@ websocket_handle({text, Msg}, Req, Pid) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec websocket_info(Action, Req, Pid) -> Result when
-    Action :: {send, string()} | [{cmd, _} | _] | term(), % generic term
+    Action :: {send, string()} | [{cmd, _Cmd} | _RestCmd] | term(), % generic term
     Req :: cowboy_req:req(),
     Pid :: pid(),
     Result :: {reply, {text, string() | binary()}, Req, Pid, hibernate} | {ok, Req, Pid, hibernate}.
 websocket_info({send, Str}, Req, Pid) ->
     {reply, {text, Str}, Req, Pid, hibernate};
-websocket_info([{cmd, _} | _] = L, Req, Pid) ->
+websocket_info([{cmd, _Cmd} | _RestCmd] = L, Req, Pid) ->
     Bin = list_to_binary(encode([{struct, L}])),
     {reply, {text, Bin}, Req, Pid, hibernate};
 websocket_info(Info, Req, Pid) ->

@@ -279,7 +279,7 @@ do_response_content(
     FinalNlsObjectList = case SceneMessages of
                              [] ->
                                  NlsObjectList;
-                             _ ->
+                             _SceneMessages ->
                                  lists:flatten([lists:reverse(SceneMessages), <<"\n">>, NlsObjectList])
                          end,
     ok = nls_server:do_response_content(LangMap, FinalNlsObjectList, DispatcherPid),
@@ -668,7 +668,7 @@ terminate(
     case Reason of
         normal ->
             ok;
-        _ ->
+        _Reason ->
             true = redis_client_server:set(Uid, PlayerProfile, true),
             ok
     end.

@@ -215,7 +215,7 @@ select_lang(
                     {select_lang, State, [{nls, select_lang}], zh}
             end
         catch
-            _:_ ->
+            _ErrorType:_Reason ->
                 {select_lang, State, [{nls, select_lang}], zh}
         end,
     nls_server:response_content(ContentList, Lang, DispatcherPid),
@@ -255,7 +255,7 @@ input_id(
         case re:run(RawId, ?ID_RULE_REGEX) of
             nomatch ->
                 {[{nls, invalid_id}, RawId, <<"\n\n">>, {nls, please_input_id}], input_id, State};
-            _ ->
+            _Match ->
                 Id = list_to_binary(string:to_lower(binary_to_list(RawId))),
                 case login_server:is_id_registered(Id) of
                     true ->
@@ -477,7 +477,7 @@ input_confirmation(
         = case Other of
               <<>> ->
                   [SummaryContent];
-              _ ->
+              _InvalidCommand ->
                   lists:flatten([{nls, invalid_command}, Other, <<"\n\n">>, SummaryContent])
           end,
     nls_server:response_content(ErrorMessageNlsContent, Lang, DispatcherPid),
@@ -695,11 +695,11 @@ validate_month(MonthBin) ->
         case binary_to_integer(MonthBin) of
             Month when Month >= 1, Month =< 12 ->
                 {ok, Month};
-            _ ->
+            _InvalidMonth ->
                 {false, MonthBin}
         end
     catch
-        _:_ ->
+        _ErrorType:_Reason ->
             {false, MonthBin}
     end.
 
@@ -713,7 +713,7 @@ validate_month(MonthBin) ->
     PlayerProfile :: #player_profile{},
     Content :: [nls_server:value()].
 gen_summary_content(PlayerProfile) ->
-    [_ | RecordValues] = tuple_to_list(PlayerProfile),
+    [_RecordName | RecordValues] = tuple_to_list(PlayerProfile),
     RecordFieldNames = record_info(fields, player_profile),
     lists:reverse([{nls, is_confirmed}, <<"\n">> | gen_summary_content(RecordFieldNames, RecordValues, [])]).
 
@@ -735,7 +735,7 @@ gen_summary_content([FieldName | RestFieldNames], [Value | RestValues], AccSumma
     FieldName == born_month ->
     UpdatedAccSummary = [<<"\n">>, gen_summary_convert_value(FieldName, Value), {nls, list_to_atom(atom_to_list(FieldName) ++ "_label")} | AccSummary],
     gen_summary_content(RestFieldNames, RestValues, UpdatedAccSummary);
-gen_summary_content([_ | RestFieldNames], [_ | RestValues], AccSummary) ->
+gen_summary_content([_FieldName | RestFieldNames], [_Value | RestValues], AccSummary) ->
     gen_summary_content(RestFieldNames, RestValues, AccSummary);
 gen_summary_content([], [], AccSummary) ->
     AccSummary.
@@ -754,9 +754,9 @@ gen_summary_content([], [], AccSummary) ->
     ConvertedValue :: Value.
 gen_summary_convert_value(id, Value) ->
     Value;
-gen_summary_convert_value(_, Value) when is_integer(Value) ->
+gen_summary_convert_value(_Key, Value) when is_integer(Value) ->
     integer_to_binary(Value);
-gen_summary_convert_value(_, Value) when is_atom(Value) ->
+gen_summary_convert_value(_Key, Value) when is_atom(Value) ->
     {nls, Value};
-gen_summary_convert_value(_, Value) ->
+gen_summary_convert_value(_Key, Value) ->
     Value.
