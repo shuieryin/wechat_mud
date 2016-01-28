@@ -52,7 +52,20 @@ exec(DispatcherPid, Uid) ->
     StateName :: player_fsm:player_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
-show_hp(#command_context{dispatcher_pid = DispatcherPid}, #player_state{self = #player_profile{battle_status = #battle_status{'Hp' = Hp, 'L_hp' = MaxHp}}} = State, StateName) ->
+show_hp(
+    #command_context{
+        dispatcher_pid = DispatcherPid
+    },
+    #player_state{
+        self = #player_profile{
+            battle_status = #battle_status{
+                'Hp' = Hp,
+                'M_hp' = MaxHp
+            }
+        }
+    } = State,
+    StateName
+) ->
     Message = [<<"hp: ">>, integer_to_binary(Hp), <<" / ">>, integer_to_binary(MaxHp), <<"\n">>],
     UpdatedState = player_fsm:do_response_content(State, Message, DispatcherPid),
     {ok, StateName, UpdatedState}.

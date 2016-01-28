@@ -257,7 +257,13 @@ init([]) ->
     State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
-handle_call({get, Key}, _From, #state{redis_client_pid = RedisClientPid} = State) ->
+handle_call(
+    {get, Key},
+    _From,
+    #state{
+        redis_client_pid = RedisClientPid
+    } = State
+) ->
     Value = case eredis:q(RedisClientPid, ["GET", Key]) of
                 {ok, undefined} ->
                     undefined;
@@ -409,7 +415,9 @@ format_status(Opt, StatusData) ->
     UpdatedState :: State.
 connect_reids(State) ->
     RedisClientPid = connect_redis_loop(),
-    State#state{redis_client_pid = RedisClientPid}.
+    State#state{
+        redis_client_pid = RedisClientPid
+    }.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -460,7 +468,11 @@ make_connection(ParentPid) ->
 %%--------------------------------------------------------------------
 -spec save(State) -> ok | fail when
     State :: #state{}.
-save(#state{redis_client_pid = RedisClientPid}) ->
+save(
+    #state{
+        redis_client_pid = RedisClientPid
+    }
+) ->
     {ok, Result} = eredis:q(RedisClientPid, ["SAVE"]),
     case Result of
         <<"OK">> ->
@@ -483,7 +495,14 @@ save(#state{redis_client_pid = RedisClientPid}) ->
     IsSave :: boolean(),
     State :: #state{},
     IsValueSet :: boolean().
-set(Key, Value, IsSave, #state{redis_client_pid = RedisClientPid} = State) ->
+set(
+    Key,
+    Value,
+    IsSave,
+    #state{
+        redis_client_pid = RedisClientPid
+    } = State
+) ->
     IsValueSet =
         case eredis:q(RedisClientPid, ["SET", Key, term_to_binary(Value)]) of
             {ok, <<"OK">>} ->
@@ -511,7 +530,13 @@ set(Key, Value, IsSave, #state{redis_client_pid = RedisClientPid} = State) ->
     Keys :: [key()],
     IsSave :: boolean(),
     State :: #state{}.
-del(Keys, IsSave, #state{redis_client_pid = RedisClientPid} = State) ->
+del(
+    Keys,
+    IsSave,
+    #state{
+        redis_client_pid = RedisClientPid
+    } = State
+) ->
     IsDel = case eredis:q(RedisClientPid, ["DEL" | Keys]) of
                 {ok, _} -> % <<"OK">>
                     true;

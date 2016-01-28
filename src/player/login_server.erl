@@ -321,14 +321,38 @@ init([]) ->
     State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
-handle_call({is_uid_registered, Uid}, _From, #state{registered_uids_set = RegisteredUidsSet} = State) ->
+handle_call(
+    {is_uid_registered, Uid},
+    _From,
+    #state{
+        registered_uids_set = RegisteredUidsSet
+    } = State
+) ->
     {reply, gb_sets:is_element(Uid, RegisteredUidsSet), State};
-handle_call({is_id_registered, Id}, _From, #state{registered_ids_set = RegisteredIdsSet} = State) ->
+handle_call(
+    {is_id_registered, Id},
+    _From,
+    #state{
+        registered_ids_set = RegisteredIdsSet
+    } = State
+) ->
     {reply, gb_sets:is_element(Id, RegisteredIdsSet), State};
-handle_call({is_in_registration, Uid}, _From, #state{registering_uids_set = RegisteringUidsSet} = State) ->
+handle_call(
+    {is_in_registration, Uid},
+    _From,
+    #state{
+        registering_uids_set = RegisteringUidsSet
+    } = State
+) ->
     Result = gb_sets:is_element(Uid, RegisteringUidsSet),
     {reply, Result, State};
-handle_call({delete_user, Uid}, _From, #state{registered_uids_set = RegisteredUidsSet} = State) ->
+handle_call(
+    {delete_user, Uid},
+    _From,
+    #state{
+        registered_uids_set = RegisteredUidsSet
+    } = State
+) ->
     LoggedOutState = logout(internal, Uid, State),
     ok = cm:until_process_terminated(Uid),
     UpdatedRegisteredUidsSet = gb_sets:delete(Uid, RegisteredUidsSet),
@@ -337,20 +361,54 @@ handle_call({delete_user, Uid}, _From, #state{registered_uids_set = RegisteredUi
     ok = redis_client_server:async_set(registered_uids_set, UpdatedRegisteredUidsSet, true),
 
     {reply, ok, LoggedOutState#state{registered_uids_set = UpdatedRegisteredUidsSet}};
-handle_call({is_uid_logged_in, Uid}, _From, #state{logged_in_uids_set = LoggedUidsSet} = State) ->
+handle_call(
+    {is_uid_logged_in, Uid},
+    _From,
+    #state{
+        logged_in_uids_set = LoggedUidsSet
+    } = State
+) ->
     {reply, gb_sets:is_element(Uid, LoggedUidsSet), State};
-handle_call(registered_player_uids, _From, #state{registered_uids_set = RegisteredUidsSet} = State) ->
+handle_call(
+    registered_player_uids,
+    _From,
+    #state{
+        registered_uids_set = RegisteredUidsSet
+    } = State
+) ->
     {reply, RegisteredUidsSet, State};
-handle_call(logged_in_player_uids, _From, #state{logged_in_uids_set = LoggedInUidsSet} = State) ->
+handle_call(
+    logged_in_player_uids,
+    _From,
+    #state{
+        logged_in_uids_set = LoggedInUidsSet
+    } = State
+) ->
     {reply, LoggedInUidsSet, State};
-handle_call({registration_done, #player_profile{uid = Uid, id = Id} = PlayerProfile}, _From, #state{registering_uids_set = RegisteringUidsSet, registered_uids_set = RegisteredUidsSet, registered_ids_set = RegisteredIdsSet} = State) ->
+handle_call(
+    {
+        registration_done,
+        #player_profile{
+            uid = Uid,
+            id = Id
+        } = PlayerProfile
+    },
+    _From,
+    #state{
+        registering_uids_set = RegisteringUidsSet,
+        registered_uids_set = RegisteredUidsSet,
+        registered_ids_set = RegisteredIdsSet
+    } = State
+) ->
     UpdatedRegisteredUidsSet = gb_sets:add(Uid, RegisteredUidsSet),
 
     ok = redis_client_server:async_set(registered_uids_set, UpdatedRegisteredUidsSet, false),
 
     UpdatedRegisteredIdsSet = gb_sets:add(Id,
         case redis_client_server:get(Uid) of
-            #player_profile{id = ExistingId} ->
+            #player_profile{
+                id = ExistingId
+            } ->
                 gb_sets:del_element(ExistingId, RegisteredIdsSet);
             _ ->
                 RegisteredIdsSet
@@ -364,7 +422,13 @@ handle_call({registration_done, #player_profile{uid = Uid, id = Id} = PlayerProf
         registering_uids_set = gb_sets:del_element(Uid, RegisteringUidsSet)
     },
     {reply, ok, UpdatedState};
-handle_call({login, DispatcherPid, Uid}, _From, #state{logged_in_uids_set = LoggedInUidsSet} = State) ->
+handle_call(
+    {login, DispatcherPid, Uid},
+    _From,
+    #state{
+        logged_in_uids_set = LoggedInUidsSet
+    } = State
+) ->
     UpdatedLoggedInUidsSet =
         case gb_sets:is_element(Uid, LoggedInUidsSet) of
             false ->
@@ -380,7 +444,13 @@ handle_call({logout, DispatcherPid, Uid}, _From, State) ->
     ok = player_fsm:response_content(Uid, [{nls, already_logout}], DispatcherPid),
     UpdatedState = logout(internal, Uid, State),
     {reply, ok, UpdatedState};
-handle_call(logout_all_players, _From, #state{logged_in_uids_set = LoggedInUidsSet} = State) ->
+handle_call(
+    logout_all_players,
+    _From,
+    #state{
+        logged_in_uids_set = LoggedInUidsSet
+    } = State
+) ->
     {reply, logout_all_players(LoggedInUidsSet), State}.
 
 %%--------------------------------------------------------------------
@@ -404,12 +474,19 @@ handle_call(logout_all_players, _From, #state{logged_in_uids_set = LoggedInUidsS
     State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
-handle_cast({register_uid, DispatcherPid, Uid}, #state{born_type_info_map = BornTypeInfoMap} = State) ->
+handle_cast(
+    {register_uid, DispatcherPid, Uid},
+    #state{
+        born_type_info_map = BornTypeInfoMap
+    } = State
+) ->
     UpdatedState =
         case register_fsm_sup:add_child(DispatcherPid, Uid, BornTypeInfoMap) of
             {ok, _} ->
                 error_logger:info_msg("Started register fsm successfully.~nUid:~p~n", [Uid]),
-                State#state{registering_uids_set = gb_sets:add(Uid, State#state.registering_uids_set)};
+                State#state{
+                    registering_uids_set = gb_sets:add(Uid, State#state.registering_uids_set)
+                };
             {error, Reason} ->
                 error_logger:error_msg("Failed to start register fsm.~nUid:~p~nReason:~p~n", [Uid, Reason]),
                 State
@@ -512,7 +589,13 @@ format_status(Opt, StatusData) ->
     Uid :: player_fsm:uid(),
     State :: #state{},
     UpdatedState :: State.
-logout(internal, Uid, #state{logged_in_uids_set = LoggedInUidsSet} = State) ->
+logout(
+    internal,
+    Uid,
+    #state{
+        logged_in_uids_set = LoggedInUidsSet
+    } = State
+) ->
     UpdatedLoggedInUidsSet =
         case gb_sets:is_element(Uid, LoggedInUidsSet) of
             false ->
@@ -521,7 +604,9 @@ logout(internal, Uid, #state{logged_in_uids_set = LoggedInUidsSet} = State) ->
                 ok = player_fsm:logout(Uid),
                 gb_sets:del_element(Uid, LoggedInUidsSet)
         end,
-    State#state{logged_in_uids_set = UpdatedLoggedInUidsSet}.
+    State#state{
+        logged_in_uids_set = UpdatedLoggedInUidsSet
+    }.
 
 %%--------------------------------------------------------------------
 %% @doc

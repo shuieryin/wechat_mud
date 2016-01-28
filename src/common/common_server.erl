@@ -249,14 +249,42 @@ init([]) ->
     State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
-handle_call(is_wechat_debug, _From, #state{common_config = #common_config{is_wechat_debug = IsWechatDebug}} = State) ->
+handle_call(
+    is_wechat_debug,
+    _From,
+    #state{
+        common_config = #common_config{
+            is_wechat_debug = IsWechatDebug
+        }
+    } = State
+) ->
     {reply, IsWechatDebug, State};
-handle_call({set_wechat_debug, IsWechatDebug}, _From, #state{common_config = CommonConfigs} = State) ->
+handle_call(
+    {set_wechat_debug, IsWechatDebug},
+    _From,
+    #state{
+        common_config = CommonConfigs
+    } = State
+) ->
     {reply, IsWechatDebug, State#state{common_config = CommonConfigs#common_config{is_wechat_debug = IsWechatDebug}}};
-handle_call({get_runtime_data, Phases}, _From, #state{runtime_datas = RuntimeDatasMap} = State) ->
+handle_call(
+    {get_runtime_data, Phases},
+    _From,
+    #state{
+        runtime_datas = RuntimeDatasMap
+    } = State
+) ->
     TargetRuntimeData = runtime_data(Phases, RuntimeDatasMap),
     {reply, TargetRuntimeData, State};
-handle_call(random_npc, _From, #state{runtime_datas = #{npc_profile := NpcsRuntimeDataMap}} = State) ->
+handle_call(
+    random_npc,
+    _From,
+    #state{
+        runtime_datas = #{
+            npc_profile := NpcsRuntimeDataMap
+        }
+    } = State
+) ->
     RandomKey = cm:random_from_list(maps:keys(NpcsRuntimeDataMap)),
     #{RandomKey := RandomNpc} = NpcsRuntimeDataMap,
     {reply, RandomNpc, State}.

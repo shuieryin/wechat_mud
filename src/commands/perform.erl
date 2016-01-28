@@ -65,7 +65,25 @@ exec(DispatcherPid, Uid, Args) ->
     StateName :: player_fsm:player_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
-from_init(#command_context{self_targeted_message = SelfMessage, dispatcher_pid = DispatcherPid, target_name = TargetId, command_args = SkillId} = CommandContext, #player_state{self = #player_profile{id = SrcPlayerId, scene = CurSceneName, battle_status = BattleStatus} = PlayerProfile, skill_map = SkillMap, battle_status_ri = BattleStatusRi} = State, StateName) ->
+from_init(
+    #command_context{
+        self_targeted_message = SelfMessage,
+        dispatcher_pid = DispatcherPid,
+        target_name = TargetId,
+        command_args = SkillId
+    } = CommandContext,
+
+    #player_state{
+        self = #player_profile{
+            id = SrcPlayerId,
+            scene = CurSceneName,
+            battle_status = BattleStatus
+        } = PlayerProfile,
+        skill_map = SkillMap,
+        battle_status_ri = BattleStatusRi
+    } = State,
+    StateName
+) ->
     UpdatedState =
         if
             SrcPlayerId == TargetId ->
@@ -74,7 +92,11 @@ from_init(#command_context{self_targeted_message = SelfMessage, dispatcher_pid =
                 case maps:get(SkillId, SkillMap, undefined) of
                     undefined ->
                         player_fsm:do_response_content(State, [{nls, no_such_skill, [SkillId]}], DispatcherPid);
-                    #skill{skill_formula = #skill_formula{from_var_names = FromVarNames}} = Skill ->
+                    #skill{
+                        skill_formula = #skill_formula{
+                            from_var_names = FromVarNames
+                        }
+                    } = Skill ->
                         ValueBindings = cm:collect_record_value(BattleStatusRi, BattleStatus, FromVarNames, erl_eval:new_bindings()),
                         UpdatedCommandContext = CommandContext#command_context{
                             command_func = to_settle,
@@ -104,7 +126,21 @@ from_init(#command_context{self_targeted_message = SelfMessage, dispatcher_pid =
     StateName :: player_fsm:player_state_name() | npc_fsm:npc_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
-to_settle(#command_context{from = #simple_player{name = SrcName}} = CommandContext, #player_state{self = #player_profile{battle_status = TargetBattleStatus} = TargetPlayerProfile, battle_status_ri = BattleStatusRi} = State, StateName) ->
+to_settle(
+    #command_context{
+        from = #simple_player{
+            name = SrcName
+        }
+    } = CommandContext,
+
+    #player_state{
+        self = #player_profile{
+            battle_status = TargetBattleStatus
+        } = TargetPlayerProfile,
+        battle_status_ri = BattleStatusRi
+    } = State,
+    StateName
+) ->
     {DamageValue, UpdatedTargetBattleStatus} = skill_calc(CommandContext, TargetBattleStatus, BattleStatusRi),
 
     UnderAttackMessage = {nls, attack_under_attack_desc, [SrcName, {nls, unarmed}]},
@@ -112,9 +148,22 @@ to_settle(#command_context{from = #simple_player{name = SrcName}} = CommandConte
     UpdatedState = player_fsm:append_message_local([UnderAttackMessage, <<"\n">>, DamageMessage, <<"\n">>], battle, State),
 
     {ok, StateName, UpdatedState#player_state{self = TargetPlayerProfile#player_profile{battle_status = UpdatedTargetBattleStatus}}};
-to_settle(CommandContext, #npc_state{battle_status = TargetBattleStatus, battle_status_ri = BattleStatusRi} = State, StateName) ->
+to_settle(
+    CommandContext,
+    #npc_state{
+        battle_status = TargetBattleStatus,
+        battle_status_ri = BattleStatusRi
+    } = State,
+    StateName
+) ->
     {_, UpdatedTargetBattleStatus} = skill_calc(CommandContext, TargetBattleStatus, BattleStatusRi),
-    {ok, StateName, State#npc_state{battle_status = UpdatedTargetBattleStatus}}.
+    {
+        ok,
+        StateName,
+        State#npc_state{
+            battle_status = UpdatedTargetBattleStatus
+        }
+    }.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -128,7 +177,26 @@ to_settle(CommandContext, #npc_state{battle_status = TargetBattleStatus, battle_
     BattleStatusRi :: [atom()], % generic atom
     DamageValue :: non_neg_integer(),
     UpdatedTargetBattleStatus :: TargetBattleStatus.
-skill_calc(#command_context{command_args = #perform_args{skill = #skill{skill_formula = #skill_formula{formula = SkillFormula, to_var_names = ToVarNames}}, value_bindings = ValueBindings} = PerformArgs, from = #simple_player{uid = SrcUid}} = CommandContext, #battle_status{'Hp' = TargetHp} = TargetBattleStatus, BattleStatusRi) ->
+skill_calc(
+    #command_context{
+        command_args = #perform_args{
+            skill = #skill{
+                skill_formula = #skill_formula{
+                    formula = SkillFormula,
+                    to_var_names = ToVarNames
+                }
+            },
+            value_bindings = ValueBindings
+        } = PerformArgs,
+        from = #simple_player{
+            uid = SrcUid
+        }
+    } = CommandContext,
+    #battle_status{
+        'Hp' = TargetHp
+    } = TargetBattleStatus,
+    BattleStatusRi
+) ->
     FinalBindings = cm:collect_record_value(BattleStatusRi, TargetBattleStatus, ToVarNames, ValueBindings),
     {value, RawDamageValue, _} = erl_eval:exprs(SkillFormula, FinalBindings),
     DamageValue =
@@ -161,12 +229,36 @@ skill_calc(#command_context{command_args = #perform_args{skill = #skill{skill_fo
     StateName :: player_fsm:player_state_name() | npc_fsm:npc_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
-feedback(#command_context{to = #simple_player{name = TargetName}, command_args = #perform_args{damage_value = DamageValue}, dispatcher_pid = DispatcherPid}, State, StateName) ->
+feedback(
+    #command_context{
+        to = #simple_player{
+            name = TargetName
+        },
+        command_args = #perform_args{
+            damage_value = DamageValue
+        },
+        dispatcher_pid = DispatcherPid
+    },
+    State,
+    StateName
+) ->
     AttackMessage = {nls, attack_desc, [TargetName, {nls, unarmed}]},
     DamageMessage = {nls, damage_desc, [integer_to_binary(DamageValue)]},
     UpdatedState = player_fsm:do_response_content(State, [AttackMessage, <<"\n">>, DamageMessage, <<"\n">>], DispatcherPid),
     {ok, StateName, UpdatedState};
-feedback(#command_context{to = #simple_npc{npc_name = TargetName}, command_args = #perform_args{damage_value = DamageValue}, dispatcher_pid = DispatcherPid}, State, StateName) ->
+feedback(
+    #command_context{
+        to = #simple_npc{
+            npc_name = TargetName
+        },
+        command_args = #perform_args{
+            damage_value = DamageValue
+        },
+        dispatcher_pid = DispatcherPid
+    },
+    State,
+    StateName
+) ->
     AttackMessage = {nls, attack_desc, [TargetName, {nls, unarmed}]},
     DamageMessage = {nls, damage_desc, [integer_to_binary(DamageValue)]},
     UpdatedState = player_fsm:do_response_content(State, [AttackMessage, <<"\n">>, DamageMessage, <<"\n">>], DispatcherPid),

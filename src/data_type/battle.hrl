@@ -14,7 +14,7 @@
     'Defense' :: integer(),
     'M_defense' :: integer(),
     'Hp' :: integer(),
-    'L_hp' :: integer(),
+    'M_hp' :: integer(),
     'Dexterity' :: integer(),
-    'L_dexterity' :: integer()
+    'M_dexterity' :: integer()
 }).

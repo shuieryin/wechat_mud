@@ -64,7 +64,11 @@
 %%--------------------------------------------------------------------
 -spec start_link(NpcProfile) -> gen:start_ret() when
     NpcProfile :: #npc_profile{}.
-start_link(#npc_profile{npc_uid = NpcUid} = NpcProfile) ->
+start_link(
+    #npc_profile{
+        npc_uid = NpcUid
+    } = NpcProfile
+) ->
     gen_fsm:start_link({local, NpcUid}, ?MODULE, NpcProfile, []).
 
 %%--------------------------------------------------------------------
@@ -73,9 +77,21 @@ start_link(#npc_profile{npc_uid = NpcUid} = NpcProfile) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec simple_npc(#npc_profile{}) -> #simple_npc{}.
-simple_npc(#npc_profile{npc_uid = NpcUid, npc_id = NpcId, npc_name = NpcName}) ->
-    #simple_npc{npc_uid = NpcUid, npc_id = NpcId, npc_name = NpcName}.
+-spec simple_npc(NpcProfile) -> SimpleNpc when
+    NpcProfile :: #npc_profile{},
+    SimpleNpc :: #simple_npc{}.
+simple_npc(
+    #npc_profile{
+        npc_uid = NpcUid,
+        npc_id = NpcId,
+        npc_name = NpcName
+    }
+) ->
+    #simple_npc{
+        npc_uid = NpcUid,
+        npc_id = NpcId,
+        npc_name = NpcName
+    }.
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -115,9 +131,9 @@ init(NpcProfile) ->
             'Defense' = L_defense,
             'M_defense' = L_defense,
             'Hp' = L_hp,
-            'L_hp' = L_hp,
+            'M_hp' = L_hp,
             'Dexterity' = L_dexterity,
-            'L_dexterity' = L_dexterity
+            'M_dexterity' = L_dexterity
         }
     },
     {ok, non_battle, State}.
@@ -144,7 +160,16 @@ init(NpcProfile) ->
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-non_battle({execute_command, #command_context{command = CommandModule, command_func = CommandFunc} = CommandContext}, State) ->
+non_battle(
+    {
+        execute_command,
+        #command_context{
+            command = CommandModule,
+            command_func = CommandFunc
+        } = CommandContext
+    },
+    State
+) ->
     {ok, NextStateName, UpdatedState} = CommandModule:CommandFunc(CommandContext, State, non_battle),
     {next_state, NextStateName, UpdatedState}.
 

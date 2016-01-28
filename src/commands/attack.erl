@@ -62,7 +62,16 @@ exec(DispatcherPid, Uid, TargetArgs) ->
     StateName :: player_fsm:player_state_name() | npc_fsm:npc_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
-to_settle(#command_context{from = #simple_player{uid = SrcUid, name = SrcName}} = CommandContext, #player_state{} = State, StateName) ->
+to_settle(
+    #command_context{
+        from = #simple_player{
+            uid = SrcUid,
+            name = SrcName
+        }
+    } = CommandContext,
+    #player_state{} = State,
+    StateName
+) ->
     Message = [{nls, under_attack, [SrcName]}, <<"\n">>],
     UpdatedState = player_fsm:append_message_local(Message, battle, State),
 
@@ -72,7 +81,15 @@ to_settle(#command_context{from = #simple_player{uid = SrcUid, name = SrcName}} 
     ok = cm:execute_command(SrcUid, UpdatedCommandContext),
 
     {ok, StateName, UpdatedState};
-to_settle(#command_context{from = #simple_player{uid = SrcUid}} = CommandContext, #npc_state{} = State, StateName) ->
+to_settle(
+    #command_context{
+        from = #simple_player{
+            uid = SrcUid
+        }
+    } = CommandContext,
+    #npc_state{} = State,
+    StateName
+) ->
     UpdatedCommandContext = CommandContext#command_context{
         command_func = feedback
     },
@@ -91,11 +108,29 @@ to_settle(#command_context{from = #simple_player{uid = SrcUid}} = CommandContext
     StateName :: player_fsm:player_state_name() | npc_fsm:npc_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
-feedback(#command_context{dispatcher_pid = DispatcherPid, to = #simple_player{name = TargetName}}, State, StateName) ->
+feedback(
+    #command_context{
+        dispatcher_pid = DispatcherPid,
+        to = #simple_player{
+            name = TargetName
+        }
+    },
+    State,
+    StateName
+) ->
     Message = [{nls, launch_attack, [TargetName]}],
     UpdatedState = player_fsm:do_response_content(State, Message, DispatcherPid),
     {ok, StateName, UpdatedState};
-feedback(#command_context{dispatcher_pid = DispatcherPid, to = #simple_npc{npc_name = TargetName}}, State, StateName) ->
+feedback(
+    #command_context{
+        dispatcher_pid = DispatcherPid,
+        to = #simple_npc{
+            npc_name = TargetName
+        }
+    },
+    State,
+    StateName
+) ->
     Message = [{nls, launch_attack, [TargetName]}],
     UpdatedState = player_fsm:do_response_content(State, Message, DispatcherPid),
     {ok, StateName, UpdatedState}.

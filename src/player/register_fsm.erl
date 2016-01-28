@@ -199,7 +199,12 @@ init({Uid, DispatcherPid, BornTypeInfoMap}) ->
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-select_lang({LangBin, DispatcherPid}, #state{self = PlayerProfile} = State) ->
+select_lang(
+    {LangBin, DispatcherPid},
+    #state{
+        self = PlayerProfile
+    } = State
+) ->
     {NextState, NewState, ContentList, Lang} =
         try
             case nls_server:is_valid_lang(LangBin) of
@@ -237,7 +242,14 @@ select_lang({LangBin, DispatcherPid}, #state{self = PlayerProfile} = State) ->
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-input_id({RawId, DispatcherPid}, #state{self = #player_profile{lang = Lang} = PlayerProfile} = State) ->
+input_id(
+    {RawId, DispatcherPid},
+    #state{
+        self = #player_profile{
+            lang = Lang
+        } = PlayerProfile
+    } = State
+) ->
     % TODO: filter npc, items and prohibited names
     {MessageList, NextStateName, UpdatedState} =
         case re:run(RawId, ?ID_RULE_REGEX) of
@@ -280,7 +292,14 @@ input_gender({RawGender, DispatcherPid}, State) when RawGender == <<"m">> orelse
     input_gender(male, DispatcherPid, State);
 input_gender({RawGender, DispatcherPid}, State) when RawGender == <<"f">> orelse RawGender == <<"female">> ->
     input_gender(female, DispatcherPid, State);
-input_gender({Other, DispatcherPid}, #state{self = #player_profile{lang = Lang}} = State) ->
+input_gender(
+    {Other, DispatcherPid},
+    #state{
+        self = #player_profile{
+            lang = Lang
+        }
+    } = State
+) ->
     ErrorMessageNlsList =
         case Other of
             <<>> ->
@@ -290,9 +309,25 @@ input_gender({Other, DispatcherPid}, #state{self = #player_profile{lang = Lang}}
         end,
     nls_server:response_content(ErrorMessageNlsList, Lang, DispatcherPid),
     {next_state, input_gender, State}.
-input_gender(Gender, DispatcherPid, #state{self = #player_profile{lang = Lang} = PlayerProfile} = State) ->
+input_gender(
+    Gender,
+    DispatcherPid,
+    #state{
+        self = #player_profile{
+            lang = Lang
+        } = PlayerProfile
+    } = State
+) ->
     nls_server:response_content([{nls, please_input_born_month}], Lang, DispatcherPid),
-    {next_state, input_born_month, State#state{self = PlayerProfile#player_profile{gender = Gender}}}.
+    {
+        next_state,
+        input_born_month,
+        State#state{
+            self = PlayerProfile#player_profile{
+                gender = Gender
+            }
+        }
+    }.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -314,7 +349,14 @@ input_gender(Gender, DispatcherPid, #state{self = #player_profile{lang = Lang} =
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-input_born_month({MonthBin, DispatcherPid}, #state{self = #player_profile{lang = Lang} = PlayerProfile} = State) ->
+input_born_month(
+    {MonthBin, DispatcherPid},
+    #state{
+        self = #player_profile{
+            lang = Lang
+        } = PlayerProfile
+    } = State
+) ->
     {NewStateName, NewState, ContentList} =
         case validate_month(MonthBin) of
             {ok, Month} ->
@@ -357,7 +399,16 @@ input_born_month({MonthBin, DispatcherPid}, #state{self = #player_profile{lang =
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{uid = PlayerUid, born_month = BornMonth} = PlayerProfile, born_type_info_map = BornTypeInfoMap} = State) when Answer == <<"y">> orelse Answer == <<"yes">> ->
+input_confirmation(
+    {Answer, DispatcherPid},
+    #state{
+        self = #player_profile{
+            uid = PlayerUid,
+            born_month = BornMonth
+        } = PlayerProfile,
+        born_type_info_map = BornTypeInfoMap
+    } = State
+) when Answer == <<"y">> orelse Answer == <<"yes">> ->
     #npc_profile{npc_name = NpcName, character_desc = CharacterDescription, self_description = SelfDescription} = common_server:random_npc(),
 
     #born_type_info{
@@ -380,9 +431,9 @@ input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{uid = 
             'Defense' = L_defense,
             'M_defense' = L_defense,
             'Hp' = L_hp,
-            'L_hp' = L_hp,
+            'M_hp' = L_hp,
             'Dexterity' = L_dexterity,
-            'L_dexterity' = L_dexterity
+            'M_dexterity' = L_dexterity
         }
     },
 
@@ -391,10 +442,37 @@ input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{uid = 
     ok = login_server:registration_done(FinalPlayerProfile),
     ok = login_server:login(DispatcherPid, PlayerUid),
     {stop, normal, UpdatedState};
-input_confirmation({Answer, DispatcherPid}, #state{self = #player_profile{lang = Lang, uid = Uid}, born_type_info_map = BornTypeInfoMap}) when Answer == <<"n">> orelse Answer == <<"no">> ->
+input_confirmation(
+    {Answer, DispatcherPid},
+    #state{
+        self = #player_profile{
+            lang = Lang,
+            uid = Uid
+        },
+        born_type_info_map = BornTypeInfoMap
+    }
+) when Answer == <<"n">> orelse Answer == <<"no">> ->
     nls_server:response_content([{nls, please_input_id}], Lang, DispatcherPid),
-    {next_state, input_id, #state{self = #player_profile{uid = Uid, lang = Lang}, born_type_info_map = BornTypeInfoMap}};
-input_confirmation({Other, DispatcherPid}, #state{self = #player_profile{lang = Lang}, summary_content = SummaryContent} = State) ->
+    {
+        next_state,
+        input_id,
+        #state{
+            self = #player_profile{
+                uid = Uid,
+                lang = Lang
+            },
+            born_type_info_map = BornTypeInfoMap
+        }
+    };
+input_confirmation(
+    {Other, DispatcherPid},
+    #state{
+        self = #player_profile{
+            lang = Lang
+        },
+        summary_content = SummaryContent
+    } = State
+) ->
     ErrorMessageNlsContent
         = case Other of
               <<>> ->
@@ -512,7 +590,14 @@ handle_event(stop, _StateName, State) ->
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_sync_event(current_player_profile, _From, StateName, #state{self = CurrentPlayerProfile} = State) ->
+handle_sync_event(
+    current_player_profile,
+    _From,
+    StateName,
+    #state{
+        self = CurrentPlayerProfile
+    } = State
+) ->
     {reply, CurrentPlayerProfile, StateName, State}.
 
 %%--------------------------------------------------------------------

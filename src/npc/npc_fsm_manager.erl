@@ -114,7 +114,13 @@ new_npcs(NpcsSpec) ->
     State :: #state{},
     Reason :: term(). % generic term
 init([]) ->
-    {ok, #state{npc_fsms_map = #{}, npc_fsm_ids_bank = gb_sets:new()}}.
+    {
+        ok,
+        #state{
+            npc_fsms_map = #{},
+            npc_fsm_ids_bank = gb_sets:new()
+        }
+    }.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -160,7 +166,12 @@ handle_call(_Request, _From, State) ->
     State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
-handle_cast({new_npcs, NewNpcsMap}, #state{npc_fsms_map = NpcsMap} = State) ->
+handle_cast(
+    {new_npcs, NewNpcsMap},
+    #state{
+        npc_fsms_map = NpcsMap
+    } = State
+) ->
     UpdatedNpcsMap = maps:merge(NpcsMap, NewNpcsMap),
     {noreply, State#state{npc_fsms_map = UpdatedNpcsMap}};
 handle_cast(stop, State) ->
@@ -304,4 +315,11 @@ new_npc(Amount, NpcBornProfile, AccNpcsList, AccOverallNpcsMap) ->
         npc_uid = NpcUid
     },
     npc_fsm_sup:add_child(NpcProfile),
-    new_npc(Amount - 1, NpcBornProfile, [npc_fsm:simple_npc(NpcProfile) | AccNpcsList], AccOverallNpcsMap#{NpcUid => NpcUid}).
+    new_npc(
+        Amount - 1,
+        NpcBornProfile,
+        [npc_fsm:simple_npc(NpcProfile) | AccNpcsList],
+        AccOverallNpcsMap#{
+            NpcUid => NpcUid
+        }
+    ).

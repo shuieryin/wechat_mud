@@ -192,15 +192,43 @@ append_message(Uid, Message, MailType) ->
     MailType :: mail_type(),
     State :: #player_state{},
     UpdatedState :: State.
-append_message_local(Message, battle, #player_state{mail_box = #mailbox{scene = SceneMessages} = MailBox} = State) ->
+append_message_local(
+    Message,
+    battle,
+    #player_state{
+        mail_box = #mailbox{
+            scene = SceneMessages
+        } = MailBox
+    } = State
+) ->
     UpdatedSceneMessages = [Message | SceneMessages],
     State#player_state{mail_box = MailBox#mailbox{scene = UpdatedSceneMessages}};
-append_message_local(Message, scene, #player_state{mail_box = #mailbox{scene = SceneMessages} = MailBox} = State) ->
+append_message_local(
+    Message,
+    scene,
+    #player_state{
+        mail_box = #mailbox{
+            scene = SceneMessages
+        } = MailBox
+    } = State
+) ->
     UpdatedSceneMessages = [Message | SceneMessages],
     State#player_state{mail_box = MailBox#mailbox{scene = UpdatedSceneMessages}};
-append_message_local(Message, other, #player_state{mail_box = #mailbox{scene = SceneMessages} = MailBox} = State) ->
+append_message_local(
+    Message,
+    other,
+    #player_state{
+        mail_box = #mailbox{
+            scene = SceneMessages
+        } = MailBox
+    } = State
+) ->
     UpdatedSceneMessages = [Message | SceneMessages],
-    State#player_state{mail_box = MailBox#mailbox{scene = UpdatedSceneMessages}}.
+    State#player_state{
+        mail_box = MailBox#mailbox{
+            scene = UpdatedSceneMessages
+        }
+    }.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -208,9 +236,23 @@ append_message_local(Message, other, #player_state{mail_box = #mailbox{scene = S
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec simple_player(#player_profile{}) -> #simple_player{}.
-simple_player(#player_profile{uid = Uid, name = Name, id = Id, self_description = SelfDescription}) ->
-    #simple_player{uid = Uid, name = Name, id = Id, character_description = SelfDescription}.
+-spec simple_player(PlayerProfile) -> SimplePlayer when
+    PlayerProfile :: #player_profile{},
+    SimplePlayer :: #simple_player{}.
+simple_player(
+    #player_profile{
+        uid = Uid,
+        name = Name,
+        id = Id,
+        self_description = SelfDescription
+    }
+) ->
+    #simple_player{
+        uid = Uid,
+        name = Name,
+        id = Id,
+        character_description = SelfDescription
+    }.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -224,7 +266,16 @@ simple_player(#player_profile{uid = Uid, name = Name, id = Id, self_description 
     NlsObjectList :: [nls_server:nls_object()],
     DispatcherPid :: pid(),
     ClearedMailBoxState :: #player_state{}.
-do_response_content(#player_state{lang_map = LangMap, mail_box = #mailbox{scene = SceneMessages} = MailBox} = State, NlsObjectList, DispatcherPid) ->
+do_response_content(
+    #player_state{
+        lang_map = LangMap,
+        mail_box = #mailbox{
+            scene = SceneMessages
+        } = MailBox
+    } = State,
+    NlsObjectList,
+    DispatcherPid
+) ->
     FinalNlsObjectList = case SceneMessages of
                              [] ->
                                  NlsObjectList;
@@ -232,7 +283,11 @@ do_response_content(#player_state{lang_map = LangMap, mail_box = #mailbox{scene 
                                  lists:flatten([lists:reverse(SceneMessages), <<"\n">>, NlsObjectList])
                          end,
     ok = nls_server:do_response_content(LangMap, FinalNlsObjectList, DispatcherPid),
-    State#player_state{mail_box = MailBox#mailbox{scene = []}}.
+    State#player_state{
+        mail_box = MailBox#mailbox{
+            scene = []
+        }
+    }.
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -298,7 +353,22 @@ init({Uid, DispatcherPid}) ->
     NextStateName :: player_state_name(),
     NextState :: State,
     NewState :: State.
-non_battle({general_target, #command_context{target_name = TargetId, self_targeted_message = SelfMessage, dispatcher_pid = DispatcherPid} = CommandContext}, #player_state{self = #player_profile{scene = CurSceneName, id = SrcPlayerId} = PlayerProfile} = State) ->
+non_battle(
+    {
+        general_target,
+        #command_context{
+            target_name = TargetId,
+            self_targeted_message = SelfMessage,
+            dispatcher_pid = DispatcherPid
+        } = CommandContext
+    },
+    #player_state{
+        self = #player_profile{
+            scene = CurSceneName,
+            id = SrcPlayerId
+        } = PlayerProfile
+    } = State
+) ->
     UpdatedState =
         if
             SrcPlayerId == TargetId ->
@@ -311,7 +381,16 @@ non_battle({general_target, #command_context{target_name = TargetId, self_target
                 State
         end,
     {next_state, non_battle, UpdatedState};
-non_battle({execute_command, #command_context{command = CommandModule, command_func = CommandFunc} = CommandContext}, State) ->
+non_battle(
+    {
+        execute_command,
+        #command_context{
+            command = CommandModule,
+            command_func = CommandFunc
+        } = CommandContext
+    },
+    State
+) ->
     {ok, NextStateName, UpdatedState} = CommandModule:CommandFunc(CommandContext, State, non_battle),
     {next_state, NextStateName, UpdatedState}.
 
@@ -340,7 +419,16 @@ non_battle({execute_command, #command_context{command = CommandModule, command_f
     NextState :: State,
     Reason :: normal | term(), % generic term
     NewState :: State.
-non_battle(logout, From, #player_state{self = #player_profile{scene = CurSceneName, uid = Uid} = PlayerProfile} = State) ->
+non_battle(
+    logout,
+    From,
+    #player_state{
+        self = #player_profile{
+            scene = CurSceneName,
+            uid = Uid
+        } = PlayerProfile
+    } = State
+) ->
     scene_fsm:leave(CurSceneName, Uid),
     true = redis_client_server:set(Uid, PlayerProfile, true),
     error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
@@ -369,7 +457,16 @@ non_battle(logout, From, #player_state{self = #player_profile{scene = CurSceneNa
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-battle({execute_command, #command_context{command = CommandModule, command_func = CommandFunc} = CommandContext}, State) ->
+battle(
+    {
+        execute_command,
+        #command_context{
+            command = CommandModule,
+            command_func = CommandFunc
+        } = CommandContext
+    },
+    State
+) ->
     {ok, NextStateName, UpdatedState} = CommandModule:CommandFunc(CommandContext, State, battle),
     {next_state, NextStateName, UpdatedState}.
 
@@ -498,9 +595,27 @@ handle_event(stop, _StateName, State) ->
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_sync_event(get_lang, _From, StateName, #player_state{self = #player_profile{lang = Lang}} = State) ->
+handle_sync_event(
+    get_lang,
+    _From,
+    StateName,
+    #player_state{
+        self = #player_profile{
+            lang = Lang
+        }
+    } = State
+) ->
     {reply, Lang, StateName, State};
-handle_sync_event(current_scene_name, _From, StateName, #player_state{self = #player_profile{scene = CurrentSceneName}} = State) ->
+handle_sync_event(
+    current_scene_name,
+    _From,
+    StateName,
+    #player_state{
+        self = #player_profile{
+            scene = CurrentSceneName
+        }
+    } = State
+) ->
     {reply, CurrentSceneName, StateName, State}.
 
 %%--------------------------------------------------------------------
@@ -541,7 +656,15 @@ handle_info(_Info, StateName, State) ->
     Reason :: normal | shutdown | {shutdown, term()} | term(), % generic term
     StateName :: player_state_name(),
     StateData :: #player_state{}.
-terminate(Reason, _StateName, #player_state{self = #player_profile{uid = Uid} = PlayerProfile}) ->
+terminate(
+    Reason,
+    _StateName,
+    #player_state{
+        self = #player_profile{
+            uid = Uid
+        } = PlayerProfile
+    }
+) ->
     case Reason of
         normal ->
             ok;

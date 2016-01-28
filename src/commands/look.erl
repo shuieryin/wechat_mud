@@ -86,7 +86,22 @@ exec(DispatcherPid, Uid, TargetArgs) ->
     StateName :: player_fsm:player_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
-being_look(#command_context{from = #simple_player{uid = SrcUid, name = SrcName}} = CommandContext, #player_state{self = #player_profile{uid = TargetPlayerUid, description = Description, self_description = SelfDescription}} = State, StateName) ->
+being_look(
+    #command_context{
+        from = #simple_player{
+            uid = SrcUid,
+            name = SrcName
+        }
+    } = CommandContext,
+    #player_state{
+        self = #player_profile{
+            uid = TargetPlayerUid,
+            description = Description,
+            self_description = SelfDescription
+        }
+    } = State,
+    StateName
+) ->
     TargetDescription = if
                             SrcUid == TargetPlayerUid ->
                                 SelfDescription;
@@ -103,7 +118,19 @@ being_look(#command_context{from = #simple_player{uid = SrcUid, name = SrcName}}
     SceneMessage = [SrcName, {nls, under_look}, <<"\n">>],
     UpdatedState = player_fsm:append_message_local(SceneMessage, scene, State),
     {ok, StateName, UpdatedState};
-being_look(#command_context{from = #simple_player{uid = SrcUid}} = CommandContext, #npc_state{self = #npc_profile{character_desc = TargetDescription}} = State, StateName) ->
+being_look(
+    #command_context{
+        from = #simple_player{
+            uid = SrcUid
+        }
+    } = CommandContext,
+    #npc_state{
+        self = #npc_profile{
+            character_desc = TargetDescription
+        }
+    } = State,
+    StateName
+) ->
     Message = [TargetDescription, <<"\n">>],
 
     UpdatedCommandContext = CommandContext#command_context{
@@ -125,7 +152,14 @@ being_look(#command_context{from = #simple_player{uid = SrcUid}} = CommandContex
     StateName :: player_fsm:player_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
-feedback(#command_context{command_args = TargetDescription, dispatcher_pid = DispatcherPid}, State, StateName) ->
+feedback(
+    #command_context{
+        command_args = TargetDescription,
+        dispatcher_pid = DispatcherPid
+    },
+    State,
+    StateName
+) ->
     UpdatedState = player_fsm:do_response_content(State, TargetDescription, DispatcherPid),
     {ok, StateName, UpdatedState}.
 
@@ -141,7 +175,18 @@ feedback(#command_context{command_args = TargetDescription, dispatcher_pid = Dis
     StateName :: player_fsm:player_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
-look_scene(#command_context{dispatcher_pid = DispatcherPid}, #player_state{self = #player_profile{scene = SceneName, uid = Uid}} = State, StateName) ->
+look_scene(
+    #command_context{
+        dispatcher_pid = DispatcherPid
+    },
+    #player_state{
+        self = #player_profile{
+            scene = SceneName,
+            uid = Uid
+        }
+    } = State,
+    StateName
+) ->
     scene_fsm:show_scene(SceneName, Uid, DispatcherPid),
     {ok, StateName, State}.
 

@@ -70,7 +70,18 @@ exec(DispatcherPid, Uid, RawTargetLang) ->
     StateName :: player_fsm:player_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
-switch_lang(#command_context{command_args = TargetLang, dispatcher_pid = DispatcherPid}, #player_state{self = #player_profile{uid = Uid} = PlayerProfile} = State, StateName) ->
+switch_lang(
+    #command_context{
+        command_args = TargetLang,
+        dispatcher_pid = DispatcherPid
+    },
+    #player_state{
+        self = #player_profile{
+            uid = Uid
+        } = PlayerProfile
+    } = State,
+    StateName
+) ->
     TargetLangMap = nls_server:get_lang_map(TargetLang),
     UpdatedState = player_fsm:do_response_content(
         State#player_state{lang_map = TargetLangMap},
@@ -79,7 +90,13 @@ switch_lang(#command_context{command_args = TargetLang, dispatcher_pid = Dispatc
     ),
     UpdatedPlayerProfile = PlayerProfile#player_profile{lang = TargetLang},
     ok = redis_client_server:async_set(Uid, UpdatedPlayerProfile, true),
-    {ok, StateName, UpdatedState#player_state{self = UpdatedPlayerProfile}}.
+    {
+        ok,
+        StateName,
+        UpdatedState#player_state{
+            self = UpdatedPlayerProfile
+        }
+    }.
 
 %%%===================================================================
 %%% Internal functions (N/A)

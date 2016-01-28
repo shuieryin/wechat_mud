@@ -71,7 +71,19 @@ exec(DispatcherPid, Uid, Direction) ->
     StateName :: player_fsm:player_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
-go_direction(#command_context{command_args = Direction, dispatcher_pid = DispatcherPid}, #player_state{self = #player_profile{scene = CurSceneName, uid = Uid} = PlayerProfile} = State, StateName) ->
+go_direction(
+    #command_context{
+        command_args = Direction,
+        dispatcher_pid = DispatcherPid
+    },
+    #player_state{
+        self = #player_profile{
+            scene = CurSceneName,
+            uid = Uid
+        } = PlayerProfile
+    } = State,
+    StateName
+) ->
     {TargetSceneName, UpdatedState} =
         case scene_fsm:go_direction(CurSceneName, Uid, Direction) of
             undefined ->
@@ -80,7 +92,15 @@ go_direction(#command_context{command_args = Direction, dispatcher_pid = Dispatc
                 ok = scene_fsm:enter(NewSceneName, DispatcherPid, player_fsm:simple_player(PlayerProfile), CurSceneName),
                 {NewSceneName, State}
         end,
-    {ok, StateName, UpdatedState#player_state{self = PlayerProfile#player_profile{scene = TargetSceneName}}}.
+    {
+        ok,
+        StateName,
+        UpdatedState#player_state{
+            self = PlayerProfile#player_profile{
+                scene = TargetSceneName
+            }
+        }
+    }.
 
 %%--------------------------------------------------------------------
 %% @doc

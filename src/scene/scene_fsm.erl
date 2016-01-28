@@ -86,7 +86,11 @@
 %%--------------------------------------------------------------------
 -spec start_link(SceneInfo) -> gen:start_ret() when
     SceneInfo :: #scene_info{}.
-start_link(#scene_info{id = SceneName} = SceneInfo) ->
+start_link(
+    #scene_info{
+        id = SceneName
+    } = SceneInfo
+) ->
     gen_fsm:start_link({local, SceneName}, ?MODULE, SceneInfo, []).
 
 %%--------------------------------------------------------------------
@@ -165,7 +169,11 @@ show_scene(CurSceneName, Uid, DispatcherPid) ->
 %%--------------------------------------------------------------------
 -spec general_target(CommandContext) -> ok when
     CommandContext :: #command_context{}.
-general_target(#command_context{scene = SceneName} = CommandContext) ->
+general_target(
+    #command_context{
+        scene = SceneName
+    } = CommandContext
+) ->
     gen_fsm:send_all_state_event(SceneName, {general_target, CommandContext}).
 
 %%--------------------------------------------------------------------
@@ -228,7 +236,13 @@ player_quit(SceneName, Uid) ->
     StateName :: secene_state_name(),
     StateData :: #scene_state{},
     Reason :: term(). % generic term
-init(#scene_info{id = SceneName, npcs = NpcsSpec, exits = ExitsMap} = SceneInfo) ->
+init(
+    #scene_info{
+        id = SceneName,
+        npcs = NpcsSpec,
+        exits = ExitsMap
+    } = SceneInfo
+) ->
     io:format("scene server ~p starting...", [SceneName]),
 
     SceneNpcsList = npc_fsm_manager:new_npcs(NpcsSpec),
@@ -267,7 +281,16 @@ init(#scene_info{id = SceneName, npcs = NpcsSpec, exits = ExitsMap} = SceneInfo)
     NextState :: State,
     NewState :: State,
     Reason :: term(). % generic term
-morning({execute_command, #command_context{command = CommandModule, command_func = CommandFunc} = CommandContext}, State) ->
+morning(
+    {
+        execute_command,
+        #command_context{
+            command = CommandModule,
+            command_func = CommandFunc
+        } = CommandContext
+    },
+    State
+) ->
     {ok, NextStateName, UpdatedState} = CommandModule:CommandFunc(CommandContext, State, morning),
     {next_state, NextStateName, UpdatedState}.
 
@@ -294,7 +317,17 @@ morning({execute_command, #command_context{command = CommandModule, command_func
     NextState :: State,
     Reason :: normal | term(), % generic term
     NewState :: State.
-morning({execute_command, #command_context{command = CommandModule, command_func = CommandFunc} = CommandContext}, _From, State) ->
+morning(
+    {
+        execute_command,
+        #command_context{
+            command = CommandModule,
+            command_func = CommandFunc
+        } = CommandContext
+    },
+    _From,
+    State
+) ->
     {ok, Result, NextStateName, UpdatedState} = CommandModule:CommandFunc(CommandContext, State, morning),
     {reply, Result, NextStateName, UpdatedState}.
 
@@ -387,7 +420,22 @@ state_name(_Event, _From, State) ->
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_event({enter, DispatcherPid, #simple_player{uid = Uid, name = PlayerName} = SimplePlayer, FromSceneName}, StateName, #scene_state{scene_object_list = SceneObjectList, exits_scenes = ExitsScenes} = State) ->
+handle_event(
+    {
+        enter,
+        DispatcherPid,
+        #simple_player{
+            uid = Uid,
+            name = PlayerName
+        } = SimplePlayer,
+        FromSceneName
+    },
+    StateName,
+    #scene_state{
+        scene_object_list = SceneObjectList,
+        exits_scenes = ExitsScenes
+    } = State
+) ->
     {ok, IsPlayerExist} = do_show_scene(State, Uid, DispatcherPid),
     EnterSceneMessage = case FromSceneName of
                             undefined ->
@@ -404,14 +452,37 @@ handle_event({enter, DispatcherPid, #simple_player{uid = Uid, name = PlayerName}
                 State#scene_state{scene_object_list = [SimplePlayer | SceneObjectList]}
         end,
     {next_state, StateName, UpdatedState};
-handle_event({leave, Uid}, StateName, #scene_state{scene_object_list = SceneObjectList} = State) ->
+handle_event(
+    {leave, Uid},
+    StateName,
+    #scene_state{
+        scene_object_list = SceneObjectList
+    } = State
+) ->
     #simple_player{name = PlayerName} = scene_player_by_uid(SceneObjectList, Uid),
     broadcast(State, [{nls, leave_scene, [PlayerName, {nls, unknown}]}, <<"\n">>], scene, [Uid]),
     {next_state, StateName, remove_scene_object(Uid, State)};
 handle_event({show_scene, Uid, DispatcherPid}, StateName, State) ->
     {ok, _} = do_show_scene(State, Uid, DispatcherPid),
     {next_state, StateName, State};
-handle_event({general_target, #command_context{from = #simple_player{uid = SrcUid}, dispatcher_pid = DispatcherPid, target_name = TargetId, sequence = Sequence, target_name_bin = TargetBin} = CommandContext}, StateName, #scene_state{scene_object_list = SceneObjectList} = State) ->
+handle_event(
+    {
+        general_target,
+        #command_context{
+            from = #simple_player{
+                uid = SrcUid
+            },
+            dispatcher_pid = DispatcherPid,
+            target_name = TargetId,
+            sequence = Sequence,
+            target_name_bin = TargetBin
+        } = CommandContext
+    },
+    StateName,
+    #scene_state{
+        scene_object_list = SceneObjectList
+    } = State
+) ->
     TargetSceneObject = grab_target_scene_objects(SceneObjectList, TargetId, Sequence),
     if
         undefined == TargetSceneObject ->
@@ -423,9 +494,13 @@ handle_event({general_target, #command_context{from = #simple_player{uid = SrcUi
 
             TargetUid =
                 case TargetSceneObject of
-                    #simple_npc{npc_uid = TargetNpcUid} ->
+                    #simple_npc{
+                        npc_uid = TargetNpcUid
+                    } ->
                         TargetNpcUid;
-                    #simple_player{uid = TargetPlayerUid} ->
+                    #simple_player{
+                        uid = TargetPlayerUid
+                    } ->
                         TargetPlayerUid
                 end,
             ok = cm:execute_command(TargetUid, UpdatedCommandContext)
@@ -461,13 +536,49 @@ grab_target_scene_objects(SceneObjectList, TargetCharacterName, Sequence) ->
     Sequence :: look:sequence(),
     Counter :: pos_integer(), % generic integer
     TargetSceneObject :: scene_object() | undefined.
-grab_target_scene_objects([#simple_npc{npc_id = TargetNpcId} = SceneObject | _], TargetNpcId, Sequence, Sequence) ->
+grab_target_scene_objects(
+    [
+        #simple_npc{
+            npc_id = TargetNpcId
+        } = SceneObject | _
+    ],
+    TargetNpcId,
+    Sequence,
+    Sequence
+) ->
     SceneObject;
-grab_target_scene_objects([#simple_player{id = TargetPlayerId} = SceneObject | _], TargetPlayerId, Sequence, Sequence) ->
+grab_target_scene_objects(
+    [
+        #simple_player{
+            id = TargetPlayerId
+        } = SceneObject | _
+    ],
+    TargetPlayerId,
+    Sequence,
+    Sequence
+) ->
     SceneObject;
-grab_target_scene_objects([#simple_npc{npc_id = TargetNpcId} | Tail], TargetNpcId, Sequence, Counter) ->
+grab_target_scene_objects(
+    [
+        #simple_npc{
+            npc_id = TargetNpcId
+        } | Tail
+    ],
+    TargetNpcId,
+    Sequence,
+    Counter
+) ->
     grab_target_scene_objects(Tail, TargetNpcId, Sequence, Counter + 1);
-grab_target_scene_objects([#simple_player{id = TargetPlayerId} | Tail], TargetPlayerId, Sequence, Counter) ->
+grab_target_scene_objects(
+    [
+        #simple_player{
+            id = TargetPlayerId
+        } | Tail
+    ],
+    TargetPlayerId,
+    Sequence,
+    Counter
+) ->
     grab_target_scene_objects(Tail, TargetPlayerId, Sequence, Counter + 1);
 grab_target_scene_objects([_ | Tail], TargetName, Sequence, Counter) ->
     grab_target_scene_objects(Tail, TargetName, Sequence, Counter);
@@ -484,8 +595,15 @@ grab_target_scene_objects([], _, _, _) ->
     SceneObjectKey :: npc_fsm:npc_uid() | player_fsm:uid(),
     State :: #scene_state{},
     UpdatedState :: State.
-remove_scene_object(SceneObjectKey, #scene_state{scene_object_list = SceneObjectList} = State) ->
-    State#scene_state{scene_object_list = lists:keydelete(SceneObjectKey, 2, SceneObjectList)}.
+remove_scene_object(
+    SceneObjectKey,
+    #scene_state{
+        scene_object_list = SceneObjectList
+    } = State
+) ->
+    State#scene_state{
+        scene_object_list = lists:keydelete(SceneObjectKey, 2, SceneObjectList)
+    }.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -519,7 +637,17 @@ remove_scene_object(SceneObjectKey, #scene_state{scene_object_list = SceneObject
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_sync_event({go_direction, Uid, TargetDirection}, _From, StateName, #scene_state{scene_info = #scene_info{exits = ExitsMap}, scene_object_list = SceneObjectList} = State) ->
+handle_sync_event(
+    {go_direction, Uid, TargetDirection},
+    _From,
+    StateName,
+    #scene_state{
+        scene_info = #scene_info{
+            exits = ExitsMap
+        },
+        scene_object_list = SceneObjectList
+    } = State
+) ->
     {TargetSceneName, UpdatedState} =
         case maps:get(TargetDirection, ExitsMap, undefined) of
             undefined ->
@@ -531,9 +659,25 @@ handle_sync_event({go_direction, Uid, TargetDirection}, _From, StateName, #scene
         end,
 
     {reply, TargetSceneName, StateName, UpdatedState};
-handle_sync_event(scene_object_list, _From, StateName, #scene_state{scene_object_list = SceneObjectList} = State) ->
+handle_sync_event(
+    scene_object_list,
+    _From,
+    StateName,
+    #scene_state{
+        scene_object_list = SceneObjectList
+    } = State
+) ->
     {reply, SceneObjectList, StateName, State};
-handle_sync_event(get_exits_map, _From, StateName, #scene_state{scene_info = #scene_info{exits = ExitsMap}} = State) ->
+handle_sync_event(
+    get_exits_map,
+    _From,
+    StateName,
+    #scene_state{
+        scene_info = #scene_info{
+            exits = ExitsMap
+        }
+    } = State
+) ->
     {reply, ExitsMap, StateName, State}.
 
 %%--------------------------------------------------------------------
@@ -668,12 +812,41 @@ gen_character_name([], _, AccList, UpdatedIsCallerExist) ->
                 AccList
         end,
     {UpdatedIsCallerExist, SceneObjectNameList};
-gen_character_name([#simple_npc{npc_id = NpcId, npc_name = NpcName} | Tail], CallerUid, AccSceneObjectNameList, IsCallerExist) ->
+gen_character_name(
+    [
+        #simple_npc{
+            npc_id = NpcId,
+            npc_name = NpcName
+        } | Tail
+    ],
+    CallerUid,
+    AccSceneObjectNameList,
+    IsCallerExist
+) ->
     NpcIdForDisplay = re:replace(NpcId, "_", " ", [global, {return, binary}]),
     gen_character_name(Tail, CallerUid, [NpcName, <<" (">>, NpcIdForDisplay, <<")">>, <<"\n">>] ++ AccSceneObjectNameList, IsCallerExist);
-gen_character_name([#simple_player{uid = CallerUid} | Tail], CallerUid, AccCharactersNameList, _) ->
+gen_character_name(
+    [
+        #simple_player{
+            uid = CallerUid
+        } | Tail
+    ],
+    CallerUid,
+    AccCharactersNameList,
+    _
+) ->
     gen_character_name(Tail, CallerUid, AccCharactersNameList, true);
-gen_character_name([#simple_player{name = PlayerName, id = Id} | Tail], CallerUid, AccSceneObjectNameList, IsCallerExist) ->
+gen_character_name(
+    [
+        #simple_player{
+            name = PlayerName,
+            id = Id
+        } | Tail
+    ],
+    CallerUid,
+    AccSceneObjectNameList,
+    IsCallerExist
+) ->
     gen_character_name(Tail, CallerUid, [PlayerName, <<" (">>, Id, <<")">>, <<"\n">>] ++ AccSceneObjectNameList, IsCallerExist).
 
 %%--------------------------------------------------------------------
@@ -688,7 +861,18 @@ gen_character_name([#simple_player{name = PlayerName, id = Id} | Tail], CallerUi
     State :: #scene_state{},
     Uid :: player_fsm:uid(),
     IsCallerExist :: boolean().
-do_show_scene(#scene_state{scene_info = #scene_info{title = SceneTitle, desc = SceneDesc}, scene_object_list = SceneObjectList, exits_description = ExitsDescription}, Uid, DispatcherPid) ->
+do_show_scene(
+    #scene_state{
+        scene_info = #scene_info{
+            title = SceneTitle,
+            desc = SceneDesc
+        },
+        scene_object_list = SceneObjectList,
+        exits_description = ExitsDescription
+    },
+    Uid,
+    DispatcherPid
+) ->
     {IsCallerExist, SceneObjectNameList} = gen_characters_name_list(SceneObjectList, Uid),
     ContentList = lists:flatten([
         {nls, SceneTitle},
@@ -715,11 +899,20 @@ do_show_scene(#scene_state{scene_info = #scene_info{title = SceneTitle, desc = S
     Message :: player_fsm:mail_object(),
     MailType :: player_fsm:mail_type(),
     ExceptUids :: [player_fsm:uid()].
-broadcast(#scene_state{scene_object_list = SceneObjectList}, Message, MailType, ExceptUids) ->
+broadcast(
+    #scene_state{
+        scene_object_list = SceneObjectList
+    },
+    Message,
+    MailType,
+    ExceptUids
+) ->
     lists:foreach(
         fun(SceneObject) ->
             case SceneObject of
-                #simple_player{uid = TargetPlayerUid} ->
+                #simple_player{
+                    uid = TargetPlayerUid
+                } ->
                     IsBroadcast = not lists:member(TargetPlayerUid, ExceptUids),
                     if
                         IsBroadcast ->
@@ -744,7 +937,14 @@ broadcast(#scene_state{scene_object_list = SceneObjectList}, Message, MailType, 
     SceneObjectList :: [scene_object()],
     TargetPlayerUid :: player_fsm:uid(),
     Result :: #simple_player{} | undefined.
-scene_player_by_uid([#simple_player{uid = TargetPlayerUid} = SimplePlayer | _Rest], TargetPlayerUid) ->
+scene_player_by_uid(
+    [
+        #simple_player{
+            uid = TargetPlayerUid
+        } = SimplePlayer | _Rest
+    ],
+    TargetPlayerUid
+) ->
     SimplePlayer;
 scene_player_by_uid([_OtherSceneObject | Rest], TargetPlayerUid) ->
     scene_player_by_uid(Rest, TargetPlayerUid);

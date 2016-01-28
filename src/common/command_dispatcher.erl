@@ -211,7 +211,11 @@ process_request(Req) ->
         parse_failed ->
             error_logger:info_msg("Parse xml request failed:~tp~n", [Req]),
             ?EMPTY_CONTENT;
-        #wechat_post_params{'Content' = RawInputBin, 'ToUserName' = PlatformId, 'FromUserName' = UidBin} = ReqParams ->
+        #wechat_post_params{
+            'Content' = RawInputBin,
+            'ToUserName' = PlatformId,
+            'FromUserName' = UidBin
+        } = ReqParams ->
             error_logger:info_msg("User input:~tp~n", [RawInputBin]),
 
             Uid = binary_to_atom(UidBin, utf8),
@@ -292,7 +296,12 @@ process_request(Req) ->
     ReqParams :: #wechat_post_params{},
     InputForUnregister :: binary() | no_reply | subscribe | unsubscribe,
     FuncForRegsiter :: function().
-gen_action_from_message_type(#wechat_post_params{'MsgType' = MsgType, 'Event' = Event} = ReqParams) ->
+gen_action_from_message_type(
+    #wechat_post_params{
+        'MsgType' = MsgType,
+        'Event' = Event
+    } = ReqParams
+) ->
     case MsgType of
         <<"event">> ->
             case Event of
@@ -492,7 +501,13 @@ gen_get_params(HeaderParams) ->
     Bin :: binary(),
     AccParamsMap :: map(), % generic map
     Params :: #wechat_get_params{}.
-gen_get_params(-1, _, #{signature := Signature, timestamp := TimeStamp, nonce := Nonce} = ParamsMap) ->
+gen_get_params(-1, _,
+    #{
+        signature := Signature,
+        timestamp := TimeStamp,
+        nonce := Nonce
+    } = ParamsMap
+) ->
     {wechat_get_params, Signature, TimeStamp, Nonce, maps:get(echostr, ParamsMap, undefined)};
 gen_get_params(Pos, Bin, ParamsMap) ->
     {ValueBin, CurPosByValue} = gen_get_param_value(binary:at(Bin, Pos), [], Pos - 1, Bin),

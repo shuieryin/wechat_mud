@@ -176,7 +176,14 @@ show_langs(DispatcherPid, Lang) ->
     State :: #state{},
     NlsObjectList :: [nls_server:nls_object()],
     DispatcherPid :: pid().
-do_response_content(Lang, #state{nls_map = NlsMap}, NlsObjectList, DispatcherPid) ->
+do_response_content(
+    Lang,
+    #state{
+        nls_map = NlsMap
+    },
+    NlsObjectList,
+    DispatcherPid
+) ->
     LangMap = maps:get(Lang, NlsMap),
     do_response_content(LangMap, NlsObjectList, DispatcherPid).
 
@@ -266,7 +273,13 @@ init([]) ->
     NlsMap = lists:foldl(fun load_nls_file/2, CommonNlsMap, FileNameList),
 
     io:format("started~n"),
-    {ok, #state{nls_map = NlsMap, valid_langs = [atom_to_binary(ValidLang, utf8) || ValidLang <- maps:keys(NlsMap)]}}.
+    {
+        ok,
+        #state{
+            nls_map = NlsMap,
+            valid_langs = [atom_to_binary(ValidLang, utf8) || ValidLang <- maps:keys(NlsMap)]
+        }
+    }.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -319,10 +332,23 @@ load_nls_file(NlsFileName, AccNlsMap) ->
     State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
-handle_call({get, NlsKey, Lang}, _From, #state{nls_map = NlsMap} = State) ->
+handle_call(
+    {get, NlsKey, Lang},
+    _From,
+    #state{
+        nls_map = NlsMap
+    } = State
+) ->
     NlsValue = maps:get(NlsKey, maps:get(Lang, NlsMap)),
     {reply, NlsValue, State};
-handle_call({is_valid_lang, TargetLang}, _From, #state{nls_map = NlsMap, valid_langs = ValidLangs} = State) ->
+handle_call(
+    {is_valid_lang, TargetLang},
+    _From,
+    #state{
+        nls_map = NlsMap,
+        valid_langs = ValidLangs
+    } = State
+) ->
     Result = case cm:type_of(TargetLang) of
                  binary ->
                      lists:member(TargetLang, ValidLangs);
@@ -332,11 +358,23 @@ handle_call({is_valid_lang, TargetLang}, _From, #state{nls_map = NlsMap, valid_l
                      false
              end,
     {reply, Result, State};
-handle_call({get_nls_content, NlsObjectList, Lang}, _From, #state{nls_map = NlsMap} = State) ->
+handle_call(
+    {get_nls_content, NlsObjectList, Lang},
+    _From,
+    #state{
+        nls_map = NlsMap
+    } = State
+) ->
     LangMap = maps:get(Lang, NlsMap),
     ReturnContent = fill_in_nls(NlsObjectList, LangMap, []),
     {reply, ReturnContent, State};
-handle_call({get_lang_map, Lang}, _From, #state{nls_map = NlsMap} = State) ->
+handle_call(
+    {get_lang_map, Lang},
+    _From,
+    #state{
+        nls_map = NlsMap
+    } = State
+) ->
     {reply, maps:get(Lang, NlsMap), State}.
 
 %%--------------------------------------------------------------------
@@ -361,7 +399,12 @@ handle_call({get_lang_map, Lang}, _From, #state{nls_map = NlsMap} = State) ->
 handle_cast({response_content, NlsObjectList, Lang, DispatcherPid}, State) ->
     do_response_content(Lang, State, NlsObjectList, DispatcherPid),
     {noreply, State};
-handle_cast({show_langs, DispatcherPid, Lang}, #state{nls_map = NlsMap} = State) ->
+handle_cast(
+    {show_langs, DispatcherPid, Lang},
+    #state{
+        nls_map = NlsMap
+    } = State
+) ->
     LangsNls = lists:reverse([[atom_to_binary(LangName, utf8), <<"\n">>] || LangName <- maps:keys(NlsMap)]),
     do_response_content(Lang, State, lists:flatten([{nls, possible_lang}, <<"\n">>, LangsNls]), DispatcherPid),
     {noreply, State};
@@ -499,7 +542,12 @@ gen_keysmap([RawKey | Tail], KeysMap, Pos, ValuesMap) ->
                                    ValuesMap
                            end
                    end,
-    gen_keysmap(Tail, KeysMap#{Pos => Key}, Pos + 1, NewValuesMap).
+    gen_keysmap(
+        Tail,
+        KeysMap#{Pos => Key},
+        Pos + 1,
+        NewValuesMap
+    ).
 
 %%--------------------------------------------------------------------
 %% @doc
