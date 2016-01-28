@@ -1,11 +1,11 @@
-FROM shuieryin/erlang:18.1
+FROM shuieryin/erlang:18.2-1
 
 MAINTAINER Shuieryin <shuieryin@gmail.com>
 
 ENV container docker
 ENV WORKSPACE_PATH=/root/workspaces
 
-LABEL "version"="0.1.0" \
+LABEL "version"="0.1.2" \
 	"description"="Wechat mud game." \
 	"author"="Shuieryin"
 
