@@ -271,7 +271,6 @@ format_status(Opt, StatusData) ->
     SceneNpcsList :: [#simple_npc{}],
     NpcsMap :: npcs_map().
 traverse_npcspec(NpcsSpec) ->
-    io:format("NpcsSpec:~p~n", [NpcsSpec]),
     traverse_npcspec(NpcsSpec, [], #{}).
 
 %%--------------------------------------------------------------------

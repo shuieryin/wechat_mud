@@ -5,14 +5,16 @@
         },
         {description, "This project aims to provide mud games funny stuffs."},
         {registered, []},
-        {applications, [
-            kernel,
-            stdlib,
-            cowboy,
-            erlsom,
-            eredis,
-            ecsv,
-            uuid]
+        {applications,
+            [
+                kernel,
+                stdlib,
+                cowboy,
+                erlsom,
+                eredis,
+                ecsv,
+                uuid
+            ]
         },
         {mod, {wechat_mud_app, []}},
         {env, []}

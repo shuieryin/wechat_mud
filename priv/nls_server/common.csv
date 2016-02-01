@@ -19,3 +19,4 @@ enter_scene,${player}走了过来。,${player} comes by.
 unknown,未知,unknown
 look_self,你看了下自己，傻呵呵笑了下。,"You look at yourself, laugh at silly."
 attack_self,你想打自己，但无从下手。,You cannot attack yourself.
+you,你,you

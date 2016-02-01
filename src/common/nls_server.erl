@@ -54,7 +54,7 @@
 
 -type support_lang() :: zh | en.
 -type key() :: atom(). % generic atom
--type value() :: binary().
+-type value() :: term(). % generic term
 -type field_name() :: atom(). % generic atom
 -type lang_map() :: #{key() => value()}.
 -type key_pos() :: non_neg_integer(). % generic integer
@@ -233,7 +233,8 @@ get_lang_map(Lang) ->
     Replacements :: [value()],
     AccContent :: SrcContent,
     FinalContent :: AccContent.
-fill_in_content(<<"${}", Rest/binary>>, [Replacement | Replacements], AccContent) ->
+fill_in_content(<<"${}", Rest/binary>>, [RawReplacement | Replacements], AccContent) ->
+    Replacement = cm:to_binary(RawReplacement),
     fill_in_content(Rest, Replacements, <<AccContent/binary, Replacement/binary>>);
 fill_in_content(<<"${", _IgnoreOneByte, Rest/binary>>, Replacements, AccContent) ->
     fill_in_content(<<"${", Rest/binary>>, Replacements, AccContent);
@@ -600,7 +601,7 @@ fill_in_nls([{nls, NlsKey, Replacements} | Tail], LangMap, AccContentList) ->
     ReplacedContent = fill_in_content(maps:get(NlsKey, LangMap), ConvertedReplacements, <<>>),
     fill_in_nls(Tail, LangMap, [ReplacedContent | AccContentList]);
 fill_in_nls([NonNlsKey | Tail], LangMap, AccContentList) ->
-    fill_in_nls(Tail, LangMap, [NonNlsKey | AccContentList]).
+    fill_in_nls(Tail, LangMap, [cm:to_binary(NonNlsKey) | AccContentList]).
 
 %%--------------------------------------------------------------------
 %% @doc

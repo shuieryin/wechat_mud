@@ -13,6 +13,8 @@
 -define(BATTLE_STATUS, 1).
 -endif.
 
+-include("../data_type/skill.hrl").
+
 -record(avatar_profile, {
     name :: player_fsm:name(),
     description :: [nls_server:nls_object()]
@@ -47,25 +49,6 @@
     name :: player_fsm:name(),
     id :: player_fsm:id(),
     character_description :: nls_server:nls_object()
-}).
-
--record(skill_formula, {
-    formula :: erl_eval:expression_list(),
-    from_var_names :: [atom()], % generic atom
-    to_var_names :: [atom()] % generic atom
-}).
-
--record(skill, {
-    skill_id :: player_fsm:skill_id(),
-    skill_seq :: integer(),
-    skill_formula :: #skill_formula{},
-    buff :: [term()] % generic term
-}).
-
--record(perform_args, {
-    skill :: #skill{},
-    value_bindings :: erl_eval:bindings(),
-    damage_value :: non_neg_integer()
 }).
 
 -record(mailbox, {

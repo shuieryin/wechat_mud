@@ -202,7 +202,11 @@ append_message_local(
     } = State
 ) ->
     UpdatedSceneMessages = [Message | SceneMessages],
-    State#player_state{mail_box = MailBox#mailbox{scene = UpdatedSceneMessages}};
+    State#player_state{
+        mail_box = MailBox#mailbox{
+            scene = UpdatedSceneMessages
+        }
+    };
 append_message_local(
     Message,
     scene,
@@ -213,7 +217,11 @@ append_message_local(
     } = State
 ) ->
     UpdatedSceneMessages = [Message | SceneMessages],
-    State#player_state{mail_box = MailBox#mailbox{scene = UpdatedSceneMessages}};
+    State#player_state{
+        mail_box = MailBox#mailbox{
+            scene = UpdatedSceneMessages
+        }
+    };
 append_message_local(
     Message,
     other,

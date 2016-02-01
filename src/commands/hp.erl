@@ -66,7 +66,7 @@ show_hp(
     } = State,
     StateName
 ) ->
-    Message = [<<"hp: ">>, integer_to_binary(Hp), <<" / ">>, integer_to_binary(MaxHp), <<"\n">>],
+    Message = [<<"hp: ">>, Hp, <<" / ">>, MaxHp, <<"\n">>],
     UpdatedState = player_fsm:do_response_content(State, Message, DispatcherPid),
     {ok, StateName, UpdatedState}.
 

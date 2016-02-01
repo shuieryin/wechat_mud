@@ -769,7 +769,7 @@ format_status(Opt, StatusData) ->
     ExitsMap :: exits_map(),
     ExitNls :: [nls_server:nls_object()].
 gen_exits_desc(ExitsMap) ->
-    [[{nls, ExitKey}, <<" (">>, atom_to_binary(ExitKey, utf8), <<")\n">>] || ExitKey <- maps:keys(ExitsMap)].
+    [[{nls, ExitKey}, <<" (">>, ExitKey, <<")\n">>] || ExitKey <- maps:keys(ExitsMap)].
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -941,7 +941,7 @@ scene_player_by_uid(
     [
         #simple_player{
             uid = TargetPlayerUid
-        } = SimplePlayer | _Rest
+        } = SimplePlayer | _RestSceneObjectList
     ],
     TargetPlayerUid
 ) ->

@@ -14,3 +14,4 @@ rebar.lock
 log
 logs
 doc
+docs/sketch*

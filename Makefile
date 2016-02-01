@@ -1,9 +1,9 @@
-all: check install ct
+all: ck install ct
 
 install:
 	@./config/install.sh
 
-check: dialyzer edoc
+ck: dialyzer edoc
 
 cu: clean_upgrade
 

@@ -23,6 +23,21 @@
 -include("../data_type/player_profile.hrl").
 -include("../data_type/npc_profile.hrl").
 
+-type perform_result() :: {
+    from | to, % FromTo
+    atom(), % FieldName % generic atom
+    term(), % FieldValue % generic term
+    term(), % ChangedValue % generic term
+    {
+        nls_server:key(), % ActiveNlsKey
+        nls_server:key() % PassiveNlsKey
+    } | nls_server:key() % SingleNlsKey
+}.
+
+-export_type([
+    perform_result/0
+]).
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -127,12 +142,7 @@ from_init(
     UpdatedStateName :: StateName,
     UpdatedState :: State.
 to_settle(
-    #command_context{
-        from = #simple_player{
-            name = SrcName
-        }
-    } = CommandContext,
-
+    CommandContext,
     #player_state{
         self = #player_profile{
             battle_status = TargetBattleStatus
@@ -141,12 +151,8 @@ to_settle(
     } = State,
     StateName
 ) ->
-    {DamageValue, UpdatedTargetBattleStatus} = skill_calc(CommandContext, TargetBattleStatus, BattleStatusRi),
-
-    UnderAttackMessage = {nls, attack_under_attack_desc, [SrcName, {nls, unarmed}]},
-    DamageMessage = {nls, damage_desc, [integer_to_binary(DamageValue)]},
-    UpdatedState = player_fsm:append_message_local([UnderAttackMessage, <<"\n">>, DamageMessage, <<"\n">>], battle, State),
-
+    {FinalMessages, UpdatedTargetBattleStatus} = skill_calc(CommandContext, TargetBattleStatus, BattleStatusRi),
+    UpdatedState = player_fsm:append_message_local(FinalMessages, battle, State),
     {ok, StateName, UpdatedState#player_state{self = TargetPlayerProfile#player_profile{battle_status = UpdatedTargetBattleStatus}}};
 to_settle(
     CommandContext,
@@ -156,7 +162,7 @@ to_settle(
     } = State,
     StateName
 ) ->
-    {_DamageValue, UpdatedTargetBattleStatus} = skill_calc(CommandContext, TargetBattleStatus, BattleStatusRi),
+    {_FinalMessages, UpdatedTargetBattleStatus} = skill_calc(CommandContext, TargetBattleStatus, BattleStatusRi),
     {
         ok,
         StateName,
@@ -164,58 +170,6 @@ to_settle(
             battle_status = UpdatedTargetBattleStatus
         }
     }.
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Skill settlement.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec skill_calc(CommandContext, TargetBattleStatus, BattleStatusRi) -> {DamageValue, UpdatedTargetBattleStatus} when
-    CommandContext :: #command_context{},
-    TargetBattleStatus :: #battle_status{},
-    BattleStatusRi :: [atom()], % generic atom
-    DamageValue :: non_neg_integer(),
-    UpdatedTargetBattleStatus :: TargetBattleStatus.
-skill_calc(
-    #command_context{
-        command_args = #perform_args{
-            skill = #skill{
-                skill_formula = #skill_formula{
-                    formula = SkillFormula,
-                    to_var_names = ToVarNames
-                }
-            },
-            value_bindings = ValueBindings
-        } = PerformArgs,
-        from = #simple_player{
-            uid = SrcUid
-        }
-    } = CommandContext,
-    #battle_status{
-        'Hp' = TargetHp
-    } = TargetBattleStatus,
-    BattleStatusRi
-) ->
-    FinalBindings = cm:collect_record_value(BattleStatusRi, TargetBattleStatus, ToVarNames, ValueBindings),
-    {value, RawDamageValue, _NewBindings} = erl_eval:exprs(SkillFormula, FinalBindings),
-    DamageValue =
-        if
-            RawDamageValue < 0 ->
-                0;
-            true ->
-                list_to_integer(float_to_list(RawDamageValue, [{decimals, 0}]))
-        end,
-
-    UpdatedTargetBattleStatus = TargetBattleStatus#battle_status{'Hp' = TargetHp - DamageValue},
-    UpdatedCommandContext = CommandContext#command_context{
-        command_func = feedback,
-        command_args = PerformArgs#perform_args{
-            damage_value = DamageValue
-        }
-    },
-    ok = cm:execute_command(SrcUid, UpdatedCommandContext),
-    {DamageValue, UpdatedTargetBattleStatus}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -233,37 +187,153 @@ feedback(
     #command_context{
         to = #simple_player{
             name = TargetName
-        },
-        command_args = #perform_args{
-            damage_value = DamageValue
-        },
-        dispatcher_pid = DispatcherPid
-    },
+        }
+    } = CommandContext,
     State,
     StateName
 ) ->
-    AttackMessage = {nls, attack_desc, [TargetName, {nls, unarmed}]},
-    DamageMessage = {nls, damage_desc, [integer_to_binary(DamageValue)]},
-    UpdatedState = player_fsm:do_response_content(State, [AttackMessage, <<"\n">>, DamageMessage, <<"\n">>], DispatcherPid),
-    {ok, StateName, UpdatedState};
+    {ok, StateName, handle_feedback(TargetName, CommandContext, State)};
 feedback(
     #command_context{
         to = #simple_npc{
             npc_name = TargetName
-        },
-        command_args = #perform_args{
-            damage_value = DamageValue
-        },
-        dispatcher_pid = DispatcherPid
-    },
+        }
+    } = CommandContext,
     State,
     StateName
 ) ->
-    AttackMessage = {nls, attack_desc, [TargetName, {nls, unarmed}]},
-    DamageMessage = {nls, damage_desc, [integer_to_binary(DamageValue)]},
-    UpdatedState = player_fsm:do_response_content(State, [AttackMessage, <<"\n">>, DamageMessage, <<"\n">>], DispatcherPid),
-    {ok, StateName, UpdatedState}.
+    {ok, StateName, handle_feedback(TargetName, CommandContext, State)}.
 
 %%%===================================================================
-%%% Internal functions (N/A)
+%%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Skill settlement.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec skill_calc(CommandContext, TargetBattleStatus, BattleStatusRi) -> {FinalMessages, UpdatedTargetBattleStatus} when
+    CommandContext :: #command_context{},
+    TargetBattleStatus :: #battle_status{},
+    BattleStatusRi :: [atom()], % generic atom
+    FinalMessages :: [nls_server:nls_object()],
+    UpdatedTargetBattleStatus :: TargetBattleStatus.
+skill_calc(
+    #command_context{
+        command_args = #perform_args{
+            skill = #skill{
+                skill_formula = #skill_formula{
+                    formula = SkillFormula,
+                    to_var_names = ToVarNames
+                }
+            },
+            value_bindings = ValueBindings
+        } = PerformArgs,
+        from = #simple_player{
+            uid = SrcUid,
+            name = SrcName
+        }
+    } = CommandContext,
+    TargetBattleStatus,
+    BattleStatusRi
+) ->
+    FinalBindings = cm:collect_record_value(BattleStatusRi, TargetBattleStatus, ToVarNames, ValueBindings),
+    {value, PerformResults, _NewBindings} = erl_eval:exprs(SkillFormula, FinalBindings),
+
+    {FinalMessages, FinalCalcValueBindings} = handle_perform_results(to, SrcName, PerformResults, [], []),
+
+    UpdatedTargetBattleStatus = cm:update_record_value(BattleStatusRi, TargetBattleStatus, FinalCalcValueBindings),
+
+    UpdatedCommandContext = CommandContext#command_context{
+        command_func = feedback,
+        command_args = PerformArgs#perform_args{
+            perform_results = PerformResults
+        }
+    },
+    ok = cm:execute_command(SrcUid, UpdatedCommandContext),
+    {lists:reverse(FinalMessages), UpdatedTargetBattleStatus}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Handle perform results to determine the message content to show
+%% and battle status to change.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec handle_perform_results(BaseFromTo, SrcName, PerformResults, AccMessages, AccCalcValueBindings) -> {FinalMessages, FinalCalcValueBindings} when
+    BaseFromTo :: from | to,
+    SrcName :: player_fsm:name(),
+    PerformResults :: [perform_result()],
+    AccMessages :: [player_fsm:mail_object()],
+    AccCalcValueBindings :: erl_eval:expressions(),
+    FinalMessages :: player_fsm:mail_object(),
+    FinalCalcValueBindings :: AccCalcValueBindings.
+handle_perform_results(BaseFromTo, RawSrcName, [{FromTo, FieldName, FieldValue, ChangedValue, NlsKeys} | RestPerformResults], AccMessages, AccCalcValueBindings) ->
+    {NlsKey, SrcName} = case NlsKeys of
+                            {ActiveNls, PassiveNls} ->
+                                case BaseFromTo of
+                                    from ->
+                                        {ActiveNls, RawSrcName};
+                                    to ->
+                                        {PassiveNls, RawSrcName}
+                                end;
+                            SingleNls ->
+                                case BaseFromTo of
+                                    from ->
+                                        {SingleNls, {nls, you}};
+                                    to ->
+                                        {SingleNls, RawSrcName}
+                                end
+                        end,
+
+    UpdatedAccCalcValueBindings =
+        case FromTo of
+            BaseFromTo ->
+                erl_eval:add_binding(FieldName, FieldValue, AccCalcValueBindings);
+            _NotBase ->
+                AccCalcValueBindings
+        end,
+
+    Message = [{nls, NlsKey, [SrcName, ChangedValue]}, <<"\n">>],
+
+    handle_perform_results(BaseFromTo, SrcName, RestPerformResults, [Message | AccMessages], UpdatedAccCalcValueBindings);
+handle_perform_results(_BaseFromTo, _SrcName, [], FinalMessages, FinalCalcValueBindings) ->
+    {lists:flatten(lists:reverse(FinalMessages)), FinalCalcValueBindings}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Handle perform results to determine the message content to show
+%% and battle status to change for feedback.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec handle_feedback(TargetName, CommandContext, State) -> UpdatedState when
+    TargetName :: player_fsm:name() | npc_fsm:npc_name(),
+    CommandContext :: #command_context{},
+    State :: #player_state{},
+    UpdatedState :: State.
+handle_feedback(
+    TargetName,
+    #command_context{
+        command_args = #perform_args{
+            perform_results = PerformResults
+        },
+        dispatcher_pid = DispatcherPid
+    },
+    #player_state{
+        self = #player_profile{
+            battle_status = BattleStatus
+        } = PlayerProfile,
+        battle_status_ri = BattleStatusRi
+    } = State
+) ->
+    {FinalMessages, FinalCalcValueBindings} = handle_perform_results(from, TargetName, PerformResults, [], []),
+    UpdatedTargetBattleStatus = cm:update_record_value(BattleStatusRi, BattleStatus, FinalCalcValueBindings),
+    UpdatedState = player_fsm:do_response_content(State, FinalMessages, DispatcherPid),
+    UpdatedState#player_state{
+        self = PlayerProfile#player_profile{
+            battle_status = UpdatedTargetBattleStatus
+        }
+    }.

@@ -213,7 +213,8 @@ gen_fieldinfos([RawFieldInfoStr | Tail], AccFieldInfos) ->
     FinalValues :: AccValues.
 traverse_column([], _FieldInfos, AccValues) ->
     lists:reverse(AccValues);
-traverse_column([RawValue | TailValues], [{_Key, FieldType} | TailFieldInfos], AccValues) ->
+traverse_column([RawValue0 | TailValues], [{_Key, FieldType} | TailFieldInfos], AccValues) ->
+    RawValue = re:replace(RawValue0, [226, 128, 168], "", [global, {return, list}]), % eliminate new line genereated by Numbers.app
     Value =
         try
             case RawValue of
@@ -254,7 +255,7 @@ traverse_column([RawValue | TailValues], [{_Key, FieldType} | TailFieldInfos], A
             end
         catch
             Type:Reason ->
-                error_logger:error_msg("traverse_column failed~nRawValue:~p~nType:~p~nReason:~p~nStackTrace:~p~n", [RawValue, Type, Reason, erlang:get_stacktrace()]),
+                error_logger:error_msg("traverse_column failed~nRawValue:~tp~nType:~p~nReason:~p~nStackTrace:~p~n", [RawValue, Type, Reason, erlang:get_stacktrace()]),
                 RawValue
         end,
     traverse_column(TailValues, TailFieldInfos, [Value | AccValues]).
@@ -271,10 +272,10 @@ traverse_column([RawValue | TailValues], [{_Key, FieldType} | TailFieldInfos], A
     ValueNames :: [atom()], % generic atom
     UpdatedRawValue :: binary().
 collect_formula_value_names(RawValue, ObjectName) ->
-    MatchRE = list_to_binary("\\$" ++ ObjectName ++ "\.([A-z0-9]*)[\s|.]{1}"),
+    MatchRE = list_to_binary(ObjectName ++ "_([A-z0-9]*)[\s|.]{1}"),
     case re:run(RawValue, MatchRE, [global, {capture, all_but_first, binary}]) of
         {match, Matched} ->
-            ReplaceRE = list_to_binary("\\$" ++ ObjectName ++ "\."),
+            ReplaceRE = list_to_binary(ObjectName ++ "_"),
             {cm:binaries_to_atoms(lists:flatten(Matched)), re:replace(RawValue, ReplaceRE, <<"">>, [global, {return, binary}])};
         nomatch ->
             {[], RawValue}
