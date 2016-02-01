@@ -519,8 +519,10 @@ f2i(Float, Min) ->
     IntVal = if
                  is_float(Float) ->
                      list_to_integer(float_to_list(Float, [{decimals, 0}]));
+                 is_integer(Float) ->
+                     Float;
                  true ->
-                     Float
+                     Min
              end,
     if
         IntVal < Min ->
