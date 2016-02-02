@@ -461,7 +461,7 @@ show_errors(Limit) when is_integer(Limit) ->
 -spec collect_record_value(RecordFieldNames, Record, NewFieldNames, ExistingFieldBindings) -> UpdatedFieldBindings when
     RecordFieldNames :: [atom()], % generic atom
     Record :: tuple(), % generic tuple
-    NewFieldNames :: [atom()], % generic atom
+    NewFieldNames :: erl_eval:bindings(),
     ExistingFieldBindings :: erl_eval:bindings(),
     UpdatedFieldBindings :: ExistingFieldBindings.
 collect_record_value(RecordFieldNames, Record, NewFieldNames, ExistingFieldBindings) ->
@@ -607,16 +607,19 @@ get_module_src_path([_Other | Rest]) ->
 -spec do_collect_record_value(RecordFieldNames, DataList, TargetFieldNames, AccFieldBindings) -> FinalFieldBingdings when
     RecordFieldNames :: [atom()], % generic atom
     DataList :: [term()], % generic term
-    TargetFieldNames :: [atom()], % generic atom
+    TargetFieldNames :: erl_eval:bindings(),
     AccFieldBindings :: erl_eval:bindings(),
     FinalFieldBingdings :: AccFieldBindings.
 do_collect_record_value([FieldName | RestRecordFieldNames], [FieldValue | RestDataList], TargetFieldNames, AccFieldBindings) ->
     {UpdatedTargetFieldNames, UpdatedAccFieldBindings}
-        = case cm:index_of(FieldName, TargetFieldNames) of
-              -1 ->
-                  {TargetFieldNames, AccFieldBindings};
-              _Exist ->
-                  {lists:delete(FieldName, TargetFieldNames), erl_eval:add_binding(FieldName, FieldValue, AccFieldBindings)}
+        = case erl_eval:binding(FieldName, TargetFieldNames) of
+              {value, TargetFieldName} ->
+                  {
+                      erl_eval:del_binding(FieldName, TargetFieldNames),
+                      erl_eval:add_binding(TargetFieldName, FieldValue, AccFieldBindings)
+                  };
+              unbound ->
+                  {TargetFieldNames, AccFieldBindings}
           end,
     do_collect_record_value(RestRecordFieldNames, RestDataList, UpdatedTargetFieldNames, UpdatedAccFieldBindings);
 do_collect_record_value([], [], _TargetFieldNames, FinalFieldBingdings) ->

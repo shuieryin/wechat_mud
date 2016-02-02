@@ -10,8 +10,8 @@
 
 -record(skill_formula, {
     formula :: erl_eval:expression_list(),
-    from_var_names :: [atom()], % generic atom
-    to_var_names :: [atom()] % generic atom
+    from_var_names :: erl_eval:bindings(),
+    to_var_names :: erl_eval:bindings()
 }).
 
 -record(skill, {

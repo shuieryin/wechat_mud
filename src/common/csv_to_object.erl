@@ -239,10 +239,11 @@ traverse_column([RawValue0 | TailValues], [{_Key, FieldType} | TailFieldInfos], 
                             {ok, Exprs} = erl_parse:parse_exprs(Tokens),
                             Exprs;
                         skill ->
-                            {FromValueNames, RawValue2} = collect_formula_value_names(list_to_binary(RawValue), "From"),
-                            {ToValueNames, RawValue3} = collect_formula_value_names(RawValue2, "To"),
+                            RawValueBin = list_to_binary(RawValue),
+                            FromValueNames = collect_formula_value_names(RawValueBin, <<"From">>),
+                            ToValueNames = collect_formula_value_names(RawValueBin, <<"To">>),
 
-                            {ok, Tokens, _EndLocation} = erl_scan:string(binary_to_list(RawValue3)),
+                            {ok, Tokens, _EndLocation} = erl_scan:string(RawValue),
                             {ok, Exprs} = erl_parse:parse_exprs(Tokens),
                             #skill_formula{
                                 formula = Exprs,
@@ -266,20 +267,46 @@ traverse_column([RawValue0 | TailValues], [{_Key, FieldType} | TailFieldInfos], 
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec collect_formula_value_names(RawValue, ObjectName) -> {ValueNames, UpdatedRawValue} when
+-spec collect_formula_value_names(RawValue, Prefix) -> ValueNames when
     RawValue :: binary(),
-    ObjectName :: string(),
-    ValueNames :: [atom()], % generic atom
-    UpdatedRawValue :: binary().
-collect_formula_value_names(RawValue, ObjectName) ->
-    MatchRE = list_to_binary(ObjectName ++ "_([A-z0-9]*)[\s|.]{1}"),
+    Prefix :: binary(),
+    ValueNames :: erl_eval:bindings().
+collect_formula_value_names(RawValue, Prefix) ->
+    MatchRE = <<"(", Prefix/binary, "_([A-z0-9]*))[\s|.|,]{1}">>,
     case re:run(RawValue, MatchRE, [global, {capture, all_but_first, binary}]) of
-        {match, Matched} ->
-            ReplaceRE = list_to_binary(ObjectName ++ "_"),
-            {cm:binaries_to_atoms(lists:flatten(Matched)), re:replace(RawValue, ReplaceRE, <<"">>, [global, {return, binary}])};
+        {match, MatchedList} ->
+            collect_formula_value_names_convert(MatchedList, erl_eval:new_bindings());
         nomatch ->
-            {[], RawValue}
+            []
     end.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Convert matched value names to erl_eval bindings.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec collect_formula_value_names_convert(MatchedList, AccValueNames) -> ValueNames when
+    MatchValue :: binary(),
+    MatchedList :: [[MatchValue]],
+    AccValueNames :: erl_eval:bindings(),
+    ValueNames :: AccValueNames.
+collect_formula_value_names_convert([[RawBindingKey, RawStatusFieldName] | RestMatchedList], AccValueNames) ->
+    UpdatedAccValueNames =
+        case erl_eval:binding(RawBindingKey, AccValueNames) of
+            unbound ->
+                erl_eval:add_binding(
+                    binary_to_atom(RawStatusFieldName, utf8),
+                    binary_to_atom(RawBindingKey, utf8),
+                    AccValueNames
+                );
+            _Exist ->
+                AccValueNames
+        end,
+    collect_formula_value_names_convert(RestMatchedList, UpdatedAccValueNames);
+collect_formula_value_names_convert([], ValueNames) ->
+    ValueNames.
+
 
 %%--------------------------------------------------------------------
 %% @doc

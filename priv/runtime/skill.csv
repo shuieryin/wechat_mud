@@ -1,2 +1,2 @@
 skill_id:binary,skill_seq:integer,skill_formula:skill,buff:term
-attack,0,"HpDown = cm:f2i(From_Strength * cm:rr(90, 110) - To_Defense, 0), DefenseDown = HpDown div 100, [     {         to,         'Hp',         To_Hp - HpDown,         HpDown,         {punch_act, punch_psv}     },      {         from,         'Defense',         From_Defense - DefenseDown,         DefenseDown,         def_down     } ].",[].
+punch,0,"Range = cm:rr(90, 110), HpDown = cm:f2i(From_Strength * Range - To_Defense, 0), DefenseDown = HpDown div 100, [     {         to,         'Hp',         To_Hp - HpDown,         HpDown,         {punch_act, punch_psv}     },      {         from,         'Defense',         From_Defense - DefenseDown,         DefenseDown,         def_down     } ].",[].
