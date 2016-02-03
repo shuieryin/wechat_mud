@@ -60,7 +60,7 @@
 -type mail_type() :: battle | scene | other.
 -type skill_id() :: binary().
 -type skill_map() :: #{skill_id() => #skill{}}.
--type skills() :: attack.
+-type skills() :: punch.
 
 -type command_args() :: #perform_args{} | term(). % generic term
 -type player_state_name() :: battle | non_battle | state_name.
