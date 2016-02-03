@@ -253,7 +253,7 @@ skill_calc(
         }
     },
     ok = cm:execute_command(SrcUid, UpdatedCommandContext),
-    {lists:reverse(FinalMessages), UpdatedTargetBattleStatus}.
+    {FinalMessages, UpdatedTargetBattleStatus}.
 
 %%--------------------------------------------------------------------
 %% @doc
