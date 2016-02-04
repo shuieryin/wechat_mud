@@ -20,3 +20,7 @@ unknown,未知,unknown
 look_self,你看了下自己，傻呵呵笑了下。,"You look at yourself, laugh at silly."
 attack_self,你想打自己，但无从下手。,You cannot attack yourself.
 you,你,you
+hp_status,血量: ${hp} / ${max_hp},HP: ${hp} / ${max_hp}
+strength_status,力量: ${strength} / ${max_strength},ST: ${strength} / ${max_strength}
+defense_status,防御: ${defense} / ${max_defense},DF: ${defense} / ${max_defense}
+dexterity_status,敏捷: ${dexterity} / ${max_dexterity},DX: ${dexterity} / ${max_dexterity}
