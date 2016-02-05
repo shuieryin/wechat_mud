@@ -43,9 +43,6 @@
     format_status/2
 ]).
 
-%% Nls files root path
--define(NLS_PATH, filename:join(code:priv_dir(wechat_mud), "nls_server")).
-
 %% Common nls file name
 -define(COMMON_NLS, "common.csv").
 
@@ -266,12 +263,12 @@ fill_in_content(<<>>, _Replacements, FinalContent) ->
 init([]) ->
     io:format("nls server starting..."),
 
-    NlsPath = filename:join(code:priv_dir(wechat_mud), "nls_server"),
+    NlsPath = filename:join(code:priv_dir(cm:app_name()), "nls_server"),
     {ok, FileNameList} = file:list_dir(NlsPath),
 
     CommonNlsFilePath = filename:append(NlsPath, ?COMMON_NLS),
     CommonNlsMap = read_nls_file(CommonNlsFilePath, #{}),
-    NlsMap = lists:foldl(fun load_nls_file/2, CommonNlsMap, FileNameList),
+    {_NlsPath, NlsMap} = lists:foldl(fun load_nls_file/2, {NlsPath, CommonNlsMap}, FileNameList),
 
     io:format("started~n"),
     {
@@ -290,12 +287,14 @@ init([]) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec load_nls_file(NlsFileName, AccNlsMap) -> NlsMap when
+-spec load_nls_file(NlsFileName, {NlsPath, AccNlsMap}) -> {NlsPath, NlsMap} when
     NlsFileName :: file:filename_all(),
+    NlsPath :: file:filename_all(),
     AccNlsMap :: nls_map(),
     NlsMap :: AccNlsMap.
-load_nls_file(NlsFileName, AccNlsMap) ->
-    read_nls_file(filename:join(?NLS_PATH, NlsFileName), AccNlsMap).
+load_nls_file(NlsFileName, {NlsPath, AccNlsMap}) ->
+    NlsFilePath = filename:join(NlsPath, NlsFileName),
+    {NlsPath, read_nls_file(NlsFilePath, AccNlsMap)}.
 
 %%--------------------------------------------------------------------
 %% @private

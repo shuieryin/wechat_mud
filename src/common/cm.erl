@@ -42,7 +42,8 @@
     binaries_to_atoms/1,
     update_record_value/3,
     f2i/2,
-    to_binary/1
+    to_binary/1,
+    app_name/0
 ]).
 
 -type valid_type() :: atom | binary | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple | map.
@@ -189,7 +190,7 @@ increase_vsn(SourceVersion, VersionDepth, Increment) ->
 -spec q() -> no_return().
 q() ->
     ok = login_server:logout_all_players(),
-    ok = rb:stop(),
+    rb:stop(),
     os:cmd("redis-cli shutdown"),
     init:stop().
 
@@ -552,6 +553,25 @@ to_binary(Term) when is_list(Term) ->
     list_to_binary(Term);
 to_binary(Term) ->
     term_to_binary(Term).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Retrieve current application name.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec app_name() -> atom(). % generic atom
+app_name() ->
+    AppNameStr =
+        try
+            [{RawAppNameStr, _AppVerStr, _Apps, _Status}] = release_handler:which_releases(),
+            RawAppNameStr
+        catch
+            _Type:_Err ->
+                [ProjectPath | _RestPath] = re:split(filename:absname(""), "_build", [{return, list}]),
+                filename:basename(ProjectPath)
+        end,
+    list_to_atom(AppNameStr).
 
 %%%===================================================================
 %%% Internal functions

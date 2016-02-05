@@ -214,7 +214,7 @@ init([]) ->
                 Config
         end,
 
-    RuntimeFilePath = filename:join(code:priv_dir(wechat_mud), "runtime"),
+    RuntimeFilePath = filename:join(code:priv_dir(cm:app_name()), "runtime"),
     RuntimeDatas = csv_to_object:traverse_files(RuntimeFilePath),
     State = #state{common_config = CommonConfig, runtime_datas = RuntimeDatas},
 
