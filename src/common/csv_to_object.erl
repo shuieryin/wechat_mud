@@ -14,11 +14,12 @@
 
 %% API
 -export([
-    traverse_merge_files/2,
-    traverse_files/1,
-    traverse_files/2,
-    parse_file/1,
-    parse_file/2
+    traverse_merge_files/4,
+    traverse_files/3,
+    traverse_files/4,
+    parse_file/2,
+    parse_file/3,
+    changed_file_paths/1
 ]).
 
 -define(FILE_EXTENSION, ".csv").
@@ -45,27 +46,35 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Generates object configs from files of given folder and merge.
+%% Generates object configs from files of given folder and merge as one map.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec traverse_merge_files(FolderPath, RowFun) -> MapFromFiles when
-    FolderPath :: file:name(),
+-spec traverse_merge_files(FilePathList, AccValuesMap, ExistingValuesMap, RowFun) -> {ValuesMap, ChangedValuesMap} when
+    FilePathList :: [file:filename_all()],
     RowFun :: function(),
-    MapFromFiles :: csv_data().
-traverse_merge_files(FolderPath, RowFun) ->
-    {ok, FileNameList} = file:list_dir(FolderPath),
-    lists:foldl(
-        fun(FileName, AccMap) ->
-            case filename:extension(FileName) == ?FILE_EXTENSION of
-                true ->
-                    maps:merge(AccMap, parse_file(filename:join(FolderPath, FileName), RowFun));
-                false ->
-                    AccMap
-            end
-        end,
-        #{},
-        FileNameList).
+    ValuesMap :: csv_data(),
+    AccValuesMap :: ValuesMap,
+    ExistingValuesMap :: ValuesMap,
+    ChangedValuesMap :: ValuesMap.
+traverse_merge_files(FilePathList, AccValuesMap, ExistingValuesMap, RowFun) ->
+    {ValuesMap, ChangedValuesMap, _ExistingValuesMap} =
+        lists:foldl(
+            fun(FilePath, {AccValues, AccChangedValues, ExistingValues}) ->
+                FileName = filename:basename(FilePath),
+                case filename:extension(FileName) == ?FILE_EXTENSION of
+                    true ->
+                        {Values, ChangedValues} = parse_file(FilePath, ExistingValues, RowFun),
+                        NewAccValues = maps:merge(AccValues, Values),
+                        NewAccChangedValues = maps:merge(AccChangedValues, ChangedValues),
+                        {NewAccValues, NewAccChangedValues, ExistingValues};
+                    false ->
+                        {AccValues, AccChangedValues, ExistingValues}
+                end
+            end,
+            {AccValuesMap, #{}, ExistingValuesMap},
+            FilePathList),
+    {ValuesMap, ChangedValuesMap}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -74,11 +83,14 @@ traverse_merge_files(FolderPath, RowFun) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec traverse_files(FolderPath) -> MapFromFiles when
-    FolderPath :: file:name(),
-    MapFromFiles :: csv_data().
-traverse_files(FolderPath) ->
-    traverse_files(FolderPath, fun default_row_fun/1).
+-spec traverse_files(FilePathList, AccMapFromFiles, ExistingMapFromFiles) -> {MapFromFiles, ChangedMapFromFiles} when
+    FilePathList :: [file:name_all()],
+    AccMapFromFiles :: csv_data(),
+    MapFromFiles :: AccMapFromFiles,
+    ExistingMapFromFiles :: AccMapFromFiles,
+    ChangedMapFromFiles :: AccMapFromFiles.
+traverse_files(FilePathList, AccMapFromFiles, ExistingMapFromFiles) ->
+    traverse_files(FilePathList, AccMapFromFiles, ExistingMapFromFiles, fun default_row_fun/1).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -86,25 +98,39 @@ traverse_files(FolderPath) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec traverse_files(FolderPath, RowFun) -> MapFromFiles when
-    FolderPath :: file:name(),
+-spec traverse_files(FilePathList, AccMapFromFiles, ExistingMapFromFiles, RowFun) -> {MapFromFiles, ChangedMapFromFiles} when
+    FilePathList :: [file:name_all()],
     RowFun :: function(),
-    MapFromFiles :: csv_data().
-traverse_files(FolderPath, RowFun) ->
-    {ok, FileNameList} = file:list_dir(FolderPath),
-    lists:foldl(
-        fun(FileName, AccMap) ->
+    AccMapFromFiles :: csv_data(),
+    ExistingMapFromFiles :: AccMapFromFiles,
+    MapFromFiles :: AccMapFromFiles,
+    ChangedMapFromFiles :: AccMapFromFiles.
+traverse_files(FilePathList, AccMapFromFiles, ExistingMapFromFiles, RowFun) ->
+    {MapFromFiles, ChangedMapFromFiles, _ExistingMapFromFiles} = lists:foldl(
+        fun(FilePath, {AccFiles, AccChangedFiles, ExistingFiles}) ->
+            FileName = filename:basename(FilePath),
             case filename:extension(FileName) == ?FILE_EXTENSION of
                 true ->
                     Key = list_to_atom(filename:rootname(FileName)),
-                    ValuesMap = parse_file(filename:join(FolderPath, FileName), RowFun),
-                    AccMap#{Key => ValuesMap};
+                    ExistingChangedValuesMap = maps:get(Key, ExistingFiles, #{}),
+                    {ValuesMap, ChangedValuesMap} = parse_file(FilePath, ExistingChangedValuesMap, RowFun),
+                    UpdatedAccChangedFiles =
+                        case ExistingChangedValuesMap == ChangedValuesMap of
+                            true ->
+                                AccChangedFiles;
+                            false ->
+                                AccChangedFiles#{
+                                    Key => ChangedValuesMap
+                                }
+                        end,
+                    {AccFiles#{Key => ValuesMap}, UpdatedAccChangedFiles, ExistingFiles};
                 false ->
-                    AccMap
+                    {AccFiles, AccChangedFiles, ExistingFiles}
             end
         end,
-        #{},
-        FileNameList).
+        {AccMapFromFiles, #{}, ExistingMapFromFiles},
+        FilePathList),
+    {MapFromFiles, ChangedMapFromFiles}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -113,11 +139,13 @@ traverse_files(FolderPath, RowFun) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec parse_file(FilePath) -> MapFromFile when
-    FilePath :: file:filename(),
-    MapFromFile :: csv_data().
-parse_file(FilePath) ->
-    parse_file(FilePath, fun default_row_fun/1).
+-spec parse_file(FilePath, ExistingChangedValuesMap) -> {ValuesMap, ChangedValuesMap} when
+    FilePath :: file:filename_all(),
+    ValuesMap :: csv_data(),
+    ChangedValuesMap :: ValuesMap,
+    ExistingChangedValuesMap :: ValuesMap.
+parse_file(FilePath, ExistingChangedValuesMap) ->
+    parse_file(FilePath, ExistingChangedValuesMap, fun default_row_fun/1).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -126,16 +154,45 @@ parse_file(FilePath) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec parse_file(FilePath, RowFun) -> MapFromFile when
+-spec parse_file(FilePath, ExistingChangedValuesMap, RowFun) -> {ValuesMap, ChangedValuesMap} when
     FilePath :: file:filename(),
     RowFun :: function(),
-    MapFromFile :: csv_data().
-parse_file(FilePath, RowFun) ->
+    ValuesMap :: csv_data(),
+    ExistingChangedValuesMap :: ValuesMap,
+    ChangedValuesMap :: ValuesMap.
+parse_file(FilePath, ExistingChangedValuesMap, RowFun) ->
     {ok, File} = file:open(FilePath, [read]),
     RecordName = list_to_atom(filename:rootname(filename:basename(FilePath))),
-    {ok, MapFromFile} = ecsv:process_csv_file_with(File, fun traverse_rows/2, {0, RowFun, RecordName}),
+    {ok, {ValuesMap, ChangedValuesMap}} = ecsv:process_csv_file_with(File, fun traverse_rows/2, {0, RowFun, RecordName, ExistingChangedValuesMap}),
     ok = file:close(File),
-    MapFromFile.
+    {ValuesMap, ChangedValuesMap}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% List changed file paths for hot code upgrade before committed.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec changed_file_paths(BaseFolderName) -> {ModifiedFilePaths, AddedFilePaths, DeletedFileNames} when
+    BaseFolderName :: file:filename_all(),
+    ModifiedFilePaths :: [file:filename_all()],
+    AddedFilePaths :: ModifiedFilePaths,
+    DeletedFileNames :: [atom()]. % file name % generic atom
+changed_file_paths(BaseFolderName) ->
+    BasePath = filename:dirname(code:priv_dir(cm:app_name())),
+
+    ListModifiedFilesCommand = binary_to_list(<<"git diff --name-only HEAD~0 --diff-filter=M | grep -E 'priv/", BaseFolderName/binary, ".*\.csv'">>),
+    ListAddedFilesCommand = binary_to_list(<<"git ls-files --others --exclude-standard | grep -E 'priv/", BaseFolderName/binary, ".*\.csv'; git diff --name-only HEAD~0 --diff-filter=A | grep -E 'priv/", BaseFolderName/binary, ".*\.csv'">>),
+    ListDeletedFilesCommand = binary_to_list(<<"git diff --name-only HEAD~0 --diff-filter=D | grep -E 'priv/", BaseFolderName/binary, ".*\.csv'">>),
+
+    ModifiedFiles = string:tokens(os:cmd(ListModifiedFilesCommand), "\n"),
+    AddedFiles = string:tokens(os:cmd(ListAddedFilesCommand), "\n"),
+    DeletedFiles = string:tokens(os:cmd(ListDeletedFilesCommand), "\n"),
+
+    ModifiedFilePaths = [filename:join(BasePath, ModifiedFile) || ModifiedFile <- ModifiedFiles],
+    AddedFilePaths = [filename:join(BasePath, AddedFile) || AddedFile <- AddedFiles],
+    DeletedFileNames = [list_to_atom(filename:basename(filename:rootname(DeletedFile))) || DeletedFile <- DeletedFiles],
+    {ModifiedFilePaths, AddedFilePaths, DeletedFileNames}.
 
 %%%===================================================================
 %%% Internal functions
@@ -147,39 +204,47 @@ parse_file(FilePath, RowFun) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec traverse_rows(NewRowData, State) -> RowValuesMap when
+-spec traverse_rows(NewRowData, State) -> {RowValuesMap, ChangedRowValuesMap} when
     NewRowData :: {newline, [csv_line()]} | {eof},
     RowFun :: function(),
     RowValuesMap :: csv_data(),
+    ChangedRowValuesMap :: RowValuesMap,
     Counter :: non_neg_integer(), % generic integer
     FieldInfos :: field_infos(),
     AccRowValuesMap :: RowValuesMap,
+    AccChangedRowValuesMap :: RowValuesMap,
     RecordName :: atom(), % generic atom
     State ::
-    {Counter, RowFun, FieldInfos, AccRowValuesMap, RecordName} |
-    {0, RowFun, RecordName} |
-    {_Counter, _RowFun, _FieldInfos, RowValuesMap, _RecordName}.
-traverse_rows({newline, NewRow}, {Counter, RowFun, FieldInfos, AccRowValuesMap, RecordName}) ->
+    {Counter, RowFun, FieldInfos, AccRowValuesMap, AccChangedRowValuesMap, ExistingChangedValuesMap, RecordName} |
+    {0, RowFun, RecordName, ExistingChangedValuesMap}.
+traverse_rows({newline, NewRow}, {Counter, RowFun, FieldInfos, AccRowValuesMap, AccChangedRowValuesMap, ExistingChangedValuesMap, RecordName}) ->
     [_UselessHead, CurRowKey | _RestCurRowValues] =
         CurRowValues = traverse_column(NewRow, FieldInfos, [RecordName]),
-    UpdatedAccRowValuesMap =
+    {UpdatedAccRowValuesMap, UpdatedAccChangedRowValuesMap} =
         case CurRowKey of
             undefined ->
-                AccRowValuesMap;
+                {AccRowValuesMap, AccChangedRowValuesMap};
             _CurRowKey ->
                 case RowFun(CurRowValues) of
                     undefined ->
-                        AccRowValuesMap;
+                        {AccRowValuesMap, AccChangedRowValuesMap};
                     ConvertedCurRowValues ->
-                        AccRowValuesMap#{CurRowKey => ConvertedCurRowValues}
+                        UpdatedAccChangedValuesMapIn =
+                            case maps:is_key(CurRowKey, ExistingChangedValuesMap) of
+                                false ->
+                                    AccChangedRowValuesMap;
+                                true ->
+                                    AccChangedRowValuesMap#{CurRowKey => ConvertedCurRowValues}
+                            end,
+                        {AccRowValuesMap#{CurRowKey => ConvertedCurRowValues}, UpdatedAccChangedValuesMapIn}
                 end
         end,
-    {Counter + 1, RowFun, FieldInfos, UpdatedAccRowValuesMap, RecordName};
-traverse_rows({newline, NewRow}, {0, RowFun, RecordName}) ->
+    {Counter + 1, RowFun, FieldInfos, UpdatedAccRowValuesMap, UpdatedAccChangedRowValuesMap, ExistingChangedValuesMap, RecordName};
+traverse_rows({newline, NewRow}, {0, RowFun, RecordName, ExistingChangedValuesMap}) ->
     FieldInfos = gen_fieldinfos(NewRow, []),
-    {1, RowFun, FieldInfos, #{}, RecordName};
-traverse_rows({eof}, {_Counter, _RowFun, _FieldInfos, RowValuesMap, _RecordName}) ->
-    RowValuesMap.
+    {1, RowFun, FieldInfos, #{}, #{}, ExistingChangedValuesMap, RecordName};
+traverse_rows({eof}, {_Counter, _RowFun, _FieldInfos, RowValuesMap, ChangedRowValuesMap, _ExistingChangedValuesMap, _RecordName}) ->
+    {RowValuesMap, ChangedRowValuesMap}.
 
 %%--------------------------------------------------------------------
 %% @doc

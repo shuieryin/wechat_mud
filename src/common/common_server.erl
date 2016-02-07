@@ -215,8 +215,13 @@ init([]) ->
         end,
 
     RuntimeFilePath = filename:join(code:priv_dir(cm:app_name()), "runtime"),
-    RuntimeDatas = csv_to_object:traverse_files(RuntimeFilePath),
-    State = #state{common_config = CommonConfig, runtime_datas = RuntimeDatas},
+    {ok, FileNameList} = file:list_dir(RuntimeFilePath),
+    FilePathList = [filename:join(RuntimeFilePath, FileName) || FileName <- FileNameList],
+    {RuntimeDatas, _ChangedRuntimeDatas} = csv_to_object:traverse_files(FilePathList, #{}, #{}),
+    State = #state{
+        common_config = CommonConfig,
+        runtime_datas = RuntimeDatas
+    },
 
     io:format("started~n"),
     {ok, State}.
@@ -365,8 +370,24 @@ terminate(_Reason, _State) ->
     Extra :: term(), % generic term
     NewState :: State,
     Reason :: term(). % generic term
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+code_change(
+    _OldVsn,
+    #state{
+        runtime_datas = OldRuntimeDatas
+    } = State,
+    _Extra
+) ->
+    {ModifiedFilePaths, AddedFilePaths, DeletedFileNames} = csv_to_object:changed_file_paths(<<"runtime">>),
+
+    RemoveNotUsedData = maps:without(DeletedFileNames, OldRuntimeDatas),
+
+    ReloadFilePaths = AddedFilePaths ++ ModifiedFilePaths, % number of add files is usually less than modified files
+    io:format("=======ReloadFilePaths:~p~n", [ReloadFilePaths]),
+    {NewRuntimeDatas, _ChangedFilesMap} = csv_to_object:traverse_files(ReloadFilePaths, RemoveNotUsedData, #{}),
+    io:format("=========_ChangedFilesMap:~p~n", [_ChangedFilesMap]),
+    {ok, State#state{
+        runtime_datas = NewRuntimeDatas
+    }}.
 
 %%--------------------------------------------------------------------
 %% @private

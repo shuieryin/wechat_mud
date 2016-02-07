@@ -119,7 +119,9 @@ gen_scene_child_list() ->
         end,
 
     SceneNlsPath = filename:join(code:priv_dir(cm:app_name()), "scene"),
-    ScenesMap = csv_to_object:traverse_merge_files(SceneNlsPath, ChildFun),
+    {ok, FileNameList} = file:list_dir(SceneNlsPath),
+    FilePathList = [filename:join(SceneNlsPath, FileName) || FileName <- FileNameList],
+    {ScenesMap, _ChangedScenesMap} = csv_to_object:traverse_merge_files(FilePathList, #{}, #{}, ChildFun),
     maps:values(ScenesMap).
 
 %%--------------------------------------------------------------------

@@ -34,11 +34,11 @@
 
 -define(SERVER, ?MODULE).
 
+-include("../data_type/npc_profile.hrl").
+
 -type npc_amount() :: pos_integer(). % generic integer
 -type npc_spec() :: {npc_fsm:npc_id(), npc_amount()}.
--type npcs_map() :: #{npc_fsm:npc_uid() => npc_fsm:npc_uid()}.
-
--include("../data_type/npc_profile.hrl").
+-type npcs_map() :: #{npc_fsm:npc_uid() => #simple_npc{}}.
 
 -record(state, {
     npc_fsms_map :: npcs_map(),
@@ -89,6 +89,9 @@ new_npcs(NpcsSpec) ->
     {SceneNpcsList, NpcsMap} = traverse_npcspec(NpcsSpec),
     gen_server:cast(?MODULE, {new_npcs, NpcsMap}),
     SceneNpcsList.
+
+%%update_npc_profile(UpdatedNpcProfileMap) ->
+%%    gen_server:cast(?MODULE, {update_npc_profile, UpdatedNpcProfileMap}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -314,11 +317,12 @@ new_npc(Amount, NpcBornProfile, AccNpcsList, AccOverallNpcsMap) ->
         npc_uid = NpcUid
     },
     npc_fsm_sup:add_child(NpcProfile),
+    SimpleNpc = npc_fsm:simple_npc(NpcProfile),
     new_npc(
         Amount - 1,
         NpcBornProfile,
-        [npc_fsm:simple_npc(NpcProfile) | AccNpcsList],
+        [SimpleNpc | AccNpcsList],
         AccOverallNpcsMap#{
-            NpcUid => NpcUid
+            NpcUid => SimpleNpc
         }
     ).
