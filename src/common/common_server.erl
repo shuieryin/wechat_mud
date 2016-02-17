@@ -214,7 +214,7 @@ init([]) ->
                 Config
         end,
 
-    RuntimeFilePath = filename:join(code:priv_dir(cm:app_name()), "runtime"),
+    RuntimeFilePath = filename:join(code:priv_dir(cm:app_name()), ?MODULE_STRING),
     {ok, FileNameList} = file:list_dir(RuntimeFilePath),
     FilePathList = [filename:join(RuntimeFilePath, FileName) || FileName <- FileNameList],
     {RuntimeDatas, _ChangedRuntimeDatas} = csv_to_object:traverse_files(FilePathList, #{}, #{}),
@@ -271,7 +271,11 @@ handle_call(
         common_config = CommonConfigs
     } = State
 ) ->
-    {reply, IsWechatDebug, State#state{common_config = CommonConfigs#common_config{is_wechat_debug = IsWechatDebug}}};
+    {reply, IsWechatDebug, State#state{
+        common_config = CommonConfigs#common_config{
+            is_wechat_debug = IsWechatDebug
+        }
+    }};
 handle_call(
     {get_runtime_data, Phases},
     _From,
@@ -375,19 +379,26 @@ code_change(
     #state{
         runtime_datas = OldRuntimeDatas
     } = State,
-    _Extra
+    PrivChangedFiles
 ) ->
-    {ModifiedFilePaths, AddedFilePaths, DeletedFileNames} = csv_to_object:changed_file_paths(<<"runtime">>),
+    try
+        case csv_to_object:convert_priv_paths(PrivChangedFiles) of
+            no_change ->
+                {ok, State};
+            {ModifiedFilePaths, AddedFilePaths, DeletedFileNames} ->
+                RemoveNotUsedData = maps:without(DeletedFileNames, OldRuntimeDatas),
 
-    RemoveNotUsedData = maps:without(DeletedFileNames, OldRuntimeDatas),
-
-    ReloadFilePaths = AddedFilePaths ++ ModifiedFilePaths, % number of add files is usually less than modified files
-    io:format("=======ReloadFilePaths:~p~n", [ReloadFilePaths]),
-    {NewRuntimeDatas, _ChangedFilesMap} = csv_to_object:traverse_files(ReloadFilePaths, RemoveNotUsedData, #{}),
-    io:format("=========_ChangedFilesMap:~p~n", [_ChangedFilesMap]),
-    {ok, State#state{
-        runtime_datas = NewRuntimeDatas
-    }}.
+                ReloadFilePaths = AddedFilePaths ++ ModifiedFilePaths, % number of add files is usually less than modified files
+                {NewRuntimeDatas, _ChangedFilesMap} = csv_to_object:traverse_files(ReloadFilePaths, RemoveNotUsedData, #{}),
+                {ok, State#state{
+                    runtime_datas = NewRuntimeDatas
+                }}
+        end
+    catch
+        Type:Reason ->
+            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
+            {ok, State}
+    end.
 
 %%--------------------------------------------------------------------
 %% @private

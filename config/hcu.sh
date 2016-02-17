@@ -18,6 +18,8 @@ else
     ## perform release upgrade only if changes exists.
     if [ "${NEW_VSN}" = "no_change" ]; then
         echo "No added/deleted/modified files"
+    elif [[ "$NEW_VSN" == *"error"* ]]; then
+        echo "${NEW_VSN}"
     else
         ## copy, remove, move the src folder is because the modifies that synchronized from intellij does not
         ## work for release upgrade and cause remains unknown, this is the work around since no other solution is found.

@@ -88,5 +88,5 @@ random_runtime_data_instruction() ->
     ]).
 
 random_runtime_filename() ->
-    {ok, FileNameList} = file:list_dir(filename:join(code:priv_dir(wechat_mud), "runtime")),
+    {ok, FileNameList} = file:list_dir(filename:join(code:priv_dir(wechat_mud), "common_server")),
     list_to_atom(filename:rootname(?ONE_OF(FileNameList))).

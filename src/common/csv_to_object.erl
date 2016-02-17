@@ -19,7 +19,7 @@
     traverse_files/4,
     parse_file/2,
     parse_file/3,
-    changed_file_paths/1
+    convert_priv_paths/1
 ]).
 
 -define(FILE_EXTENSION, ".csv").
@@ -169,30 +169,29 @@ parse_file(FilePath, ExistingChangedValuesMap, RowFun) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% List changed file paths for hot code upgrade before committed.
+%% List changed priv file paths for hot code upgrade before committed.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec changed_file_paths(BaseFolderName) -> {ModifiedFilePaths, AddedFilePaths, DeletedFileNames} when
-    BaseFolderName :: file:filename_all(),
-    ModifiedFilePaths :: [file:filename_all()],
-    AddedFilePaths :: ModifiedFilePaths,
+-spec convert_priv_paths({ModifiedFiles, AddedFiles, DeletedFiles}) -> no_change | {ModifiedFilePaths, AddedFilePaths, DeletedFileNames} when
+    ModifiedFiles :: [file:filename_all()],
+    AddedFiles :: ModifiedFiles,
+    DeletedFiles :: ModifiedFiles,
+    ModifiedFilePaths :: ModifiedFiles,
+    AddedFilePaths :: ModifiedFiles,
     DeletedFileNames :: [atom()]. % file name % generic atom
-changed_file_paths(BaseFolderName) ->
+convert_priv_paths({ModifiedFiles, AddedFiles, DeletedFiles}) ->
     BasePath = filename:dirname(code:priv_dir(cm:app_name())),
 
-    ListModifiedFilesCommand = binary_to_list(<<"git diff --name-only HEAD~0 --diff-filter=M | grep -E 'priv/", BaseFolderName/binary, ".*\.csv'">>),
-    ListAddedFilesCommand = binary_to_list(<<"git ls-files --others --exclude-standard | grep -E 'priv/", BaseFolderName/binary, ".*\.csv'; git diff --name-only HEAD~0 --diff-filter=A | grep -E 'priv/", BaseFolderName/binary, ".*\.csv'">>),
-    ListDeletedFilesCommand = binary_to_list(<<"git diff --name-only HEAD~0 --diff-filter=D | grep -E 'priv/", BaseFolderName/binary, ".*\.csv'">>),
-
-    ModifiedFiles = string:tokens(os:cmd(ListModifiedFilesCommand), "\n"),
-    AddedFiles = string:tokens(os:cmd(ListAddedFilesCommand), "\n"),
-    DeletedFiles = string:tokens(os:cmd(ListDeletedFilesCommand), "\n"),
-
-    ModifiedFilePaths = [filename:join(BasePath, ModifiedFile) || ModifiedFile <- ModifiedFiles],
-    AddedFilePaths = [filename:join(BasePath, AddedFile) || AddedFile <- AddedFiles],
-    DeletedFileNames = [list_to_atom(filename:basename(filename:rootname(DeletedFile))) || DeletedFile <- DeletedFiles],
-    {ModifiedFilePaths, AddedFilePaths, DeletedFileNames}.
+    if
+        ModifiedFiles == [] andalso AddedFiles == [] andalso DeletedFiles == [] ->
+            no_change;
+        true ->
+            ModifiedFilePaths = [filename:join(BasePath, ModifiedFile) || ModifiedFile <- ModifiedFiles],
+            AddedFilePaths = [filename:join(BasePath, AddedFile) || AddedFile <- AddedFiles],
+            DeletedFileNames = [list_to_atom(filename:basename(filename:rootname(DeletedFile))) || DeletedFile <- DeletedFiles],
+            {ModifiedFilePaths, AddedFilePaths, DeletedFileNames}
+    end.
 
 %%%===================================================================
 %%% Internal functions

@@ -562,15 +562,10 @@ to_binary(Term) ->
 %%--------------------------------------------------------------------
 -spec app_name() -> atom(). % generic atom
 app_name() ->
-    AppNameStr =
-        try
-            [{RawAppNameStr, _AppVerStr, _Apps, _Status}] = release_handler:which_releases(),
-            RawAppNameStr
-        catch
-            _Type:_Err ->
-                [ProjectPath | _RestPath] = re:split(filename:absname(""), "_build", [{return, list}]),
-                filename:basename(ProjectPath)
-        end,
+    AppNameStr = begin
+                     [ProjectPath | _RestPath] = re:split(filename:absname(""), "_build", [{return, list}]),
+                     filename:basename(ProjectPath)
+                 end,
     list_to_atom(AppNameStr).
 
 %%%===================================================================

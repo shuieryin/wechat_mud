@@ -29,7 +29,9 @@
     simple_player/1,
     non_battle/2,
     non_battle/3,
-    battle/2
+    battle/2,
+    update_nls/3,
+    player_state/1
 ]).
 
 %% gen_fsm callbacks
@@ -297,6 +299,34 @@ do_response_content(
         }
     }.
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Update language map on the fly. Including newly added, modified,
+%% and removed nls. For the ones that removed but still remain in
+%% player mail box, will replace them with the actual nls value before
+%% the nls map is updated in player state.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec update_nls(PlayerUid, ChangedLangMap, RemovedNlsSet) -> ok when
+    PlayerUid :: uid(),
+    ChangedLangMap :: nls_server:lang_map(),
+    RemovedNlsSet :: gb_sets:set(atom()). % generic atom
+update_nls(PlayerUid, ChangedLangMap, RemovedNlsSet) ->
+    gen_fsm:sync_send_all_state_event(PlayerUid, {update_nls, ChangedLangMap, RemovedNlsSet}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Retrieve target player state.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec player_state(PlayerUid) -> PlayerState when
+    PlayerUid :: uid(),
+    PlayerState :: #player_state{}.
+player_state(PlayerUid) ->
+    gen_fsm:sync_send_all_state_event(PlayerUid, player_state).
+
 %%%===================================================================
 %%% gen_fsm callbacks
 %%%===================================================================
@@ -324,7 +354,11 @@ do_response_content(
     StateData :: #player_state{},
     Reason :: term(). % generic term
 init({Uid, DispatcherPid}) ->
-    #player_profile{scene = CurSceneName, lang = Lang} = PlayerProfile = redis_client_server:get(Uid),
+    #player_profile{
+        scene = CurSceneName,
+        lang = Lang
+    } = PlayerProfile = redis_client_server:get(Uid),
+
     State = #player_state{
         self = PlayerProfile,
         lang_map = nls_server:get_lang_map(Lang),
@@ -590,12 +624,17 @@ handle_event(stop, _StateName, State) ->
     {stop, Reason, NewStateData} when
 
     Event :: get_lang |
-    current_scene_name,
+    current_scene_name |
+    {update_nls, ChangedLangMap, RemovedNlsSet},
 
     Reply :: Lang |
-    scene_fsm:scene_name(),
+    scene_fsm:scene_name() |
+    ok |
+    StateData,
 
     Lang :: nls_server:support_lang(),
+    ChangedLangMap :: nls_server:lang_map(),
+    RemovedNlsSet :: gb_sets:set(atom()), % generic atom
 
     From :: {pid(), Tag :: term()}, % generic term
     StateName :: player_state_name(),
@@ -624,7 +663,26 @@ handle_sync_event(
         }
     } = State
 ) ->
-    {reply, CurrentSceneName, StateName, State}.
+    {reply, CurrentSceneName, StateName, State};
+handle_sync_event(
+    {update_nls, ChangedLangMap, RemovedNlsSet},
+    _From,
+    StateName,
+    #player_state{
+        lang_map = OldLangMap,
+        mail_box = OldMailboxRecord
+    } = State) ->
+    UpdatedOldLangMap = maps:without(gb_sets:to_list(RemovedNlsSet), OldLangMap),
+    NewLangMap = maps:merge(UpdatedOldLangMap, ChangedLangMap),
+    [MailboxRecordName | OldMailboxes] = tuple_to_list(OldMailboxRecord),
+    UpdatedMailboxes = [nls_server:convert_target_nls(OldMailbox, OldLangMap, RemovedNlsSet, []) || OldMailbox <- OldMailboxes],
+    {reply, ok, StateName, State#player_state{
+        lang_map = NewLangMap,
+        mail_box = list_to_tuple([MailboxRecordName | UpdatedMailboxes])
+    }};
+handle_sync_event(player_state, _From, StateName, State) ->
+    Reply = State,
+    {reply, Reply, StateName, State}.
 
 %%--------------------------------------------------------------------
 %% @private
