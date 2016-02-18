@@ -42,7 +42,7 @@ test(_Config) ->
 
 initial_state() ->
     ValidLangs = cm:type_values(?SERVER, support_lang),
-    NlsKeys = ?SERVER:get_lang_map(?ONE_OF(ValidLangs)),
+    NlsKeys = ?SERVER:lang_map(?ONE_OF(ValidLangs)),
 
     #state{
         valid_langs = ValidLangs,
@@ -54,7 +54,7 @@ command(#state{valid_langs = ValidLangs, test_langs = TestLangs, nls_keys = NlsK
     OneofValidLang = ?ONE_OF(ValidLangs),
     oneof([
         {call, ?SERVER, is_valid_lang, [?ONE_OF(TestLangs)]},
-        {call, ?SERVER, get_lang_map, [OneofValidLang]},
+        {call, ?SERVER, lang_map, [OneofValidLang]},
         {call, ?SERVER, get_nls_content, [gen_nls_object_list(NlsKeys), OneofValidLang]}
     ]).
 
@@ -66,7 +66,7 @@ precondition(_ModelState, {call, ?SERVER, _Action, _Args}) ->
 
 postcondition(#state{valid_langs = ValidLangs}, {call, ?SERVER, is_valid_lang, [TargetLang]}, Result) ->
     lists:member(TargetLang, ValidLangs) == Result;
-postcondition(_ModelState, {call, ?SERVER, get_lang_map, _Args}, Result) ->
+postcondition(_ModelState, {call, ?SERVER, lang_map, _Args}, Result) ->
     map == cm:type_of(Result);
 postcondition(_ModelState, {call, ?SERVER, get_nls_content, _Args}, Result) ->
     Type = cm:type_of(list_to_binary(Result)),

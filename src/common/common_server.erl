@@ -379,20 +379,38 @@ code_change(
     #state{
         runtime_datas = OldRuntimeDatas
     } = State,
-    PrivChangedFiles
+    Extra
 ) ->
     try
-        case csv_to_object:convert_priv_paths(PrivChangedFiles) of
-            no_change ->
-                {ok, State};
-            {ModifiedFilePaths, AddedFilePaths, DeletedFileNames} ->
-                RemoveNotUsedData = maps:without(DeletedFileNames, OldRuntimeDatas),
+        case Extra of
+            {_OldVer, _NewVsn, PrivChangedFiles} ->
+                case csv_to_object:convert_priv_paths(PrivChangedFiles) of
+                    no_change ->
+                        {ok, State};
+                    {ModifiedFilePaths, AddedFilePaths, DeletedFileNames} ->
+                        RemoveNotUsedData = maps:without(DeletedFileNames, OldRuntimeDatas),
 
-                ReloadFilePaths = AddedFilePaths ++ ModifiedFilePaths, % number of add files is usually less than modified files
-                {NewRuntimeDatas, _ChangedFilesMap} = csv_to_object:traverse_files(ReloadFilePaths, RemoveNotUsedData, #{}),
-                {ok, State#state{
-                    runtime_datas = NewRuntimeDatas
-                }}
+                        ReloadFilePaths = AddedFilePaths ++ ModifiedFilePaths, % number of add files is usually less than modified files
+                        {NewRuntimeDatas, ChangedFilesMap} = csv_to_object:traverse_files(ReloadFilePaths, RemoveNotUsedData, #{}),
+                        error_logger:info_msg("~p~n============changed data~n~tp~n", [?MODULE_STRING, ChangedFilesMap]),
+
+                        ChangedList = maps:fold(
+                            fun(FileName, ValuesMap, AccChangedList) ->
+                                [{FileName, maps:keys(ValuesMap)} | AccChangedList]
+                            end, [], ChangedFilesMap),
+
+                        ok = gb_sets:fold(
+                            fun(_PlayerUid, ok) ->
+                                % TODO notify player the changed runtime data
+                                io:format("ChangedList:~p~n", [ChangedList])
+                            end, ok, login_server:logged_in_player_uids()),
+
+                        {ok, State#state{
+                            runtime_datas = NewRuntimeDatas
+                        }}
+                end;
+            _NoChange ->
+                {ok, State}
         end
     catch
         Type:Reason ->

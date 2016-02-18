@@ -83,14 +83,14 @@ traverse_merge_files(FilePathList, AccValuesMap, ExistingValuesMap, RowFun) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec traverse_files(FilePathList, AccMapFromFiles, ExistingMapFromFiles) -> {MapFromFiles, ChangedMapFromFiles} when
+-spec traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles) -> {MapFromFiles, ChangedMapFromFiles} when
     FilePathList :: [file:name_all()],
     AccMapFromFiles :: csv_data(),
     MapFromFiles :: AccMapFromFiles,
-    ExistingMapFromFiles :: AccMapFromFiles,
+    AccChangedMapFromFiles :: AccMapFromFiles,
     ChangedMapFromFiles :: AccMapFromFiles.
-traverse_files(FilePathList, AccMapFromFiles, ExistingMapFromFiles) ->
-    traverse_files(FilePathList, AccMapFromFiles, ExistingMapFromFiles, fun default_row_fun/1).
+traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles) ->
+    traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles, fun default_row_fun/1).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -98,37 +98,41 @@ traverse_files(FilePathList, AccMapFromFiles, ExistingMapFromFiles) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec traverse_files(FilePathList, AccMapFromFiles, ExistingMapFromFiles, RowFun) -> {MapFromFiles, ChangedMapFromFiles} when
+-spec traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles, RowFun) -> {MapFromFiles, ChangedMapFromFiles} when
     FilePathList :: [file:name_all()],
     RowFun :: function(),
     AccMapFromFiles :: csv_data(),
-    ExistingMapFromFiles :: AccMapFromFiles,
+    AccChangedMapFromFiles :: AccMapFromFiles,
     MapFromFiles :: AccMapFromFiles,
     ChangedMapFromFiles :: AccMapFromFiles.
-traverse_files(FilePathList, AccMapFromFiles, ExistingMapFromFiles, RowFun) ->
-    {MapFromFiles, ChangedMapFromFiles, _ExistingMapFromFiles} = lists:foldl(
-        fun(FilePath, {AccFiles, AccChangedFiles, ExistingFiles}) ->
+traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles, RowFun) ->
+    {MapFromFiles, ChangedMapFromFiles} = lists:foldl(
+        fun(FilePath, {AccAccMapFromFiles, AccAccChangedMapFromFiles}) ->
             FileName = filename:basename(FilePath),
             case filename:extension(FileName) == ?FILE_EXTENSION of
                 true ->
                     Key = list_to_atom(filename:rootname(FileName)),
-                    ExistingChangedValuesMap = maps:get(Key, ExistingFiles, #{}),
+                    ExistingChangedValuesMap = maps:get(Key, AccMapFromFiles, #{}),
                     {ValuesMap, ChangedValuesMap} = parse_file(FilePath, ExistingChangedValuesMap, RowFun),
-                    UpdatedAccChangedFiles =
-                        case ExistingChangedValuesMap == ChangedValuesMap of
+                    {
+                        AccAccMapFromFiles#{
+                            Key => ValuesMap
+                        },
+
+                        case maps:size(ChangedValuesMap) =:= 0 of
                             true ->
-                                AccChangedFiles;
+                                AccAccChangedMapFromFiles;
                             false ->
-                                AccChangedFiles#{
+                                AccAccChangedMapFromFiles#{
                                     Key => ChangedValuesMap
                                 }
-                        end,
-                    {AccFiles#{Key => ValuesMap}, UpdatedAccChangedFiles, ExistingFiles};
+                        end
+                    };
                 false ->
-                    {AccFiles, AccChangedFiles, ExistingFiles}
+                    {AccAccMapFromFiles, AccAccChangedMapFromFiles}
             end
         end,
-        {AccMapFromFiles, #{}, ExistingMapFromFiles},
+        {AccMapFromFiles, AccChangedMapFromFiles},
         FilePathList),
     {MapFromFiles, ChangedMapFromFiles}.
 
@@ -228,14 +232,20 @@ traverse_rows({newline, NewRow}, {Counter, RowFun, FieldInfos, AccRowValuesMap, 
                     undefined ->
                         {AccRowValuesMap, AccChangedRowValuesMap};
                     ConvertedCurRowValues ->
-                        UpdatedAccChangedValuesMapIn =
-                            case maps:is_key(CurRowKey, ExistingChangedValuesMap) of
-                                false ->
-                                    AccChangedRowValuesMap;
+                        ExistingRowValues = maps:get(CurRowKey, ExistingChangedValuesMap, undefined),
+                        {
+                            AccRowValuesMap#{
+                                CurRowKey => ConvertedCurRowValues
+                            },
+                            case ExistingRowValues == ConvertedCurRowValues of
                                 true ->
-                                    AccChangedRowValuesMap#{CurRowKey => ConvertedCurRowValues}
-                            end,
-                        {AccRowValuesMap#{CurRowKey => ConvertedCurRowValues}, UpdatedAccChangedValuesMapIn}
+                                    AccChangedRowValuesMap;
+                                false ->
+                                    AccChangedRowValuesMap#{
+                                        CurRowKey => ConvertedCurRowValues
+                                    }
+                            end
+                        }
                 end
         end,
     {Counter + 1, RowFun, FieldInfos, UpdatedAccRowValuesMap, UpdatedAccChangedRowValuesMap, ExistingChangedValuesMap, RecordName};

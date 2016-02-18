@@ -26,11 +26,12 @@
     get_nls_content/2,
     show_langs/2,
     do_response_content/3,
-    get_lang_map/1,
+    lang_map/1,
     start/0,
     stop/0,
     fill_in_content/3,
-    convert_target_nls/4
+    convert_target_nls/4,
+    nls_file_name_map/0
 ]).
 
 %% gen_server callbacks
@@ -209,11 +210,21 @@ do_response_content(LangMap, NlsObjectList, DispatcherPid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_lang_map(Lang) -> LangMap when
+-spec lang_map(Lang) -> LangMap when
     Lang :: support_lang(),
     LangMap :: lang_map().
-get_lang_map(Lang) ->
-    gen_server:call(?SERVER, {get_lang_map, Lang}).
+lang_map(Lang) ->
+    gen_server:call(?SERVER, {lang_map, Lang}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Retrieves the current nls file name map.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec nls_file_name_map() -> nls_file_name_map().
+nls_file_name_map() ->
+    gen_server:call(?SERVER, nls_file_name_map).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -273,6 +284,9 @@ convert_target_nls([{nls, NlsKey, Replacements} | RestMessage], LangMap, TargetN
                         {nls, NlsKey, ConvertedReplacements}
                 end,
     convert_target_nls(RestMessage, LangMap, TargetNlsSet, [NlsObject | AccNlsObjectList]);
+convert_target_nls([{ConvertedValue, Replacements} | RestMessage], LangMap, TargetNlsSet, AccNlsObjectList) ->
+    ConvertedReplacements = convert_target_nls(Replacements, LangMap, TargetNlsSet, []),
+    convert_target_nls(RestMessage, LangMap, TargetNlsSet, [{ConvertedValue, ConvertedReplacements} | AccNlsObjectList]);
 convert_target_nls([Other | RestMessage], LangMap, TargetNlsSet, AccNlsObjectList) ->
     ConvertedNlsObject =
         if
@@ -344,7 +358,7 @@ init([]) ->
     {get, NlsKey, Lang} |
     {is_valid_lang, TargetLang} |
     {get_nls_content, NlsObjectList, Lang} |
-    {get_lang_map, Lang} |
+    {lang_map, Lang} |
     stop,
 
     Reply :: State | ContentList | IsValidLang | NlsValue,
@@ -398,13 +412,17 @@ handle_call(
     ReturnContent = fill_in_nls(NlsObjectList, LangMap, []),
     {reply, ReturnContent, State};
 handle_call(
-    {get_lang_map, Lang},
+    {lang_map, Lang},
     _From,
     #state{
         nls_map = NlsMap
     } = State
 ) ->
-    {reply, maps:get(Lang, NlsMap), State}.
+    {reply, maps:get(Lang, NlsMap), State};
+handle_call(nls_file_name_map, _From, #state{
+    nls_file_name_map = NlsFileNameMap
+} = State) ->
+    {reply, NlsFileNameMap, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -499,121 +517,135 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, #state{
     nls_map = OldNlsMap,
     nls_file_name_map = OldNlsFileNameMap
-} = State, PrivChangedFiles) ->
+} = State, Extra) ->
     try
-        case csv_to_object:convert_priv_paths(PrivChangedFiles) of
-            no_change ->
-                {ok, State};
-            {ModifiedFilePaths, AddedFilePaths, DeletedFileNames} ->
-                {UpdatedOldNlsMap, UpdatedOldNlsFileNameMap, RemovedNlsSet} =
-                    lists:foldl(
-                        fun(DeletedFileName, {AccNlsMap, AccNlsFileNameMap, AccRemovedNlsSet}) ->
-                            case maps:get(DeletedFileName, OldNlsFileNameMap, undefined) of
-                                undefined ->
-                                    {AccNlsMap, AccNlsFileNameMap, AccRemovedNlsSet};
-                                KeysSetToBeRemoved ->
-                                    KeysToBeRemoved = gb_sets:to_list(KeysSetToBeRemoved),
-                                    UpdatedAccNlsMap =
-                                        maps:fold(
-                                            fun(Lang, LangMap, AccUpdatedAccNlsMap) ->
-                                                AccUpdatedAccNlsMap#{
-                                                    Lang => maps:without(KeysToBeRemoved, LangMap)
-                                                }
-                                            end, #{}, AccNlsMap),
+        case Extra of
+            {_OldVer, _NewVsn, PrivChangedFiles} ->
+                case csv_to_object:convert_priv_paths(PrivChangedFiles) of
+                    no_change ->
+                        {ok, State};
+                    {ModifiedFilePaths, AddedFilePaths, DeletedFileNames} ->
+                        {UpdatedOldNlsMap, UpdatedOldNlsFileNameMap, RemovedNlsSet} =
+                            lists:foldl(
+                                fun(DeletedFileName, {AccNlsMap, AccNlsFileNameMap, AccRemovedNlsSet}) ->
+                                    case maps:get(DeletedFileName, OldNlsFileNameMap, undefined) of
+                                        undefined ->
+                                            {AccNlsMap, AccNlsFileNameMap, AccRemovedNlsSet};
+                                        KeysSetToBeRemoved ->
+                                            KeysToBeRemoved = gb_sets:to_list(KeysSetToBeRemoved),
+                                            UpdatedAccNlsMap =
+                                                maps:fold(
+                                                    fun(Lang, LangMap, AccUpdatedAccNlsMap) ->
+                                                        AccUpdatedAccNlsMap#{
+                                                            Lang => maps:without(KeysToBeRemoved, LangMap)
+                                                        }
+                                                    end, #{}, AccNlsMap),
 
-                                    UpdatedAccRemovedNlsSet =
-                                        gb_sets:fold(
-                                            fun(KeyToBeRemoved, AccAccRemovedNlsSet) ->
-                                                gb_sets:add(KeyToBeRemoved, AccAccRemovedNlsSet)
-                                            end, AccRemovedNlsSet, KeysSetToBeRemoved
-                                        ),
+                                            UpdatedAccRemovedNlsSet =
+                                                gb_sets:fold(
+                                                    fun(KeyToBeRemoved, AccAccRemovedNlsSet) ->
+                                                        gb_sets:add(KeyToBeRemoved, AccAccRemovedNlsSet)
+                                                    end, AccRemovedNlsSet, KeysSetToBeRemoved
+                                                ),
 
-                                    {
-                                        UpdatedAccNlsMap,
-                                        maps:remove(DeletedFileName, AccNlsFileNameMap),
-                                        UpdatedAccRemovedNlsSet
-                                    }
-                            end
-                        end, {OldNlsMap, OldNlsFileNameMap, gb_sets:new()}, DeletedFileNames),
+                                            {
+                                                UpdatedAccNlsMap,
+                                                maps:remove(DeletedFileName, AccNlsFileNameMap),
+                                                UpdatedAccRemovedNlsSet
+                                            }
+                                    end
+                                end, {OldNlsMap, OldNlsFileNameMap, gb_sets:new()}, DeletedFileNames),
 
-                ReloadFilePaths = AddedFilePaths ++ ModifiedFilePaths, % number of add files is usually less than modified files
-                {_NewChangedNlsMap, DiffNlsMap, NewChangedNlsFileNameMap} = lists:foldl(fun read_nls_file/2, {UpdatedOldNlsMap, #{}, #{}}, ReloadFilePaths),
+                        ReloadFilePaths = AddedFilePaths ++ ModifiedFilePaths, % number of add files is usually less than modified files
+                        {_NewChangedNlsMap, DiffNlsMap, NewChangedNlsFileNameMap} = lists:foldl(fun read_nls_file/2, {UpdatedOldNlsMap, #{}, #{}}, ReloadFilePaths),
 
-                NewNlsMap = maps:fold(
-                    fun(Lang, NewDiffLangMap, AccNewNlsMap) ->
-                        OldLangMap = maps:get(Lang, AccNewNlsMap),
-                        AccNewNlsMap#{
-                            Lang := maps:merge(OldLangMap, NewDiffLangMap)
-                        }
-                    end, UpdatedOldNlsMap, DiffNlsMap
-                ),
+                        NewNlsMap = maps:fold(
+                            fun(Lang, NewDiffLangMap, AccNewNlsMap) ->
+                                OldLangMap = maps:get(Lang, AccNewNlsMap),
+                                AccNewNlsMap#{
+                                    Lang := maps:merge(OldLangMap, NewDiffLangMap)
+                                }
+                            end, UpdatedOldNlsMap, DiffNlsMap
+                        ),
 
-                NewNlsFileNameMap = maps:merge(UpdatedOldNlsFileNameMap, NewChangedNlsFileNameMap),
+                        NewNlsFileNameMap = maps:merge(UpdatedOldNlsFileNameMap, NewChangedNlsFileNameMap),
 
-                {UpdatedRemovedNlsSet, UpdatedNewNlsFileNameMap, UpdatedNewNlsMap} =
-                    maps:fold(
-                        fun(FileName, OldKeysSet, {AccUpdatedRemovedNlsSet, AccNewNlsFileNameMap, AccUpdatedNewNlsMap}) ->
-                            case maps:get(FileName, NewChangedNlsFileNameMap, undefined) of
-                                undefined ->
-                                    {AccUpdatedRemovedNlsSet, AccNewNlsFileNameMap, AccUpdatedNewNlsMap};
-                                NewKeysSet ->
-                                    {UpdatedAccUpdatedRemovedNlsSet, UpdatedAccNewKeysSet, UpdatedAccUpdatedNewNlsMap} =
-                                        gb_sets:fold(
-                                            fun(OldKey, {AccAccUpdatedRemovedNlsSet, AccNewKeysSet, AccAccUpdatedNewNlsMap}) ->
-                                                case gb_sets:is_member(OldKey, NewKeysSet) of
-                                                    false ->
-                                                        {
-                                                            gb_sets:add(OldKey, AccAccUpdatedRemovedNlsSet),
-                                                            gb_sets:del_element(OldKey, AccNewKeysSet),
-                                                            maps:fold(
-                                                                fun(AccLang, AccNewLangMap, AccAccAccUpdatedNewNlsMap) ->
-                                                                    AccAccAccUpdatedNewNlsMap#{
-                                                                        AccLang := maps:remove(OldKey, AccNewLangMap)
-                                                                    }
-                                                                end, AccAccUpdatedNewNlsMap, AccAccUpdatedNewNlsMap
-                                                            )
-                                                        };
-                                                    true ->
-                                                        {AccAccUpdatedRemovedNlsSet, AccNewKeysSet, AccAccUpdatedNewNlsMap}
-                                                end
-                                            end, {AccUpdatedRemovedNlsSet, NewKeysSet, AccUpdatedNewNlsMap}, OldKeysSet
-                                        ),
-                                    {
-                                        UpdatedAccUpdatedRemovedNlsSet,
-                                        AccNewNlsFileNameMap#{
-                                            FileName => UpdatedAccNewKeysSet
-                                        },
-                                        UpdatedAccUpdatedNewNlsMap
-                                    }
-                            end
-                        end, {RemovedNlsSet, NewNlsFileNameMap, NewNlsMap}, NewNlsFileNameMap),
-
-                AddedFileNames = [list_to_atom(filename:rootname(filename:basename(AddedFileName))) || AddedFileName <- AddedFilePaths],
-
-                error_logger:info_msg("============updated nls~n~tp~n============removed nls~n~p~n============added nls file~n~p~n============removed nls file~n~p~n", [DiffNlsMap, gb_sets:to_list(UpdatedRemovedNlsSet), AddedFileNames, DeletedFileNames]),
-
-                ok = lists:foreach(
-                    fun(PlayerUid) ->
-                        PlayerLang = player_fsm:get_lang(PlayerUid),
-                        PlayerDiffLangMap = maps:get(PlayerLang, DiffNlsMap, #{}),
-                        case gb_sets:is_empty(UpdatedRemovedNlsSet) of
-                            true ->
-                                IsPlayerDiffLangMapEmpty = maps:size(PlayerDiffLangMap) == 0,
-                                case IsPlayerDiffLangMapEmpty of
+                        AddedFileNamesSet = gb_sets:from_list([list_to_atom(filename:rootname(filename:basename(AddedFileName))) || AddedFileName <- AddedFilePaths]),
+                        UpdatedAddedFileNamesSet = maps:fold(
+                            fun(ChangedFileName, _FileNameMap, AccAddedFileNamesSet) ->
+                                case maps:is_key(ChangedFileName, UpdatedOldNlsFileNameMap) of
+                                    false ->
+                                        gb_sets:add(ChangedFileName, AccAddedFileNamesSet);
                                     true ->
-                                        ok;
+                                        AccAddedFileNamesSet
+                                end
+                            end, AddedFileNamesSet, NewChangedNlsFileNameMap),
+
+                        {UpdatedRemovedNlsSet, UpdatedNewNlsFileNameMap, UpdatedNewNlsMap} =
+                            maps:fold(
+                                fun(FileName, OldKeysSet, {AccUpdatedRemovedNlsSet, AccNewNlsFileNameMap, AccUpdatedNewNlsMap}) ->
+                                    case maps:get(FileName, NewChangedNlsFileNameMap, undefined) of
+                                        undefined ->
+                                            {AccUpdatedRemovedNlsSet, AccNewNlsFileNameMap, AccUpdatedNewNlsMap};
+                                        NewKeysSet ->
+                                            {UpdatedAccUpdatedRemovedNlsSet, UpdatedAccNewKeysSet, UpdatedAccUpdatedNewNlsMap} =
+                                                gb_sets:fold(
+                                                    fun(OldKey, {AccAccUpdatedRemovedNlsSet, AccNewKeysSet, AccAccUpdatedNewNlsMap}) ->
+                                                        case gb_sets:is_member(OldKey, NewKeysSet) of
+                                                            false ->
+                                                                {
+                                                                    gb_sets:add(OldKey, AccAccUpdatedRemovedNlsSet),
+                                                                    gb_sets:del_element(OldKey, AccNewKeysSet),
+                                                                    maps:fold(
+                                                                        fun(AccLang, AccNewLangMap, AccAccAccUpdatedNewNlsMap) ->
+                                                                            AccAccAccUpdatedNewNlsMap#{
+                                                                                AccLang := maps:remove(OldKey, AccNewLangMap)
+                                                                            }
+                                                                        end, AccAccUpdatedNewNlsMap, AccAccUpdatedNewNlsMap
+                                                                    )
+                                                                };
+                                                            true ->
+                                                                {AccAccUpdatedRemovedNlsSet, AccNewKeysSet, AccAccUpdatedNewNlsMap}
+                                                        end
+                                                    end, {AccUpdatedRemovedNlsSet, NewKeysSet, AccUpdatedNewNlsMap}, OldKeysSet
+                                                ),
+                                            {
+                                                UpdatedAccUpdatedRemovedNlsSet,
+                                                AccNewNlsFileNameMap#{
+                                                    FileName => UpdatedAccNewKeysSet
+                                                },
+                                                UpdatedAccUpdatedNewNlsMap
+                                            }
+                                    end
+                                end, {RemovedNlsSet, NewNlsFileNameMap, NewNlsMap}, UpdatedOldNlsFileNameMap),
+
+                        error_logger:info_msg("~p~n============updated nls~n~tp~n============removed nls~n~p~n============added nls file~n~p~n============removed nls file~n~p~n", [?MODULE_STRING, DiffNlsMap, gb_sets:to_list(UpdatedRemovedNlsSet), gb_sets:to_list(UpdatedAddedFileNamesSet), DeletedFileNames]),
+
+                        ok = gb_sets:fold(
+                            fun(PlayerUid, ok) ->
+                                PlayerLang = player_fsm:get_lang(PlayerUid),
+                                PlayerDiffLangMap = maps:get(PlayerLang, DiffNlsMap, #{}),
+                                case gb_sets:is_empty(UpdatedRemovedNlsSet) of
+                                    true ->
+                                        IsPlayerDiffLangMapEmpty = maps:size(PlayerDiffLangMap) == 0,
+                                        case IsPlayerDiffLangMapEmpty of
+                                            true ->
+                                                ok;
+                                            false ->
+                                                player_fsm:update_nls(PlayerUid, PlayerDiffLangMap, UpdatedRemovedNlsSet)
+                                        end;
                                     false ->
                                         player_fsm:update_nls(PlayerUid, PlayerDiffLangMap, UpdatedRemovedNlsSet)
-                                end;
-                            false ->
-                                player_fsm:update_nls(PlayerUid, PlayerDiffLangMap, UpdatedRemovedNlsSet)
-                        end
-                    end, gb_sets:to_list(login_server:logged_in_player_uids())),
+                                end
+                            end, ok, login_server:logged_in_player_uids()),
 
-                {ok, State#state{
-                    nls_map = UpdatedNewNlsMap,
-                    nls_file_name_map = UpdatedNewNlsFileNameMap
-                }}
+                        {ok, State#state{
+                            nls_map = UpdatedNewNlsMap,
+                            nls_file_name_map = UpdatedNewNlsFileNameMap
+                        }}
+                end;
+            _NoChange ->
+                {ok, State}
         end
     catch
         Type:Reason ->

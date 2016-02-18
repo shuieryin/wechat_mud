@@ -74,42 +74,49 @@ generate_instruction_for_priv(OldVsn, NewVsn, FileType, BeamFolder, AccInstructi
         fun(FilePath, AccModifiedInstructions) ->
             [_, CurModNameStr | _] = filename:split(FilePath),
             CurModName = list_to_atom(CurModNameStr),
-            UpdatedInstruction =
-                case lists:keyfind(CurModName, 2, AccModifiedInstructions) of
-                    false ->
-                        BeamFilePath = filename:join(BeamFolder, CurModNameStr ++ ".beam"),
-                        case filelib:is_file(BeamFilePath) of
-                            true ->
-                                NewExtra =
-                                    case FileType of
-                                        modified ->
-                                            {[FilePath], [], []};
-                                        added ->
-                                            {[], [FilePath], []};
-                                        deleted ->
-                                            {[], [], [list_to_atom(filename:basename(filename:rootname(FilePath)))]}
-                                    end,
-                                {update, CurModName, {advanced, {OldVsn, NewVsn, NewExtra}}};
-                            false ->
-                                throw("[" ++ FilePath ++ "] cannot be processed because module [" ++ CurModNameStr ++ "] does not exist.")
-                        end;
-                    {update, CurModName, {advanced, {OldVsn, NewVsn, CurExtra}}} ->
-                        {AccModPaths, AccAddPaths, AccDelPaths} = CurExtra,
-                        UpdatedCurExtra
-                            = case FileType of
-                                  modified ->
-                                      {[FilePath | AccModPaths], AccAddPaths, AccDelPaths};
-                                  added ->
-                                      {AccModPaths, [FilePath | AccAddPaths], AccDelPaths};
-                                  deleted ->
-                                      {AccModPaths, AccAddPaths, [list_to_atom(filename:basename(filename:rootname(FilePath))) | AccDelPaths]}
-                              end,
-                        {update, CurModName, {advanced, {OldVsn, NewVsn, UpdatedCurExtra}}}
-                end,
-            lists:keyreplace(CurModName, 2, AccModifiedInstructions, UpdatedInstruction)
+            case lists:keyfind(CurModName, 2, AccModifiedInstructions) of
+                false ->
+                    BeamFilePath = filename:join(BeamFolder, CurModNameStr ++ ".beam"),
+                    case filelib:is_file(BeamFilePath) of
+                        true ->
+                            NewExtra =
+                                case FileType of
+                                    modified ->
+                                        {[FilePath], [], []};
+                                    added ->
+                                        {[], [FilePath], []};
+                                    deleted ->
+                                        {[], [], [list_to_atom(filename:basename(filename:rootname(FilePath)))]}
+                                end,
+                            NewInstruction = {update, CurModName, {advanced, {OldVsn, NewVsn, NewExtra}}},
+                            [NewInstruction | AccModifiedInstructions];
+                        false ->
+                            throw("[" ++ FilePath ++ "] cannot be processed because module [" ++ CurModNameStr ++ "] does not exist.")
+                    end;
+                {update, CurModName, {advanced, {OldVsn, NewVsn, CurExtra}}} ->
+                    {AccModPaths, AccAddPaths, AccDelPaths} = CurExtra,
+                    UpdatedCurExtra
+                        = case FileType of
+                              modified ->
+                                  {[FilePath | AccModPaths], AccAddPaths, AccDelPaths};
+                              added ->
+                                  {AccModPaths, [FilePath | AccAddPaths], AccDelPaths};
+                              deleted ->
+                                  {AccModPaths, AccAddPaths, [list_to_atom(filename:basename(filename:rootname(FilePath))) | AccDelPaths]}
+                          end,
+                    UpdatedInstruction = {update, CurModName, {advanced, {OldVsn, NewVsn, UpdatedCurExtra}}},
+                    lists:keyreplace(CurModName, 2, AccModifiedInstructions, UpdatedInstruction)
+            end
         end, AccInstructions, PrivFilePahts).
 
-gen_appup(AppName, OldVsn, NewVsn, OldAppupPath, FinalInstructions) ->
+gen_appup(AppName, OldVsn, NewVsn, OldAppupPath, Instructions) ->
+    FinalInstructions = lists:sort(
+        fun(A, _B) ->
+            case A of
+                {update, _, _} -> false;
+                _ -> true
+            end
+        end, Instructions),
     update_version(AppName, NewVsn),
     AppupContent = {NewVsn,
         [{OldVsn, FinalInstructions}],
