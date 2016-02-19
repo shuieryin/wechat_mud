@@ -125,6 +125,14 @@ gen_appup(AppName, OldVsn, NewVsn, OldAppupPath, Instructions) ->
     ModuleSequnceStr = os:cmd("./config/module_sequence.sh"),
     {ok, Tokens, _EndLocation} = erl_scan:string(ModuleSequnceStr),
     {ok, ModuleSequnce} = erl_parse:parse_term(Tokens),
+
+    if
+        ModuleSequnce == connect_failed ->
+            throw("Cannot get module sequences, " ++ atom_to_list(ModuleSequnce));
+        true ->
+            do_nothing
+    end,
+
     {ModuleSequenceMap, _} = lists:foldl(
         fun(ModuleName, {AccModuleSequenceMap, Counter}) ->
             {
@@ -146,8 +154,6 @@ gen_appup(AppName, OldVsn, NewVsn, OldAppupPath, Instructions) ->
                     ASeq < BSeq
             end
         end, Instructions),
-
-    io:format("FinalInstructions:~p~n", [FinalInstructions]),
 
     update_version(AppName, NewVsn),
     AppupContent = {NewVsn,
