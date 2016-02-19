@@ -1,7 +1,10 @@
-all: ck install ct
+all: install_rebar3 ck build ct
 
-install:
-	@./config/install.sh
+install_rebar3:
+	@./config/install_rebar3.sh
+
+build:
+	@./config/build.sh
 
 ck: dialyzer edoc
 
