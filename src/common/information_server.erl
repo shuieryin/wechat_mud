@@ -1,6 +1,13 @@
-#parse("Erlang File Header.erl")
--module(${NAME}).
-#parse("Erlang File Module.erl")
+%%%-------------------------------------------------------------------
+%%% @author shuieryin
+%%% @copyright (C) 2016, Shuieryin
+%%% @doc
+%%%
+%%% @end
+%%% Created : 19. Feb 2016 7:08 PM
+%%%-------------------------------------------------------------------
+-module(information_server).
+-author("shuieryin").
 
 -behaviour(gen_server).
 
@@ -8,7 +15,8 @@
 -export([
     start_link/0,
     start/0,
-    stop/0
+    stop/0,
+    module_sequence/0
 ]).
 
 %% gen_server callbacks
@@ -24,11 +32,23 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {}).
+-record(state, {
+    root_sup_name :: module()
+}).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Retrieves module sequences for hot code upgrade.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec module_sequence() -> [module()].
+module_sequence() ->
+    gen_server:call({global, ?MODULE}, module_sequence).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -38,7 +58,7 @@
 %%--------------------------------------------------------------------
 -spec start_link() -> gen:start_ret().
 start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+    gen_server:start_link({global, ?SERVER}, ?MODULE, [], []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -48,7 +68,7 @@ start_link() ->
 %%--------------------------------------------------------------------
 -spec start() -> gen:start_ret().
 start() ->
-    gen_server:start({local, ?SERVER}, ?MODULE, [], []).
+    gen_server:start({global, ?SERVER}, ?MODULE, [], []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -85,7 +105,15 @@ stop() ->
     State :: #state{},
     Reason :: term(). % generic term
 init([]) ->
-    {ok, #state{}}.
+    io:format("~p starting...", [?MODULE]),
+
+    RootSupName = list_to_atom(atom_to_list(cm:app_name()) ++ "_sup"),
+
+    io:format("started~n"),
+
+    {ok, #state{
+        root_sup_name = RootSupName
+    }}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -102,15 +130,17 @@ init([]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: term(),  % generic term
-    Reply :: ok,
+    Request :: module_sequence,
+    Reply :: [module()],
 
     From :: {pid(), Tag :: term()}, % generic term
     State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
-handle_call(_Request, _From, State) ->
-    {reply, ok, State}.
+handle_call(module_sequence, _From, #state{
+    root_sup_name = RootSupName
+} = State) ->
+    {reply, lists:flatten(gen_sequence(RootSupName)), State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -211,5 +241,35 @@ format_status(Opt, StatusData) ->
     gen_server:format_status(Opt, StatusData).
 
 %%%===================================================================
-%%% Internal functions (N/A)
+%%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Generate module sequences for hot code upgrade.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec gen_sequence(module()) -> [module()].
+gen_sequence(RootSupName) ->
+    RootSequences = supervisor:which_children(RootSupName),
+    lists:foldl(
+        fun(Spec, AccSequence) ->
+            case Spec of
+                {_ModuleId, _Pid, worker, [ModuleName]} ->
+                    LastModuleName = case AccSequence of
+                                         [] ->
+                                             undefined;
+                                         [LModuleName | _RestAccModuleNames] ->
+                                             LModuleName
+                                     end,
+                    case LastModuleName =/= ModuleName of
+                        true ->
+                            [ModuleName | AccSequence];
+                        false ->
+                            AccSequence
+                    end;
+                {ModuleName, _Pid, supervisor, [ModuleName]} ->
+                    [ModuleName, gen_sequence(ModuleName) | AccSequence]
+            end
+        end, [], RootSequences).

@@ -75,7 +75,7 @@ add_handler() ->
     State :: #state{},
     Reason :: term(). % generic term
 init([]) ->
-    {ok, #{}}.
+    {ok, #state{}}.
 
 %%--------------------------------------------------------------------
 %% @private

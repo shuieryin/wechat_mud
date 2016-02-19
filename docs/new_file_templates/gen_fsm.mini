@@ -88,7 +88,7 @@ stop() ->
     StateData :: #state{},
     Reason :: term(). % generic term
 init([]) ->
-    {ok, state_name, #{}}.
+    {ok, state_name, #state{}}.
 
 %%--------------------------------------------------------------------
 %% @private

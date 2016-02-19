@@ -109,14 +109,46 @@ generate_instruction_for_priv(OldVsn, NewVsn, FileType, BeamFolder, AccInstructi
             end
         end, AccInstructions, PrivFilePahts).
 
+module_sequence(Instruction, ModuleSequenceMap) ->
+    case Instruction of
+        {add_module, ModuleName} -> {-1, ModuleName};
+        {load_module, ModuleName} -> {0, ModuleName};
+        {update, ModuleName, _} ->
+            {
+                maps:get(ModuleName, ModuleSequenceMap, 10000),
+                ModuleName
+            };
+        {delete_module, ModuleName} -> {10001, ModuleName}
+    end.
+
 gen_appup(AppName, OldVsn, NewVsn, OldAppupPath, Instructions) ->
+    ModuleSequnceStr = os:cmd("./config/module_sequence.sh"),
+    {ok, Tokens, _EndLocation} = erl_scan:string(ModuleSequnceStr),
+    {ok, ModuleSequnce} = erl_parse:parse_term(Tokens),
+    {ModuleSequenceMap, _} = lists:foldl(
+        fun(ModuleName, {AccModuleSequenceMap, Counter}) ->
+            {
+                AccModuleSequenceMap#{
+                    ModuleName => Counter
+                },
+                Counter + 1
+            }
+        end, {#{}, 1}, ModuleSequnce),
+
     FinalInstructions = lists:sort(
-        fun(A, _B) ->
-            case A of
-                {update, _, _} -> false;
-                _ -> true
+        fun(A, B) ->
+            {ASeq, AModuleName} = module_sequence(A, ModuleSequenceMap),
+            {BSeq, BModuleName} = module_sequence(B, ModuleSequenceMap),
+            case ASeq =:= BSeq of
+                true ->
+                    AModuleName < BModuleName;
+                false ->
+                    ASeq < BSeq
             end
         end, Instructions),
+
+    io:format("FinalInstructions:~p~n", [FinalInstructions]),
+
     update_version(AppName, NewVsn),
     AppupContent = {NewVsn,
         [{OldVsn, FinalInstructions}],

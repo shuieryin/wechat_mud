@@ -123,7 +123,14 @@ init([]) ->
                 10000,
                 supervisor,
                 [player_fsm_sup]
+            },
+
+            {information_server,
+                {information_server, start_link, []},
+                permanent,
+                10000,
+                worker,
+                [information_server]
             }
         ]
     }}.
-
