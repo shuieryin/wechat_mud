@@ -94,7 +94,9 @@ from_init(
             scene = CurSceneName,
             battle_status = BattleStatus
         } = PlayerProfile,
-        skill_map = SkillMap,
+        runtime_data = #{
+            skill := SkillMap
+        },
         battle_status_ri = BattleStatusRi
     } = State,
     StateName

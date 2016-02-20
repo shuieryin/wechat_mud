@@ -33,12 +33,16 @@
 -type csv_data() :: #{key() => csv_row_data()}.
 -type field_info() :: {key(), field_type()}.
 -type field_infos() :: [field_info()].
--type csv_to_object() :: #{key() => csv_data()}.
+-type csv_object() :: #{key() => csv_data()}.
+-type csv_data_struct() :: {module(), [atom()]}. % generic atom
 
 -include("../data_type/player_profile.hrl").
 
--export_type([csv_data/0,
-    csv_to_object/0]).
+-export_type([
+    csv_data/0,
+    csv_object/0,
+    csv_data_struct/0
+]).
 
 %%%===================================================================
 %%% API

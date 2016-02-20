@@ -41,7 +41,7 @@ command(_ModelState) ->
     oneof([
         {call, ?SERVER, turn_on_wechat_debug, []},
         {call, ?SERVER, turn_off_wechat_debug, []},
-        {call, ?SERVER, get_runtime_data, random_runtime_data_instruction()},
+        {call, ?SERVER, runtime_data, random_runtime_data_instruction()},
         {call, ?SERVER, random_npc, []}
     ]).
 
@@ -55,7 +55,7 @@ postcondition(_ModelState, {call, ?SERVER, turn_on_wechat_debug, []}, _Result) -
     common_server:is_wechat_debug();
 postcondition(_ModelState, {call, ?SERVER, turn_off_wechat_debug, []}, _Result) ->
     not common_server:is_wechat_debug();
-postcondition(_ModelState, {call, ?SERVER, get_runtime_data, Args}, Result) ->
+postcondition(_ModelState, {call, ?SERVER, runtime_data, Args}, Result) ->
     case length(Args) of
         1 ->
             0 == length([any || Record <- maps:values(Result), not record_not_undefined(Record)]);
@@ -63,7 +63,7 @@ postcondition(_ModelState, {call, ?SERVER, get_runtime_data, Args}, Result) ->
             record_not_undefined(Result)
     end;
 postcondition(_ModelState, {call, ?SERVER, random_npc, []}, #npc_profile{npc_uid = NpcFsmId}) ->
-    #npc_profile{npc_uid = NewNpcFsmId} = common_server:get_runtime_data(npc_profile, NpcFsmId),
+    #npc_profile{npc_uid = NewNpcFsmId} = common_server:runtime_data(npc_profile, NpcFsmId),
     NewNpcFsmId == NpcFsmId.
 
 %%%===================================================================
@@ -79,7 +79,7 @@ random_runtime_data_instruction() ->
 
         begin
             FileName = random_runtime_filename(),
-            CertainData = common_server:get_runtime_data(FileName),
+            CertainData = common_server:runtime_data(FileName),
             DataKeys = maps:keys(CertainData),
             RecordKey = ?ONE_OF(DataKeys),
             [FileName, RecordKey]

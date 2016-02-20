@@ -292,7 +292,7 @@ traverse_npcspec(NpcsSpec) ->
 traverse_npcspec([], AccNpcsList, AccNpcsMap) ->
     {AccNpcsList, AccNpcsMap};
 traverse_npcspec([{NpcId, Amount} | Tail], AccNpcsList, AccNpcsMap) ->
-    NpcBornProfile = common_server:get_runtime_data(npc_profile, NpcId),
+    NpcBornProfile = common_server:runtime_data(npc_profile, NpcId),
     {UpdatedAccNpcsList, UpdatedAccNpcsMap} = new_npc(Amount, NpcBornProfile, AccNpcsList, AccNpcsMap),
     traverse_npcspec(Tail, UpdatedAccNpcsList, UpdatedAccNpcsMap).
 

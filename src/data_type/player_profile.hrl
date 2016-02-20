@@ -61,6 +61,7 @@
     self :: #player_profile{},
     mail_box :: #mailbox{},
     lang_map :: nls_server:lang_map(),
-    skill_map :: player_fsm:skill_map(),
-    battle_status_ri = record_info(fields, battle_status) :: [atom()] % generic atom % battle status record info
+    runtime_data :: csv_to_object:csv_object(),
+    battle_status_ri = record_info(fields, battle_status) :: [atom()], % generic atom % battle status record info
+    pending_update_runtime_data :: [csv_to_object:csv_data_struct()]
 }).
