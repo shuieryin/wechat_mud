@@ -60,13 +60,24 @@ show_hp(
         self = #player_profile{
             battle_status = #battle_status{
                 'Hp' = Hp,
-                'M_hp' = MaxHp
+                'M_hp' = MaxHp,
+                'Defense' = Defense,
+                'M_defense' = MaxDefense,
+                'Strength' = Strength,
+                'M_Strength' = MaxStrength,
+                'Dexterity' = Dexterity,
+                'M_dexterity' = MaxDexDexterity
             }
         }
     } = State,
     StateName
 ) ->
-    Message = [<<"hp: ">>, integer_to_binary(Hp), <<" / ">>, integer_to_binary(MaxHp), <<"\n">>],
+    Message = [
+        {nls, hp_status, [Hp, MaxHp]}, <<"\n">>,
+        {nls, strength_status, [Strength, MaxStrength]}, <<"\n">>,
+        {nls, defense_status, [Defense, MaxDefense]}, <<"\n">>,
+        {nls, dexterity_status, [Dexterity, MaxDexDexterity]}, <<"\n">>
+    ],
     UpdatedState = player_fsm:do_response_content(State, Message, DispatcherPid),
     {ok, StateName, UpdatedState}.
 

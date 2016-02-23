@@ -10,7 +10,7 @@
 
 -record(battle_status, {
     'Strength' :: integer(),
-    'M_attack' :: integer(),
+    'M_Strength' :: integer(),
     'Defense' :: integer(),
     'M_defense' :: integer(),
     'Hp' :: integer(),

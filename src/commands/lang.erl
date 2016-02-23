@@ -82,7 +82,7 @@ switch_lang(
     } = State,
     StateName
 ) ->
-    TargetLangMap = nls_server:get_lang_map(TargetLang),
+    TargetLangMap = nls_server:lang_map(TargetLang),
     UpdatedState = player_fsm:do_response_content(
         State#player_state{lang_map = TargetLangMap},
         [{nls, lang_switched}],

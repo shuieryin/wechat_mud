@@ -1,4 +1,4 @@
-born_type:integer,attack:integer,defense:integer,hp:integer,dexterity:integer
+born_type:integer,strength:integer,defense:integer,hp:integer,dexterity:integer
 1,100,80,200,7
 2,50,100,220,3
 3,70,70,250,5

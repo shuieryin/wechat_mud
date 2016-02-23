@@ -18,9 +18,6 @@
 %% Supervisor callbacks
 -export([init/1]).
 
-%% Helper macro for declaring children of supervisor
--define(CHILD(I, Type), {I, {I, start_link, []}, permanent, 5000, Type, [I]}).
-
 %% ===================================================================
 %% API functions
 %% ===================================================================
@@ -126,7 +123,14 @@ init([]) ->
                 10000,
                 supervisor,
                 [player_fsm_sup]
+            },
+
+            {information_server,
+                {information_server, start_link, []},
+                permanent,
+                10000,
+                worker,
+                [information_server]
             }
         ]
     }}.
-

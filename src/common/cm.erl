@@ -39,7 +39,11 @@
     show_errors/1,
     collect_record_value/4,
     strings_to_atoms/1,
-    binaries_to_atoms/1
+    binaries_to_atoms/1,
+    update_record_value/3,
+    f2i/2,
+    to_binary/1,
+    app_name/0
 ]).
 
 -type valid_type() :: atom | binary | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple | map.
@@ -186,6 +190,7 @@ increase_vsn(SourceVersion, VersionDepth, Increment) ->
 -spec q() -> no_return().
 q() ->
     ok = login_server:logout_all_players(),
+    rb:stop(),
     os:cmd("redis-cli shutdown"),
     init:stop().
 
@@ -446,7 +451,6 @@ pp(ReturnContentBinary) ->
     Limit :: non_neg_integer().
 show_errors(Limit) when is_integer(Limit) ->
     rb:start([{type, [error_report, error]}, {max, Limit}]),
-    rb:list(),
     ok.
 
 %%--------------------------------------------------------------------
@@ -458,7 +462,7 @@ show_errors(Limit) when is_integer(Limit) ->
 -spec collect_record_value(RecordFieldNames, Record, NewFieldNames, ExistingFieldBindings) -> UpdatedFieldBindings when
     RecordFieldNames :: [atom()], % generic atom
     Record :: tuple(), % generic tuple
-    NewFieldNames :: [atom()], % generic atom
+    NewFieldNames :: erl_eval:bindings(),
     ExistingFieldBindings :: erl_eval:bindings(),
     UpdatedFieldBindings :: ExistingFieldBindings.
 collect_record_value(RecordFieldNames, Record, NewFieldNames, ExistingFieldBindings) ->
@@ -488,6 +492,81 @@ strings_to_atoms(StringList) ->
     AtomList :: [atom()]. % generic atom
 binaries_to_atoms(StringList) ->
     [binary_to_atom(Bin, utf8) || Bin <- StringList].
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Update record values.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec update_record_value(RecordFieldNames, Record, NewValueBindings) -> UpdatedRecord when
+    RecordFieldNames :: [atom()], % generic atom
+    Record :: tuple(), % generic tuple
+    NewValueBindings :: erl_eval:bindings(),
+    UpdatedRecord :: Record.
+update_record_value(RecordFieldNames, Record, NewValueBindings) ->
+    [RecordName | ExistingDataList] = tuple_to_list(Record),
+    UpdatedDataList = do_update_record_value(RecordFieldNames, ExistingDataList, NewValueBindings, []),
+    list_to_tuple([RecordName | UpdatedDataList]).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Convert float to integer.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec f2i(float(), integer()) -> integer().
+f2i(Float, Min) ->
+    IntVal = if
+                 is_float(Float) ->
+                     list_to_integer(float_to_list(Float, [{decimals, 0}]));
+                 is_integer(Float) ->
+                     Float;
+                 true ->
+                     Min
+             end,
+    if
+        IntVal < Min ->
+            Min;
+        true ->
+            IntVal
+    end.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Convert generic term to readable binary
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec to_binary(Term) -> Binary when
+    Term :: term(), % generic term
+    Binary :: binary().
+to_binary(Term) when is_binary(Term) ->
+    Term;
+to_binary(Term) when is_atom(Term) ->
+    atom_to_binary(Term, utf8);
+to_binary(Term) when is_integer(Term) ->
+    integer_to_binary(Term);
+to_binary(Term) when is_float(Term) ->
+    float_to_binary(Term);
+to_binary(Term) when is_list(Term) ->
+    list_to_binary(Term);
+to_binary(Term) ->
+    term_to_binary(Term).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Retrieve current application name.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec app_name() -> atom(). % generic atom
+app_name() ->
+    AppNameStr = begin
+                     [ProjectPath | _RestPath] = re:split(filename:absname(""), "_build", [{return, list}]),
+                     filename:basename(ProjectPath)
+                 end,
+    list_to_atom(AppNameStr).
 
 %%%===================================================================
 %%% Internal functions
@@ -543,21 +622,24 @@ get_module_src_path([_Other | Rest]) ->
 -spec do_collect_record_value(RecordFieldNames, DataList, TargetFieldNames, AccFieldBindings) -> FinalFieldBingdings when
     RecordFieldNames :: [atom()], % generic atom
     DataList :: [term()], % generic term
-    TargetFieldNames :: [atom()], % generic atom
+    TargetFieldNames :: erl_eval:bindings(),
     AccFieldBindings :: erl_eval:bindings(),
     FinalFieldBingdings :: AccFieldBindings.
 do_collect_record_value([FieldName | RestRecordFieldNames], [FieldValue | RestDataList], TargetFieldNames, AccFieldBindings) ->
     {UpdatedTargetFieldNames, UpdatedAccFieldBindings}
-        = case cm:index_of(FieldName, TargetFieldNames) of
-              -1 ->
-                  {TargetFieldNames, AccFieldBindings};
-              _Exist ->
-                  {lists:delete(FieldName, TargetFieldNames), erl_eval:add_binding(FieldName, FieldValue, AccFieldBindings)}
+        = case erl_eval:binding(FieldName, TargetFieldNames) of
+              {value, TargetFieldName} ->
+                  {
+                      erl_eval:del_binding(FieldName, TargetFieldNames),
+                      erl_eval:add_binding(TargetFieldName, FieldValue, AccFieldBindings)
+                  };
+              unbound ->
+                  {TargetFieldNames, AccFieldBindings}
           end,
     do_collect_record_value(RestRecordFieldNames, RestDataList, UpdatedTargetFieldNames, UpdatedAccFieldBindings);
-do_collect_record_value([], [], _RestFieldNames, FinalFieldBingdings) ->
+do_collect_record_value([], [], _TargetFieldNames, FinalFieldBingdings) ->
     FinalFieldBingdings;
-do_collect_record_value(_RestRecordFieldNames, _RestDataList, [], FinalFieldBingdings) ->
+do_collect_record_value(_RecordFieldNames, _DataList, [], FinalFieldBingdings) ->
     FinalFieldBingdings.
 
 %%--------------------------------------------------------------------
@@ -578,3 +660,28 @@ index_of(Elem, [Elem | _Tail], Pos) ->
     Pos;
 index_of(Item, [_NotMatchItem | Tail], Pos) ->
     index_of(Item, Tail, Pos + 1).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Implementation function for updated_record_value/3.
+%% @see updated_record_value/3.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec do_update_record_value(RecordFieldNames, ExistingDataList, NewValueBindings, AccDataList) -> UpdatedDataList when
+    RecordFieldNames :: [atom()], % generic atom
+    ExistingDataList :: [term()], % generic term
+    NewValueBindings :: erl_eval:bindings(),
+    AccDataList :: ExistingDataList,
+    UpdatedDataList :: AccDataList.
+do_update_record_value([FieldName | RestRecordFieldNames], [ExistingFieldValue | RestDataList], NewValueBindings, AccDataList) ->
+    {UpdatedNewValueBindings, NewFieldValue}
+        = case erl_eval:binding(FieldName, NewValueBindings) of
+              {value, BindingValue} ->
+                  {erl_eval:del_binding(FieldName, NewValueBindings), BindingValue};
+              unbound ->
+                  {NewValueBindings, ExistingFieldValue}
+          end,
+    do_update_record_value(RestRecordFieldNames, RestDataList, UpdatedNewValueBindings, [NewFieldValue | AccDataList]);
+do_update_record_value([], [], _NewValueBingdings, UpdatedDataList) ->
+    lists:reverse(UpdatedDataList).

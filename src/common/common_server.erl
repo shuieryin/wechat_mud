@@ -19,8 +19,9 @@
     is_wechat_debug/0,
     turn_on_wechat_debug/0,
     turn_off_wechat_debug/0,
-    get_runtime_data/1,
-    get_runtime_data/2,
+    runtime_data/1,
+    runtime_data/2,
+    runtime_datas/1,
     random_npc/0,
     start/0,
     stop/0
@@ -48,7 +49,7 @@
 
 -record(state, {
     common_config :: #common_config{},
-    runtime_datas :: csv_to_object:csv_to_object()
+    runtime_datas :: csv_to_object:csv_object()
 }).
 
 %%%===================================================================
@@ -134,11 +135,11 @@ turn_off_wechat_debug() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_runtime_data(FileName) -> RuntimeData when
+-spec runtime_data(FileName) -> RuntimeData when
     FileName :: csv_to_object:key(),
     RuntimeData :: csv_to_object:csv_data().
-get_runtime_data(DataName) ->
-    gen_server:call(?MODULE, {get_runtime_data, [DataName]}).
+runtime_data(DataName) ->
+    gen_server:call(?MODULE, {runtime_data, [DataName]}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -159,12 +160,28 @@ get_runtime_data(DataName) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_runtime_data(DataName, RecordName) -> RuntimeRecord when
+-spec runtime_data(DataName, RecordName) -> RuntimeRecord when
     DataName :: csv_to_object:key(),
     RecordName :: DataName,
     RuntimeRecord :: csv_to_object:csv_row_data().
-get_runtime_data(DataName, RecordName) ->
-    gen_server:call(?MODULE, {get_runtime_data, [DataName, RecordName]}).
+runtime_data(DataName, RecordName) ->
+    gen_server:call(?MODULE, {runtime_data, [DataName, RecordName]}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Retrieves runtime data by file name.
+%%
+%% For example retriving specific:
+%%
+%%      csv file:                   [csv_file_name]
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec runtime_datas(TargetDataList) -> RuntimeDatas when
+    TargetDataList :: [csv_to_object:csv_data_struct()],
+    RuntimeDatas :: csv_to_object:csv_object().
+runtime_datas(TargetDataList) ->
+    gen_server:call(?MODULE, {runtime_datas, TargetDataList}).
 
 
 %%--------------------------------------------------------------------
@@ -214,9 +231,14 @@ init([]) ->
                 Config
         end,
 
-    RuntimeFilePath = filename:join(code:priv_dir(wechat_mud), "runtime"),
-    RuntimeDatas = csv_to_object:traverse_files(RuntimeFilePath),
-    State = #state{common_config = CommonConfig, runtime_datas = RuntimeDatas},
+    RuntimeFilePath = filename:join(code:priv_dir(cm:app_name()), ?MODULE_STRING),
+    {ok, FileNameList} = file:list_dir(RuntimeFilePath),
+    FilePathList = [filename:join(RuntimeFilePath, FileName) || FileName <- FileNameList],
+    {RuntimeDatas, _ChangedRuntimeDatas} = csv_to_object:traverse_files(FilePathList, #{}, #{}),
+    State = #state{
+        common_config = CommonConfig,
+        runtime_datas = RuntimeDatas
+    },
 
     io:format("started~n"),
     {ok, State}.
@@ -239,11 +261,19 @@ init([]) ->
     Request ::
     is_wechat_debug |
     {set_wechat_debug, IsWechatDebug} |
-    {get_runtime_data, Phases :: [csv_to_object:key()]},
-    Reply :: IsWechatDebug | TargetRuntimeData,
+    {runtime_data, Phases} |
+    {runtime_datas, TargetDataList},
+
+    Reply ::
+    IsWechatDebug |
+    TargetRuntimeData |
+    RuntimeDatas,
 
     IsWechatDebug :: boolean(),
     TargetRuntimeData :: csv_to_object:csv_data(),
+    Phases :: [csv_to_object:key()],
+    TargetDataList :: [csv_to_object:csv_data_struct()],
+    RuntimeDatas :: csv_to_object:csv_object(),
 
     From :: {pid(), Tag :: term()}, % generic term
     State :: #state{},
@@ -266,16 +296,35 @@ handle_call(
         common_config = CommonConfigs
     } = State
 ) ->
-    {reply, IsWechatDebug, State#state{common_config = CommonConfigs#common_config{is_wechat_debug = IsWechatDebug}}};
+    {reply, IsWechatDebug, State#state{
+        common_config = CommonConfigs#common_config{
+            is_wechat_debug = IsWechatDebug
+        }
+    }};
 handle_call(
-    {get_runtime_data, Phases},
+    {runtime_data, Phases},
     _From,
     #state{
         runtime_datas = RuntimeDatasMap
     } = State
 ) ->
-    TargetRuntimeData = runtime_data(Phases, RuntimeDatasMap),
+    TargetRuntimeData = grab_runtime_data(Phases, RuntimeDatasMap),
     {reply, TargetRuntimeData, State};
+handle_call(
+    {runtime_datas, TargetDataList},
+    _From,
+    #state{
+        runtime_datas = RuntimeDatasMap
+    } = State
+) ->
+    TargetRuntimeDataMap = lists:foldl(
+        fun({DataKey, RecordKeys}, AccTargetRuntimeDataMap) ->
+            DataMap = maps:get(DataKey, RuntimeDatasMap),
+            AccTargetRuntimeDataMap#{
+                DataKey => maps:with(RecordKeys, DataMap)
+            }
+        end, #{}, TargetDataList),
+    {reply, TargetRuntimeDataMap, State};
 handle_call(
     random_npc,
     _From,
@@ -365,8 +414,48 @@ terminate(_Reason, _State) ->
     Extra :: term(), % generic term
     NewState :: State,
     Reason :: term(). % generic term
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+code_change(
+    _OldVsn,
+    #state{
+        runtime_datas = OldRuntimeDatas
+    } = State,
+    Extra
+) ->
+    try
+        case Extra of
+            {_OldVer, _NewVsn, PrivChangedFiles} ->
+                case csv_to_object:convert_priv_paths(PrivChangedFiles) of
+                    no_change ->
+                        {ok, State};
+                    {ModifiedFilePaths, AddedFilePaths, DeletedFileNames} ->
+                        RemoveNotUsedData = maps:without(DeletedFileNames, OldRuntimeDatas),
+
+                        ReloadFilePaths = AddedFilePaths ++ ModifiedFilePaths, % number of add files is usually less than modified files
+                        {NewRuntimeDatas, ChangedFilesMap} = csv_to_object:traverse_files(ReloadFilePaths, RemoveNotUsedData, #{}),
+                        error_logger:info_msg("~p~n============changed data~n~tp~n", [?MODULE_STRING, ChangedFilesMap]),
+
+                        ChangedList = maps:fold(
+                            fun(FileName, ValuesMap, AccChangedList) ->
+                                [{FileName, maps:keys(ValuesMap)} | AccChangedList]
+                            end, [], ChangedFilesMap),
+
+                        ok = gb_sets:fold(
+                            fun(PlayerUid, ok) ->
+                                player_fsm:pending_update_runtime_data(PlayerUid, ChangedList)
+                            end, ok, login_server:logged_in_player_uids()),
+
+                        {ok, State#state{
+                            runtime_datas = NewRuntimeDatas
+                        }}
+                end;
+            _NoChange ->
+                {ok, State}
+        end
+    catch
+        Type:Reason ->
+            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
+            {ok, State}
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -404,21 +493,21 @@ format_status(Opt, StatusData) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec runtime_data(Phases, RuntimeDatasMap) -> TargetRuntimeData when
+-spec grab_runtime_data(Phases, RuntimeDatasMap) -> TargetRuntimeData when
     Phases :: [csv_to_object:key()],
-    RuntimeDatasMap :: csv_to_object:csv_to_object(),
+    RuntimeDatasMap :: csv_to_object:csv_object(),
     TargetRuntimeData :: term(). % generic term
-runtime_data([Phase | []], RuntimeDatasMap) ->
+grab_runtime_data([Phase | []], RuntimeDatasMap) ->
     case maps:get(Phase, RuntimeDatasMap, undefined) of
         undefined ->
             undefined;
         TargetRuntimeData ->
             TargetRuntimeData
     end;
-runtime_data([Phase | Tail], RuntimeDatasMap) ->
+grab_runtime_data([Phase | Tail], RuntimeDatasMap) ->
     case maps:get(Phase, RuntimeDatasMap, undefined) of
         undefined ->
             undefined;
         DeeperMap ->
-            runtime_data(Tail, DeeperMap)
+            grab_runtime_data(Tail, DeeperMap)
     end.

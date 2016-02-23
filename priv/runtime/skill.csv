@@ -1,2 +1,0 @@
-skill_id:binary,skill_seq:integer,skill_formula:skill,buff:term
-attack,0,"$From.Strength * cm:rr(90,110) - $To.Defense.",[].

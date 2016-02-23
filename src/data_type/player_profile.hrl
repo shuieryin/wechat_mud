@@ -13,6 +13,8 @@
 -define(BATTLE_STATUS, 1).
 -endif.
 
+-include("../data_type/skill.hrl").
+
 -record(avatar_profile, {
     name :: player_fsm:name(),
     description :: [nls_server:nls_object()]
@@ -20,7 +22,7 @@
 
 -record(born_type_info, {
     born_type :: player_fsm:born_month(),
-    attack :: integer(),
+    strength :: integer(),
     defense :: integer(),
     hp :: integer(),
     dexterity :: integer()
@@ -49,25 +51,6 @@
     character_description :: nls_server:nls_object()
 }).
 
--record(skill_formula, {
-    formula :: erl_eval:expression_list(),
-    from_var_names :: [atom()], % generic atom
-    to_var_names :: [atom()] % generic atom
-}).
-
--record(skill, {
-    skill_id :: player_fsm:skill_id(),
-    skill_seq :: integer(),
-    skill_formula :: #skill_formula{},
-    buff :: [term()] % generic term
-}).
-
--record(perform_args, {
-    skill :: #skill{},
-    value_bindings :: erl_eval:bindings(),
-    damage_value :: non_neg_integer()
-}).
-
 -record(mailbox, {
     battle = [] :: [player_fsm:mail_object()],
     scene = [] :: [player_fsm:mail_object()],
@@ -78,6 +61,7 @@
     self :: #player_profile{},
     mail_box :: #mailbox{},
     lang_map :: nls_server:lang_map(),
-    skill_map :: player_fsm:skill_map(),
-    battle_status_ri = record_info(fields, battle_status) :: [atom()] % generic atom % battle status record info
+    runtime_data :: csv_to_object:csv_object(),
+    battle_status_ri = record_info(fields, battle_status) :: [atom()], % generic atom % battle status record info
+    pending_update_runtime_data :: [csv_to_object:csv_data_struct()]
 }).

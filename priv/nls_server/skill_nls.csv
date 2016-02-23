@@ -1,10 +1,7 @@
 id,zh,en
-launch_attack,你对${target_player}发起了攻击！,You decided to attack ${target_player}!
+launch_attack,你对${player}发起了攻击！,You decided to attack ${player}!
 under_attack,${player}向你发起攻击！,${player} decided to attack you!
-no_such_skill,没有这个${input_skill_name}武功。,no such skill: ${input_skill_name}.
-unarmed,打出了一拳,hit a punch
-sword,一剑刺出,hit the sword
-attack_name,普通攻击,Common Attack
-attack_desc,你对${player}${attack_type_desc}。,You ${attack_type_desc} to ${player}
-attack_under_attack_desc,${player}对你${attack_type_desc}。,${player} ${attack_type_desc} to you.
-damage_desc,造成了${damage_point}点伤害。,Causing ${damage_point} point damage.
+no_such_skill,没有${input_skill_name}这个武功。,no such skill: ${input_skill_name}.
+punch_act,你对${player}打出了一拳，造成了${damage_point}点伤害。,"You hit a punch to ${player}, causing ${damage_point} point damage."
+punch_psv,${player}对你打出了一拳，造成了${damage_point}点伤害。,"${player} hit a punch to you, causing ${damage_point} point damage."
+def_down,${player}的防御减弱了${point}点。,${player} defense slightly weakened ${point} point.

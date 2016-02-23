@@ -14,11 +14,12 @@
 
 %% API
 -export([
-    traverse_merge_files/2,
-    traverse_files/1,
-    traverse_files/2,
-    parse_file/1,
-    parse_file/2
+    traverse_merge_files/4,
+    traverse_files/3,
+    traverse_files/4,
+    parse_file/2,
+    parse_file/3,
+    convert_priv_paths/1
 ]).
 
 -define(FILE_EXTENSION, ".csv").
@@ -32,12 +33,16 @@
 -type csv_data() :: #{key() => csv_row_data()}.
 -type field_info() :: {key(), field_type()}.
 -type field_infos() :: [field_info()].
--type csv_to_object() :: #{key() => csv_data()}.
+-type csv_object() :: #{key() => csv_data()}.
+-type csv_data_struct() :: {module(), [atom()]}. % generic atom
 
 -include("../data_type/player_profile.hrl").
 
--export_type([csv_data/0,
-    csv_to_object/0]).
+-export_type([
+    csv_data/0,
+    csv_object/0,
+    csv_data_struct/0
+]).
 
 %%%===================================================================
 %%% API
@@ -45,27 +50,35 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Generates object configs from files of given folder and merge.
+%% Generates object configs from files of given folder and merge as one map.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec traverse_merge_files(FolderPath, RowFun) -> MapFromFiles when
-    FolderPath :: file:name(),
+-spec traverse_merge_files(FilePathList, AccValuesMap, ExistingValuesMap, RowFun) -> {ValuesMap, ChangedValuesMap} when
+    FilePathList :: [file:filename_all()],
     RowFun :: function(),
-    MapFromFiles :: csv_data().
-traverse_merge_files(FolderPath, RowFun) ->
-    {ok, FileNameList} = file:list_dir(FolderPath),
-    lists:foldl(
-        fun(FileName, AccMap) ->
-            case filename:extension(FileName) == ?FILE_EXTENSION of
-                true ->
-                    maps:merge(AccMap, parse_file(filename:join(FolderPath, FileName), RowFun));
-                false ->
-                    AccMap
-            end
-        end,
-        #{},
-        FileNameList).
+    ValuesMap :: csv_data(),
+    AccValuesMap :: ValuesMap,
+    ExistingValuesMap :: ValuesMap,
+    ChangedValuesMap :: ValuesMap.
+traverse_merge_files(FilePathList, AccValuesMap, ExistingValuesMap, RowFun) ->
+    {ValuesMap, ChangedValuesMap, _ExistingValuesMap} =
+        lists:foldl(
+            fun(FilePath, {AccValues, AccChangedValues, ExistingValues}) ->
+                FileName = filename:basename(FilePath),
+                case filename:extension(FileName) == ?FILE_EXTENSION of
+                    true ->
+                        {Values, ChangedValues} = parse_file(FilePath, ExistingValues, RowFun),
+                        NewAccValues = maps:merge(AccValues, Values),
+                        NewAccChangedValues = maps:merge(AccChangedValues, ChangedValues),
+                        {NewAccValues, NewAccChangedValues, ExistingValues};
+                    false ->
+                        {AccValues, AccChangedValues, ExistingValues}
+                end
+            end,
+            {AccValuesMap, #{}, ExistingValuesMap},
+            FilePathList),
+    {ValuesMap, ChangedValuesMap}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -74,11 +87,14 @@ traverse_merge_files(FolderPath, RowFun) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec traverse_files(FolderPath) -> MapFromFiles when
-    FolderPath :: file:name(),
-    MapFromFiles :: csv_data().
-traverse_files(FolderPath) ->
-    traverse_files(FolderPath, fun default_row_fun/1).
+-spec traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles) -> {MapFromFiles, ChangedMapFromFiles} when
+    FilePathList :: [file:name_all()],
+    AccMapFromFiles :: csv_data(),
+    MapFromFiles :: AccMapFromFiles,
+    AccChangedMapFromFiles :: AccMapFromFiles,
+    ChangedMapFromFiles :: AccMapFromFiles.
+traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles) ->
+    traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles, fun default_row_fun/1).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -86,25 +102,43 @@ traverse_files(FolderPath) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec traverse_files(FolderPath, RowFun) -> MapFromFiles when
-    FolderPath :: file:name(),
+-spec traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles, RowFun) -> {MapFromFiles, ChangedMapFromFiles} when
+    FilePathList :: [file:name_all()],
     RowFun :: function(),
-    MapFromFiles :: csv_data().
-traverse_files(FolderPath, RowFun) ->
-    {ok, FileNameList} = file:list_dir(FolderPath),
-    lists:foldl(
-        fun(FileName, AccMap) ->
+    AccMapFromFiles :: csv_data(),
+    AccChangedMapFromFiles :: AccMapFromFiles,
+    MapFromFiles :: AccMapFromFiles,
+    ChangedMapFromFiles :: AccMapFromFiles.
+traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles, RowFun) ->
+    {MapFromFiles, ChangedMapFromFiles} = lists:foldl(
+        fun(FilePath, {AccAccMapFromFiles, AccAccChangedMapFromFiles}) ->
+            FileName = filename:basename(FilePath),
             case filename:extension(FileName) == ?FILE_EXTENSION of
                 true ->
                     Key = list_to_atom(filename:rootname(FileName)),
-                    ValuesMap = parse_file(filename:join(FolderPath, FileName), RowFun),
-                    AccMap#{Key => ValuesMap};
+                    ExistingChangedValuesMap = maps:get(Key, AccMapFromFiles, #{}),
+                    {ValuesMap, ChangedValuesMap} = parse_file(FilePath, ExistingChangedValuesMap, RowFun),
+                    {
+                        AccAccMapFromFiles#{
+                            Key => ValuesMap
+                        },
+
+                        case maps:size(ChangedValuesMap) =:= 0 of
+                            true ->
+                                AccAccChangedMapFromFiles;
+                            false ->
+                                AccAccChangedMapFromFiles#{
+                                    Key => ChangedValuesMap
+                                }
+                        end
+                    };
                 false ->
-                    AccMap
+                    {AccAccMapFromFiles, AccAccChangedMapFromFiles}
             end
         end,
-        #{},
-        FileNameList).
+        {AccMapFromFiles, AccChangedMapFromFiles},
+        FilePathList),
+    {MapFromFiles, ChangedMapFromFiles}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -113,11 +147,13 @@ traverse_files(FolderPath, RowFun) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec parse_file(FilePath) -> MapFromFile when
-    FilePath :: file:filename(),
-    MapFromFile :: csv_data().
-parse_file(FilePath) ->
-    parse_file(FilePath, fun default_row_fun/1).
+-spec parse_file(FilePath, ExistingChangedValuesMap) -> {ValuesMap, ChangedValuesMap} when
+    FilePath :: file:filename_all(),
+    ValuesMap :: csv_data(),
+    ChangedValuesMap :: ValuesMap,
+    ExistingChangedValuesMap :: ValuesMap.
+parse_file(FilePath, ExistingChangedValuesMap) ->
+    parse_file(FilePath, ExistingChangedValuesMap, fun default_row_fun/1).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -126,16 +162,44 @@ parse_file(FilePath) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec parse_file(FilePath, RowFun) -> MapFromFile when
+-spec parse_file(FilePath, ExistingChangedValuesMap, RowFun) -> {ValuesMap, ChangedValuesMap} when
     FilePath :: file:filename(),
     RowFun :: function(),
-    MapFromFile :: csv_data().
-parse_file(FilePath, RowFun) ->
+    ValuesMap :: csv_data(),
+    ExistingChangedValuesMap :: ValuesMap,
+    ChangedValuesMap :: ValuesMap.
+parse_file(FilePath, ExistingChangedValuesMap, RowFun) ->
     {ok, File} = file:open(FilePath, [read]),
     RecordName = list_to_atom(filename:rootname(filename:basename(FilePath))),
-    {ok, MapFromFile} = ecsv:process_csv_file_with(File, fun traverse_rows/2, {0, RowFun, RecordName}),
+    {ok, {ValuesMap, ChangedValuesMap}} = ecsv:process_csv_file_with(File, fun traverse_rows/2, {0, RowFun, RecordName, ExistingChangedValuesMap}),
     ok = file:close(File),
-    MapFromFile.
+    {ValuesMap, ChangedValuesMap}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% List changed priv file paths for hot code upgrade before committed.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec convert_priv_paths({ModifiedFiles, AddedFiles, DeletedFiles}) -> no_change | {ModifiedFilePaths, AddedFilePaths, DeletedFileNames} when
+    ModifiedFiles :: [file:filename_all()],
+    AddedFiles :: ModifiedFiles,
+    DeletedFiles :: ModifiedFiles,
+    ModifiedFilePaths :: ModifiedFiles,
+    AddedFilePaths :: ModifiedFiles,
+    DeletedFileNames :: [atom()]. % file name % generic atom
+convert_priv_paths({ModifiedFiles, AddedFiles, DeletedFiles}) ->
+    BasePath = filename:dirname(code:priv_dir(cm:app_name())),
+
+    if
+        ModifiedFiles == [] andalso AddedFiles == [] andalso DeletedFiles == [] ->
+            no_change;
+        true ->
+            ModifiedFilePaths = [filename:join(BasePath, ModifiedFile) || ModifiedFile <- ModifiedFiles],
+            AddedFilePaths = [filename:join(BasePath, AddedFile) || AddedFile <- AddedFiles],
+            DeletedFileNames = [list_to_atom(filename:basename(filename:rootname(DeletedFile))) || DeletedFile <- DeletedFiles],
+            {ModifiedFilePaths, AddedFilePaths, DeletedFileNames}
+    end.
 
 %%%===================================================================
 %%% Internal functions
@@ -147,39 +211,53 @@ parse_file(FilePath, RowFun) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec traverse_rows(NewRowData, State) -> RowValuesMap when
+-spec traverse_rows(NewRowData, State) -> {RowValuesMap, ChangedRowValuesMap} when
     NewRowData :: {newline, [csv_line()]} | {eof},
     RowFun :: function(),
     RowValuesMap :: csv_data(),
+    ChangedRowValuesMap :: RowValuesMap,
     Counter :: non_neg_integer(), % generic integer
     FieldInfos :: field_infos(),
     AccRowValuesMap :: RowValuesMap,
+    AccChangedRowValuesMap :: RowValuesMap,
     RecordName :: atom(), % generic atom
     State ::
-    {Counter, RowFun, FieldInfos, AccRowValuesMap, RecordName} |
-    {0, RowFun, RecordName} |
-    {_Counter, _RowFun, _FieldInfos, RowValuesMap, _RecordName}.
-traverse_rows({newline, NewRow}, {Counter, RowFun, FieldInfos, AccRowValuesMap, RecordName}) ->
+    {Counter, RowFun, FieldInfos, AccRowValuesMap, AccChangedRowValuesMap, ExistingChangedValuesMap, RecordName} |
+    {0, RowFun, RecordName, ExistingChangedValuesMap}.
+traverse_rows({newline, NewRow}, {Counter, RowFun, FieldInfos, AccRowValuesMap, AccChangedRowValuesMap, ExistingChangedValuesMap, RecordName}) ->
     [_UselessHead, CurRowKey | _RestCurRowValues] =
         CurRowValues = traverse_column(NewRow, FieldInfos, [RecordName]),
-    UpdatedAccRowValuesMap =
+    {UpdatedAccRowValuesMap, UpdatedAccChangedRowValuesMap} =
         case CurRowKey of
             undefined ->
-                AccRowValuesMap;
+                {AccRowValuesMap, AccChangedRowValuesMap};
             _CurRowKey ->
                 case RowFun(CurRowValues) of
                     undefined ->
-                        AccRowValuesMap;
+                        {AccRowValuesMap, AccChangedRowValuesMap};
                     ConvertedCurRowValues ->
-                        AccRowValuesMap#{CurRowKey => ConvertedCurRowValues}
+                        ExistingRowValues = maps:get(CurRowKey, ExistingChangedValuesMap, undefined),
+                        {
+                            AccRowValuesMap#{
+                                CurRowKey => ConvertedCurRowValues
+                            },
+                            case ExistingRowValues == ConvertedCurRowValues of
+                                true ->
+                                    AccChangedRowValuesMap;
+                                false ->
+                                    AccChangedRowValuesMap#{
+                                        CurRowKey => ConvertedCurRowValues
+                                    }
+                            end
+                        }
                 end
         end,
-    {Counter + 1, RowFun, FieldInfos, UpdatedAccRowValuesMap, RecordName};
-traverse_rows({newline, NewRow}, {0, RowFun, RecordName}) ->
+    {Counter + 1, RowFun, FieldInfos, UpdatedAccRowValuesMap, UpdatedAccChangedRowValuesMap, ExistingChangedValuesMap, RecordName};
+traverse_rows({newline, NewRow}, {0, RowFun, RecordName, ExistingChangedValuesMap}) ->
     FieldInfos = gen_fieldinfos(NewRow, []),
-    {1, RowFun, FieldInfos, #{}, RecordName};
-traverse_rows({eof}, {_Counter, _RowFun, _FieldInfos, RowValuesMap, _RecordName}) ->
-    RowValuesMap.
+    {1, RowFun, FieldInfos, #{}, #{}, ExistingChangedValuesMap, RecordName};
+traverse_rows({eof}, {_Counter, _RowFun, _FieldInfos, RowValuesMap, ChangedRowValuesMap, _ExistingChangedValuesMap, _RecordName}) ->
+    {RowValuesMap, ChangedRowValuesMap}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -213,7 +291,8 @@ gen_fieldinfos([RawFieldInfoStr | Tail], AccFieldInfos) ->
     FinalValues :: AccValues.
 traverse_column([], _FieldInfos, AccValues) ->
     lists:reverse(AccValues);
-traverse_column([RawValue | TailValues], [{_Key, FieldType} | TailFieldInfos], AccValues) ->
+traverse_column([RawValue0 | TailValues], [{_Key, FieldType} | TailFieldInfos], AccValues) ->
+    RawValue = re:replace(RawValue0, [226, 128, 168], "", [global, {return, list}]), % eliminate new line genereated by Numbers.app
     Value =
         try
             case RawValue of
@@ -238,10 +317,11 @@ traverse_column([RawValue | TailValues], [{_Key, FieldType} | TailFieldInfos], A
                             {ok, Exprs} = erl_parse:parse_exprs(Tokens),
                             Exprs;
                         skill ->
-                            {FromValueNames, RawValue2} = collect_formula_value_names(list_to_binary(RawValue), "From"),
-                            {ToValueNames, RawValue3} = collect_formula_value_names(RawValue2, "To"),
+                            RawValueBin = list_to_binary(RawValue),
+                            FromValueNames = collect_formula_value_names(RawValueBin, <<"From">>),
+                            ToValueNames = collect_formula_value_names(RawValueBin, <<"To">>),
 
-                            {ok, Tokens, _EndLocation} = erl_scan:string(binary_to_list(RawValue3)),
+                            {ok, Tokens, _EndLocation} = erl_scan:string(RawValue),
                             {ok, Exprs} = erl_parse:parse_exprs(Tokens),
                             #skill_formula{
                                 formula = Exprs,
@@ -254,7 +334,7 @@ traverse_column([RawValue | TailValues], [{_Key, FieldType} | TailFieldInfos], A
             end
         catch
             Type:Reason ->
-                error_logger:error_msg("traverse_column failed~nRawValue:~p~nType:~p~nReason:~p~nStackTrace:~p~n", [RawValue, Type, Reason, erlang:get_stacktrace()]),
+                error_logger:error_msg("traverse_column failed~nRawValue:~tp~nType:~p~nReason:~p~nStackTrace:~p~n", [RawValue, Type, Reason, erlang:get_stacktrace()]),
                 RawValue
         end,
     traverse_column(TailValues, TailFieldInfos, [Value | AccValues]).
@@ -265,20 +345,46 @@ traverse_column([RawValue | TailValues], [{_Key, FieldType} | TailFieldInfos], A
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec collect_formula_value_names(RawValue, ObjectName) -> {ValueNames, UpdatedRawValue} when
+-spec collect_formula_value_names(RawValue, Prefix) -> ValueNames when
     RawValue :: binary(),
-    ObjectName :: string(),
-    ValueNames :: [atom()], % generic atom
-    UpdatedRawValue :: binary().
-collect_formula_value_names(RawValue, ObjectName) ->
-    MatchRE = list_to_binary("\\$" ++ ObjectName ++ "\.([A-z0-9]*)[\s|.]{1}"),
+    Prefix :: binary(),
+    ValueNames :: erl_eval:bindings().
+collect_formula_value_names(RawValue, Prefix) ->
+    MatchRE = <<"(", Prefix/binary, "_([A-z0-9]*))[\s|.|,]{1}">>,
     case re:run(RawValue, MatchRE, [global, {capture, all_but_first, binary}]) of
-        {match, Matched} ->
-            ReplaceRE = list_to_binary("\\$" ++ ObjectName ++ "\."),
-            {cm:binaries_to_atoms(lists:flatten(Matched)), re:replace(RawValue, ReplaceRE, <<"">>, [global, {return, binary}])};
+        {match, MatchedList} ->
+            collect_formula_value_names_convert(MatchedList, erl_eval:new_bindings());
         nomatch ->
-            {[], RawValue}
+            []
     end.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Convert matched value names to erl_eval bindings.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec collect_formula_value_names_convert(MatchedList, AccValueNames) -> ValueNames when
+    MatchValue :: binary(),
+    MatchedList :: [[MatchValue]],
+    AccValueNames :: erl_eval:bindings(),
+    ValueNames :: AccValueNames.
+collect_formula_value_names_convert([[RawBindingKey, RawStatusFieldName] | RestMatchedList], AccValueNames) ->
+    UpdatedAccValueNames =
+        case erl_eval:binding(RawBindingKey, AccValueNames) of
+            unbound ->
+                erl_eval:add_binding(
+                    binary_to_atom(RawStatusFieldName, utf8),
+                    binary_to_atom(RawBindingKey, utf8),
+                    AccValueNames
+                );
+            _Exist ->
+                AccValueNames
+        end,
+    collect_formula_value_names_convert(RestMatchedList, UpdatedAccValueNames);
+collect_formula_value_names_convert([], ValueNames) ->
+    ValueNames.
+
 
 %%--------------------------------------------------------------------
 %% @doc

@@ -412,10 +412,10 @@ input_confirmation(
     #npc_profile{npc_name = NpcName, character_desc = CharacterDescription, self_description = SelfDescription} = common_server:random_npc(),
 
     #born_type_info{
-        attack = L_strength,
-        defense = L_defense,
-        hp = L_hp,
-        dexterity = L_dexterity
+        strength = M_strength,
+        defense = M_defense,
+        hp = M_hp,
+        dexterity = M_dexterity
     } = BornType = maps:get(BornMonth, BornTypeInfoMap),
 
     FinalPlayerProfile = PlayerProfile#player_profile{
@@ -426,14 +426,14 @@ input_confirmation(
         self_description = SelfDescription,
         born_type = BornType,
         battle_status = #battle_status{
-            'Strength' = L_strength,
-            'M_attack' = L_strength,
-            'Defense' = L_defense,
-            'M_defense' = L_defense,
-            'Hp' = L_hp,
-            'M_hp' = L_hp,
-            'Dexterity' = L_dexterity,
-            'M_dexterity' = L_dexterity
+            'Strength' = M_strength,
+            'M_Strength' = M_strength,
+            'Defense' = M_defense,
+            'M_defense' = M_defense,
+            'Hp' = M_hp,
+            'M_hp' = M_hp,
+            'Dexterity' = M_dexterity,
+            'M_dexterity' = M_dexterity
         }
     },
 

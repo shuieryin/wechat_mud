@@ -29,7 +29,12 @@
     simple_player/1,
     non_battle/2,
     non_battle/3,
-    battle/2
+    battle/2,
+    update_nls/3,
+    player_state/1,
+    lang_map/1,
+    mail_box/1,
+    pending_update_runtime_data/2
 ]).
 
 %% gen_fsm callbacks
@@ -60,7 +65,7 @@
 -type mail_type() :: battle | scene | other.
 -type skill_id() :: binary().
 -type skill_map() :: #{skill_id() => #skill{}}.
--type skills() :: attack.
+-type skills() :: punch.
 
 -type command_args() :: #perform_args{} | term(). % generic term
 -type player_state_name() :: battle | non_battle | state_name.
@@ -202,7 +207,11 @@ append_message_local(
     } = State
 ) ->
     UpdatedSceneMessages = [Message | SceneMessages],
-    State#player_state{mail_box = MailBox#mailbox{scene = UpdatedSceneMessages}};
+    State#player_state{
+        mail_box = MailBox#mailbox{
+            scene = UpdatedSceneMessages
+        }
+    };
 append_message_local(
     Message,
     scene,
@@ -213,7 +222,11 @@ append_message_local(
     } = State
 ) ->
     UpdatedSceneMessages = [Message | SceneMessages],
-    State#player_state{mail_box = MailBox#mailbox{scene = UpdatedSceneMessages}};
+    State#player_state{
+        mail_box = MailBox#mailbox{
+            scene = UpdatedSceneMessages
+        }
+    };
 append_message_local(
     Message,
     other,
@@ -289,6 +302,73 @@ do_response_content(
         }
     }.
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Update language map on the fly. Including newly added, modified,
+%% and removed nls. For the ones that removed but still remain in
+%% player mail box, will replace them with the actual nls value before
+%% the nls map is updated in player state.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec update_nls(PlayerUid, ChangedLangMap, RemovedNlsSet) -> ok when
+    PlayerUid :: uid(),
+    ChangedLangMap :: nls_server:lang_map(),
+    RemovedNlsSet :: gb_sets:set(atom()). % generic atom
+update_nls(PlayerUid, ChangedLangMap, RemovedNlsSet) ->
+    gen_fsm:sync_send_all_state_event(PlayerUid, {update_nls, ChangedLangMap, RemovedNlsSet}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Update language map on the fly. Including newly added, modified,
+%% and removed nls. For the ones that removed but still remain in
+%% player mail box, will replace them with the actual nls value before
+%% the nls map is updated in player state.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec pending_update_runtime_data(PlayerUid, RuntimeDataChangedList) -> ok when
+    PlayerUid :: uid(),
+    RuntimeDataChangedList :: [csv_to_object:csv_data_struct()].
+pending_update_runtime_data(PlayerUid, RuntimeDataChangedList) ->
+    gen_fsm:sync_send_all_state_event(PlayerUid, {pending_update_runtime_data, RuntimeDataChangedList}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Retrieve target player state.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec player_state(PlayerUid) -> PlayerState when
+    PlayerUid :: uid(),
+    PlayerState :: #player_state{}.
+player_state(PlayerUid) ->
+    gen_fsm:sync_send_all_state_event(PlayerUid, player_state).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Retrieve target player language map.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec lang_map(PlayerUid) -> LangMap when
+    PlayerUid :: uid(),
+    LangMap :: nls_server:lang_map().
+lang_map(PlayerUid) ->
+    gen_fsm:sync_send_all_state_event(PlayerUid, lang_map).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Retrieve target player mail box.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec mail_box(PlayerUid) -> Mailbox when
+    PlayerUid :: uid(),
+    Mailbox :: #mailbox{}.
+mail_box(PlayerUid) ->
+    gen_fsm:sync_send_all_state_event(PlayerUid, mail_box).
+
 %%%===================================================================
 %%% gen_fsm callbacks
 %%%===================================================================
@@ -316,12 +396,18 @@ do_response_content(
     StateData :: #player_state{},
     Reason :: term(). % generic term
 init({Uid, DispatcherPid}) ->
-    #player_profile{scene = CurSceneName, lang = Lang} = PlayerProfile = redis_client_server:get(Uid),
+    #player_profile{
+        scene = CurSceneName,
+        lang = Lang
+    } = PlayerProfile = redis_client_server:get(Uid),
+
     State = #player_state{
         self = PlayerProfile,
-        lang_map = nls_server:get_lang_map(Lang),
+        lang_map = nls_server:lang_map(Lang),
         mail_box = #mailbox{},
-        skill_map = common_server:get_runtime_data(skill)
+        runtime_data = #{
+            skill => common_server:runtime_data(skill)
+        }
     },
 
     ok = scene_fsm:enter(CurSceneName, DispatcherPid, simple_player(PlayerProfile), undefined),
@@ -582,12 +668,24 @@ handle_event(stop, _StateName, State) ->
     {stop, Reason, NewStateData} when
 
     Event :: get_lang |
-    current_scene_name,
+    current_scene_name |
+    {update_nls, ChangedLangMap, RemovedNlsSet} |
+    {pending_update_runtime_data, RuntimeDataChangedList} |
+    player_state |
+    lang_map |
+    mail_box,
 
     Reply :: Lang |
-    scene_fsm:scene_name(),
+    scene_fsm:scene_name() |
+    ok |
+    StateData |
+    LangMap,
 
     Lang :: nls_server:support_lang(),
+    ChangedLangMap :: nls_server:lang_map(),
+    RemovedNlsSet :: gb_sets:set(atom()), % generic atom
+    LangMap :: nls_server:lang_map(),
+    RuntimeDataChangedList :: [csv_to_object:csv_data_struct()],
 
     From :: {pid(), Tag :: term()}, % generic term
     StateName :: player_state_name(),
@@ -616,7 +714,38 @@ handle_sync_event(
         }
     } = State
 ) ->
-    {reply, CurrentSceneName, StateName, State}.
+    {reply, CurrentSceneName, StateName, State};
+handle_sync_event(
+    {update_nls, ChangedLangMap, RemovedNlsSet},
+    _From,
+    StateName,
+    #player_state{
+        lang_map = OldLangMap,
+        mail_box = OldMailboxRecord
+    } = State) ->
+    UpdatedOldLangMap = maps:without(gb_sets:to_list(RemovedNlsSet), OldLangMap),
+    NewLangMap = maps:merge(UpdatedOldLangMap, ChangedLangMap),
+    [MailboxRecordName | OldMailboxes] = tuple_to_list(OldMailboxRecord),
+    UpdatedMailboxes = [nls_server:convert_target_nls(OldMailbox, OldLangMap, RemovedNlsSet, []) || OldMailbox <- OldMailboxes],
+    {reply, ok, StateName, State#player_state{
+        lang_map = NewLangMap,
+        mail_box = list_to_tuple([MailboxRecordName | UpdatedMailboxes])
+    }};
+handle_sync_event({pending_update_runtime_data, RuntimeDataChangedList}, _From, StateName, State) ->
+    {reply, ok, StateName, State#player_state{
+        pending_update_runtime_data = RuntimeDataChangedList
+    }};
+handle_sync_event(player_state, _From, StateName, State) ->
+    Reply = State,
+    {reply, Reply, StateName, State};
+handle_sync_event(lang_map, _From, StateName, #player_state{
+    lang_map = LangMap
+} = State) ->
+    {reply, LangMap, StateName, State};
+handle_sync_event(mail_box, _From, StateName, #player_state{
+    mail_box = Mailbox
+} = State) ->
+    {reply, Mailbox, StateName, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -687,8 +816,61 @@ terminate(
     Extra :: term(), % generic term
     NextStateName :: StateName,
     NewStateData :: StateData.
-code_change(_OldVsn, StateName, State, _Extra) ->
-    {ok, StateName, State}.
+code_change(_OldVsn, StateName, #player_state{
+    runtime_data = OldRuntimeDataMap,
+    pending_update_runtime_data = RuntimeDataChangedList
+} = State, _Extra) ->
+    io:format("============player_fsm_Extra:~p~n", [_Extra]),
+    UpdatedRuntimeDataMap =
+        case RuntimeDataChangedList of
+            undefined ->
+                OldRuntimeDataMap;
+            _DataChanged ->
+                FilteredChangedList =
+                    lists:foldl(
+                        fun({DataKey, RecordKeys}, AccFilteredChangedList) ->
+                            case maps:get(DataKey, OldRuntimeDataMap, undefined) of
+                                undefined ->
+                                    AccFilteredChangedList;
+                                DataMap ->
+                                    ChangedRecordKeys =
+                                        lists:foldl(
+                                            fun(RecordKey, AccChangedRecordKeys) ->
+                                                case maps:is_key(RecordKey, DataMap) of
+                                                    true ->
+                                                        [RecordKey | AccChangedRecordKeys];
+                                                    false ->
+                                                        AccChangedRecordKeys
+                                                end
+                                            end, [], RecordKeys),
+
+                                    case ChangedRecordKeys of
+                                        [] ->
+                                            AccFilteredChangedList;
+                                        _ChangeOccurs ->
+                                            [{DataKey, ChangedRecordKeys} | AccFilteredChangedList]
+                                    end
+                            end
+                        end, [], RuntimeDataChangedList),
+
+                case FilteredChangedList of
+                    [] ->
+                        OldRuntimeDataMap;
+                    _ChangeOccurs ->
+                        ChangedRuntimeDataMap = common_server:runtime_datas(FilteredChangedList),
+                        NewRuntimeDataMap = maps:fold(
+                            fun(DataKey, ChangedRuntimeData, AccNewRuntimeDataMap) ->
+                                AccNewRuntimeDataMap#{
+                                    DataKey := maps:merge(maps:get(DataKey, AccNewRuntimeDataMap), ChangedRuntimeData)
+                                }
+                            end, OldRuntimeDataMap, ChangedRuntimeDataMap),
+                        NewRuntimeDataMap
+                end
+        end,
+    {ok, StateName, State#player_state{
+        runtime_data = UpdatedRuntimeDataMap,
+        pending_update_runtime_data = undefined
+    }}.
 
 %%--------------------------------------------------------------------
 %% @private
