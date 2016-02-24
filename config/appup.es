@@ -121,11 +121,39 @@ module_sequence(Instruction, ModuleSequenceMap) ->
         {delete_module, ModuleName} -> {10001, ModuleName}
     end.
 
-gen_appup(AppName, OldVsn, NewVsn, OldAppupPath, Instructions) ->
-    ModuleSequnceStr = os:cmd("./config/module_sequence.sh"),
-    {ok, Tokens, _EndLocation} = erl_scan:string(ModuleSequnceStr),
-    {ok, ModuleSequnce} = erl_parse:parse_term(Tokens),
+str_to_term(SrcStr) ->
+    {ok, Tokens, _EndLocation} = erl_scan:string(SrcStr),
+    {ok, Term} = erl_parse:parse_term(Tokens),
+    Term.
 
+gen_appup(AppName, OldVsn, NewVsn, OldAppupPath, Instructions) ->
+    {ok, HcuConfigs} = file:consult("./config/hcu.config"),
+    {server_priv_dependency, ServerDependencies} = lists:keyfind(server_priv_dependency, 1, HcuConfigs),
+    UpdatedInstructions =
+        lists:foldl(
+            fun({TargetServerModName, DependencyServerModNames}, AccUpdatedInstructions) ->
+                case lists:keyfind(TargetServerModName, 2, Instructions) of
+                    {update, TargetServerModName, {advanced, {OldVsn, NewVsn, {ModifiedFilesExtra, AddedFilesExtra, DeletedFilesExtra}}}} ->
+                        if
+                            ModifiedFilesExtra == [] andalso AddedFilesExtra == [] andalso DeletedFilesExtra == [] ->
+                                AccUpdatedInstructions;
+                            true ->
+                                lists:foldl(
+                                    fun(DependencyServerModName, AccAccUpdatedInstructions) ->
+                                        case lists:keymember(DependencyServerModName, 2, Instructions) of
+                                            false ->
+                                                [{update, DependencyServerModName, {advanced, {OldVsn, NewVsn, {[], [], []}}}} | AccAccUpdatedInstructions];
+                                            true ->
+                                                AccAccUpdatedInstructions
+                                        end
+                                    end, AccUpdatedInstructions, DependencyServerModNames)
+                        end;
+                    false ->
+                        AccUpdatedInstructions
+                end
+            end, Instructions, ServerDependencies),
+
+    ModuleSequnce = str_to_term(os:cmd("./config/module_sequence.sh")),
     if
         ModuleSequnce == connect_failed ->
             throw("Cannot get module sequences, " ++ atom_to_list(ModuleSequnce));
@@ -153,7 +181,7 @@ gen_appup(AppName, OldVsn, NewVsn, OldAppupPath, Instructions) ->
                 false ->
                     ASeq < BSeq
             end
-        end, Instructions),
+        end, UpdatedInstructions),
 
     update_version(AppName, NewVsn),
     AppupContent = {NewVsn,

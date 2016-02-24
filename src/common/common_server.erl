@@ -162,7 +162,7 @@ runtime_data(DataName) ->
 %%--------------------------------------------------------------------
 -spec runtime_data(DataName, RecordName) -> RuntimeRecord when
     DataName :: csv_to_object:key(),
-    RecordName :: DataName,
+    RecordName :: term(), % generic term
     RuntimeRecord :: csv_to_object:csv_row_data().
 runtime_data(DataName, RecordName) ->
     gen_server:call(?MODULE, {runtime_data, [DataName, RecordName]}).
@@ -234,7 +234,7 @@ init([]) ->
     RuntimeFilePath = filename:join(code:priv_dir(cm:app_name()), ?MODULE_STRING),
     {ok, FileNameList} = file:list_dir(RuntimeFilePath),
     FilePathList = [filename:join(RuntimeFilePath, FileName) || FileName <- FileNameList],
-    {RuntimeDatas, _ChangedRuntimeDatas} = csv_to_object:traverse_files(FilePathList, #{}, #{}),
+    {RuntimeDatas, _ChangedRuntimeDatas, _DeletedFilesStruct} = csv_to_object:traverse_files(FilePathList, #{}, #{}),
     State = #state{
         common_config = CommonConfig,
         runtime_datas = RuntimeDatas
@@ -318,11 +318,18 @@ handle_call(
     } = State
 ) ->
     TargetRuntimeDataMap = lists:foldl(
-        fun({DataKey, RecordKeys}, AccTargetRuntimeDataMap) ->
-            DataMap = maps:get(DataKey, RuntimeDatasMap),
-            AccTargetRuntimeDataMap#{
-                DataKey => maps:with(RecordKeys, DataMap)
-            }
+        fun(DataStruct, AccTargetRuntimeDataMap) ->
+            case DataStruct of
+                {DataKey, RecordKeys} ->
+                    DataMap = maps:get(DataKey, RuntimeDatasMap),
+                    AccTargetRuntimeDataMap#{
+                        DataKey => maps:with(RecordKeys, DataMap)
+                    };
+                DataKey ->
+                    AccTargetRuntimeDataMap#{
+                        DataKey => maps:get(DataKey, RuntimeDatasMap)
+                    }
+            end
         end, #{}, TargetDataList),
     {reply, TargetRuntimeDataMap, State};
 handle_call(
@@ -431,17 +438,17 @@ code_change(
                         RemoveNotUsedData = maps:without(DeletedFileNames, OldRuntimeDatas),
 
                         ReloadFilePaths = AddedFilePaths ++ ModifiedFilePaths, % number of add files is usually less than modified files
-                        {NewRuntimeDatas, ChangedFilesMap} = csv_to_object:traverse_files(ReloadFilePaths, RemoveNotUsedData, #{}),
+                        {NewRuntimeDatas, ChangedFilesMap, DeletedFilesStruct} = csv_to_object:traverse_files(ReloadFilePaths, RemoveNotUsedData, #{}),
                         error_logger:info_msg("~p~n============changed data~n~tp~n", [?MODULE_STRING, ChangedFilesMap]),
 
-                        ChangedList = maps:fold(
+                        ChangedFilesStruct = maps:fold(
                             fun(FileName, ValuesMap, AccChangedList) ->
                                 [{FileName, maps:keys(ValuesMap)} | AccChangedList]
                             end, [], ChangedFilesMap),
 
                         ok = gb_sets:fold(
                             fun(PlayerUid, ok) ->
-                                player_fsm:pending_update_runtime_data(PlayerUid, ChangedList)
+                                player_fsm:pending_update_runtime_data(PlayerUid, {ChangedFilesStruct, DeletedFilesStruct ++ DeletedFileNames})
                             end, ok, login_server:logged_in_player_uids()),
 
                         {ok, State#state{

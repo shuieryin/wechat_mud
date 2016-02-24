@@ -34,7 +34,7 @@
 -type field_info() :: {key(), field_type()}.
 -type field_infos() :: [field_info()].
 -type csv_object() :: #{key() => csv_data()}.
--type csv_data_struct() :: {module(), [atom()]}. % generic atom
+-type csv_data_struct() :: {module(), [atom()]} | module(). % generic atom
 
 -include("../data_type/player_profile.hrl").
 
@@ -87,12 +87,13 @@ traverse_merge_files(FilePathList, AccValuesMap, ExistingValuesMap, RowFun) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles) -> {MapFromFiles, ChangedMapFromFiles} when
+-spec traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles) -> {MapFromFiles, ChangedMapFromFiles, DeletedFilesStruct} when
     FilePathList :: [file:name_all()],
     AccMapFromFiles :: csv_data(),
     MapFromFiles :: AccMapFromFiles,
     AccChangedMapFromFiles :: AccMapFromFiles,
-    ChangedMapFromFiles :: AccMapFromFiles.
+    ChangedMapFromFiles :: AccMapFromFiles,
+    DeletedFilesStruct :: [csv_data_struct()].
 traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles) ->
     traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles, fun default_row_fun/1).
 
@@ -102,16 +103,17 @@ traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles, RowFun) -> {MapFromFiles, ChangedMapFromFiles} when
+-spec traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles, RowFun) -> {MapFromFiles, ChangedMapFromFiles, DeletedFilesStruct} when
     FilePathList :: [file:name_all()],
     RowFun :: function(),
     AccMapFromFiles :: csv_data(),
     AccChangedMapFromFiles :: AccMapFromFiles,
     MapFromFiles :: AccMapFromFiles,
-    ChangedMapFromFiles :: AccMapFromFiles.
+    ChangedMapFromFiles :: AccMapFromFiles,
+    DeletedFilesStruct :: [csv_data_struct()].
 traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles, RowFun) ->
-    {MapFromFiles, ChangedMapFromFiles} = lists:foldl(
-        fun(FilePath, {AccAccMapFromFiles, AccAccChangedMapFromFiles}) ->
+    {MapFromFiles, ChangedMapFromFiles, DeletedFilesStruct} = lists:foldl(
+        fun(FilePath, {AccAccMapFromFiles, AccAccChangedMapFromFiles, AccDeletedFilesStruct}) ->
             FileName = filename:basename(FilePath),
             case filename:extension(FileName) == ?FILE_EXTENSION of
                 true ->
@@ -130,15 +132,22 @@ traverse_files(FilePathList, AccMapFromFiles, AccChangedMapFromFiles, RowFun) ->
                                 AccAccChangedMapFromFiles#{
                                     Key => ChangedValuesMap
                                 }
+                        end,
+
+                        case maps:keys(maps:without(maps:keys(ValuesMap), ExistingChangedValuesMap)) of
+                            [] ->
+                                AccDeletedFilesStruct;
+                            DeletedRecordNames ->
+                                [{Key, DeletedRecordNames} | AccDeletedFilesStruct]
                         end
                     };
                 false ->
                     {AccAccMapFromFiles, AccAccChangedMapFromFiles}
             end
         end,
-        {AccMapFromFiles, AccChangedMapFromFiles},
+        {AccMapFromFiles, AccChangedMapFromFiles, []},
         FilePathList),
-    {MapFromFiles, ChangedMapFromFiles}.
+    {MapFromFiles, ChangedMapFromFiles, DeletedFilesStruct}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -289,10 +298,10 @@ gen_fieldinfos([RawFieldInfoStr | Tail], AccFieldInfos) ->
     FieldInfos :: field_infos(),
     AccValues :: [value()],
     FinalValues :: AccValues.
-traverse_column([], _FieldInfos, AccValues) ->
-    lists:reverse(AccValues);
 traverse_column([RawValue0 | TailValues], [{_Key, FieldType} | TailFieldInfos], AccValues) ->
-    RawValue = re:replace(RawValue0, [226, 128, 168], "", [global, {return, list}]), % eliminate new line genereated by Numbers.app
+    RawValue1 = re:replace(RawValue0, [226, 128, 168], "", [global, {return, list}]), % eliminate new line genereated by Numbers.app
+    RawValue2 = re:replace(RawValue1, [226, 128, 156], [34], [global, {return, list}]), % replace special double quote with '\"' from Numbers.app
+    RawValue = re:replace(RawValue2, [226, 128, 157], [34], [global, {return, list}]), % replace special double quote with '\"' from Numbers.app
     Value =
         try
             case RawValue of
@@ -337,7 +346,9 @@ traverse_column([RawValue0 | TailValues], [{_Key, FieldType} | TailFieldInfos], 
                 error_logger:error_msg("traverse_column failed~nRawValue:~tp~nType:~p~nReason:~p~nStackTrace:~p~n", [RawValue, Type, Reason, erlang:get_stacktrace()]),
                 RawValue
         end,
-    traverse_column(TailValues, TailFieldInfos, [Value | AccValues]).
+    traverse_column(TailValues, TailFieldInfos, [Value | AccValues]);
+traverse_column([], _FieldInfos, AccValues) ->
+    lists:reverse(AccValues).
 
 %%--------------------------------------------------------------------
 %% @doc

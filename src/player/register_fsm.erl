@@ -165,7 +165,9 @@ register_server_name(Uid) ->
     StateData :: #state{}.
 init({Uid, DispatcherPid, BornTypeInfoMap}) ->
     State = #state{
-        self = #player_profile{uid = Uid},
+        self = #player_profile{
+            uid = Uid
+        },
         born_type_info_map = BornTypeInfoMap
     },
     nls_server:response_content([{nls, select_lang}], zh, DispatcherPid),
@@ -416,7 +418,7 @@ input_confirmation(
         defense = M_defense,
         hp = M_hp,
         dexterity = M_dexterity
-    } = BornType = maps:get(BornMonth, BornTypeInfoMap),
+    } = maps:get(BornMonth, BornTypeInfoMap),
 
     FinalPlayerProfile = PlayerProfile#player_profile{
         register_time = cm:timestamp(),
@@ -424,7 +426,6 @@ input_confirmation(
         name = NpcName,
         description = CharacterDescription,
         self_description = SelfDescription,
-        born_type = BornType,
         battle_status = #battle_status{
             'Strength' = M_strength,
             'M_Strength' = M_strength,

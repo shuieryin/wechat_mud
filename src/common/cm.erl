@@ -43,7 +43,9 @@
     update_record_value/3,
     f2i/2,
     to_binary/1,
-    app_name/0
+    app_name/0,
+    remove_record_fields/3,
+    add_record_fields/4
 ]).
 
 -type valid_type() :: atom | binary | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple | map.
@@ -511,6 +513,39 @@ update_record_value(RecordFieldNames, Record, NewValueBindings) ->
 
 %%--------------------------------------------------------------------
 %% @doc
+%% Remove record fields.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec remove_record_fields(RecordFieldNames, Record, FieldNamesToBeRemoved) -> UpdatedRecord when
+    RecordFieldNames :: [atom()], % generic atom
+    Record :: tuple(), % generic tuple
+    FieldNamesToBeRemoved :: RecordFieldNames,
+    UpdatedRecord :: Record.
+remove_record_fields(RecordFieldNames, Record, FieldNamesToBeRemoved) ->
+    [RecordName | ExistingDataList] = tuple_to_list(Record),
+    UpdatedDataList = do_remove_record_fields(RecordFieldNames, ExistingDataList, FieldNamesToBeRemoved, []),
+    list_to_tuple([RecordName | UpdatedDataList]).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Add record fields.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec add_record_fields(OldRecordFieldNames, NewRecordFieldNames, Record, NewValueBindings) -> UpdatedRecord when
+    OldRecordFieldNames :: [atom()], % generic atom
+    NewRecordFieldNames :: OldRecordFieldNames,
+    Record :: tuple(), % generic tuple
+    NewValueBindings :: erl_eval:bindings(),
+    UpdatedRecord :: Record.
+add_record_fields(OldRecordFieldNames, NewRecordFieldNames, Record, NewValueBindings) ->
+    [RecordName | ExistingDataList] = tuple_to_list(Record),
+    UpdatedDataList = do_add_record_fields(OldRecordFieldNames, NewRecordFieldNames, ExistingDataList, NewValueBindings, []),
+    list_to_tuple([RecordName | UpdatedDataList]).
+
+%%--------------------------------------------------------------------
+%% @doc
 %% Convert float to integer.
 %%
 %% @end
@@ -637,9 +672,9 @@ do_collect_record_value([FieldName | RestRecordFieldNames], [FieldValue | RestDa
                   {TargetFieldNames, AccFieldBindings}
           end,
     do_collect_record_value(RestRecordFieldNames, RestDataList, UpdatedTargetFieldNames, UpdatedAccFieldBindings);
-do_collect_record_value([], [], _TargetFieldNames, FinalFieldBingdings) ->
-    FinalFieldBingdings;
 do_collect_record_value(_RecordFieldNames, _DataList, [], FinalFieldBingdings) ->
+    FinalFieldBingdings;
+do_collect_record_value([], [], _TargetFieldNames, FinalFieldBingdings) ->
     FinalFieldBingdings.
 
 %%--------------------------------------------------------------------
@@ -683,5 +718,64 @@ do_update_record_value([FieldName | RestRecordFieldNames], [ExistingFieldValue |
                   {NewValueBindings, ExistingFieldValue}
           end,
     do_update_record_value(RestRecordFieldNames, RestDataList, UpdatedNewValueBindings, [NewFieldValue | AccDataList]);
+do_update_record_value(_RecordFieldNames, RestDataList, [], UpdatedDataList) ->
+    lists:reverse(UpdatedDataList) ++ RestDataList;
 do_update_record_value([], [], _NewValueBingdings, UpdatedDataList) ->
+    lists:reverse(UpdatedDataList).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Implementation function for remove_record_fields/3.
+%% @see remove_record_fields/3.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec do_remove_record_fields(RecordFieldNames, ExistingDataList, FieldNamesToBeRemoved, AccDataList) -> UpdatedDataList when
+    RecordFieldNames :: [atom()], % generic atom
+    ExistingDataList :: [term()], % generic term
+    FieldNamesToBeRemoved :: RecordFieldNames,
+    AccDataList :: ExistingDataList,
+    UpdatedDataList :: AccDataList.
+do_remove_record_fields([FieldName | RestRecordFieldNames], [ExistingFieldValue | RestDataList], FieldNamesToBeRemoved, AccDataList) ->
+    {UpdatedAccDataList, UpdatedFieldNamesToBeRemoved} =
+        case lists:member(FieldName, FieldNamesToBeRemoved) of
+            true ->
+                {AccDataList, lists:delete(FieldName, FieldNamesToBeRemoved)};
+            false ->
+                {[ExistingFieldValue | AccDataList], FieldNamesToBeRemoved}
+        end,
+    do_remove_record_fields(RestRecordFieldNames, RestDataList, UpdatedFieldNamesToBeRemoved, UpdatedAccDataList);
+do_remove_record_fields(_RecordFieldNames, RestDataList, [], UpdatedDataList) ->
+    lists:reverse(UpdatedDataList) ++ RestDataList;
+do_remove_record_fields([], [], _FieldNamesToBeRemoved, UpdatedDataList) ->
+    lists:reverse(UpdatedDataList).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Implementation function for add_record_fields/4.
+%% @see add_record_fields/4.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec do_add_record_fields(OldRecordFieldNames, NewRecordFieldNames, ExistingDataList, NewValueBindings, AccDataList) -> UpdatedDataList when
+    OldRecordFieldNames :: [atom()], % generic atom
+    NewRecordFieldNames :: OldRecordFieldNames,
+    ExistingDataList :: [term()], % generic term
+    NewValueBindings :: erl_eval:bindings(),
+    AccDataList :: ExistingDataList,
+    UpdatedDataList :: AccDataList.
+do_add_record_fields([FieldName | RestOldRecordFieldNames], [FieldName | RestNewRecordFieldNames], [ExistingFieldValue | RestDataList], NewValueBindings, AccDataList) ->
+    do_add_record_fields(RestOldRecordFieldNames, RestNewRecordFieldNames, RestDataList, NewValueBindings, [ExistingFieldValue | AccDataList]);
+do_add_record_fields(OldRecordFieldNames, [FieldName | RestNewRecordFieldNames], RestDataList, NewValueBindings, AccDataList) ->
+    {UpdatedNewValueBindings, NewFieldValue}
+        = case erl_eval:binding(FieldName, NewValueBindings) of
+              {value, BindingValue} ->
+                  {erl_eval:del_binding(FieldName, NewValueBindings), BindingValue};
+              unbound ->
+                  {NewValueBindings, undefined}
+          end,
+    do_add_record_fields(OldRecordFieldNames, RestNewRecordFieldNames, RestDataList, UpdatedNewValueBindings, [NewFieldValue | AccDataList]);
+do_add_record_fields(_OldRecordFieldNames, _NewRecordFieldNames, RestDataList, [], UpdatedDataList) ->
+    lists:reverse(UpdatedDataList) ++ RestDataList;
+do_add_record_fields([], _NewRecordFieldNames, [], _NewValueBingdings, UpdatedDataList) ->
     lists:reverse(UpdatedDataList).

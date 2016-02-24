@@ -25,7 +25,8 @@
     strength :: integer(),
     defense :: integer(),
     hp :: integer(),
-    dexterity :: integer()
+    dexterity :: integer(),
+    skill :: [player_fsm:skill_id()]
 }).
 
 -record(player_profile, {
@@ -35,7 +36,6 @@
     description :: nls_server:nls_object(),
     self_description :: nls_server:nls_object(),
     born_month :: player_fsm:born_month(),
-    born_type :: #born_type_info{},
     gender :: player_fsm:gender(),
     lang :: nls_server:support_lang(),
     register_time :: pos_integer(),
@@ -63,5 +63,6 @@
     lang_map :: nls_server:lang_map(),
     runtime_data :: csv_to_object:csv_object(),
     battle_status_ri = record_info(fields, battle_status) :: [atom()], % generic atom % battle status record info
-    pending_update_runtime_data :: [csv_to_object:csv_data_struct()]
+    pending_update_runtime_data :: {[csv_to_object:csv_data_struct()], [csv_to_object:csv_data_struct()]},
+    runtime_data_constraints :: [csv_to_object:csv_data_struct()]
 }).

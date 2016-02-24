@@ -16,7 +16,8 @@
     start_link/0,
     start/0,
     stop/0,
-    module_sequence/0
+    module_sequence/0,
+    stop_server/0
 ]).
 
 %% gen_server callbacks
@@ -49,6 +50,16 @@
 -spec module_sequence() -> [module()].
 module_sequence() ->
     gen_server:call({global, ?MODULE}, module_sequence).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Retrieves module sequences for hot code upgrade.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec stop_server() -> no_return().
+stop_server() ->
+    gen_server:cast({global, ?MODULE}, stop_server).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -130,7 +141,10 @@ init([]) ->
     {stop, Reason, Reply, NewState} |
     {stop, Reason, NewState} when
 
-    Request :: module_sequence,
+    Request ::
+    module_sequence |
+    stop_server,
+
     Reply :: [module()],
 
     From :: {pid(), Tag :: term()}, % generic term
@@ -154,13 +168,17 @@ handle_call(module_sequence, _From, #state{
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: term() | stop, % generic term
+    Request ::
+    stop |
+    stop_server,
+
     State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
 handle_cast(stop, State) ->
     {stop, normal, State};
-handle_cast(_Request, State) ->
+handle_cast(stop_server, State) ->
+    cm:q(),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
