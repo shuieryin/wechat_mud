@@ -498,9 +498,11 @@ handle_call(
     } = State
 ) ->
     {reply, logout_all_players(LoggedInUidsSet), State};
-handle_call({uids_by_ids, _PlayerIds}, _From, #state{
+handle_call({uids_by_ids, PlayerIds}, _From, #state{
+    uids_cross_ids = UidsCrossIds
 } = State) ->
-    {reply, ok, State};
+    PlayerUids = [Uid || {Uid, Id} <- UidsCrossIds, lists:member(Id, PlayerIds)],
+    {reply, PlayerUids, State};
 handle_call(show_state, _From, State) ->
     {reply, State, State}.
 

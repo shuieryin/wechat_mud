@@ -439,7 +439,7 @@ init({Uid, DispatcherPid}) ->
         lang_map = nls_server:lang_map(Lang),
         mail_box = #mailbox{},
         runtime_data = #{
-            born_type_info => BornTypeInfo,
+            born_type_info => #{BornMonth => BornTypeInfo},
             skill => SkillsMap
         },
         runtime_data_constraints = [SkillConstraint]
@@ -866,17 +866,21 @@ code_change(_OldVsn, StateName, State, _Extra) ->
         #player_state{
             runtime_data = OldRuntimeDataMap,
             pending_update_runtime_data = {ChangedFilesStruct, DeletedFilesStruct},
-            runtime_data_constraints = RuntimeDataConstraints
+            runtime_data_constraints = OldRuntimeDataConstraints,
+            self = PlayerProfile
         } = UpdatedState = temp_player_data_update(State),
-        UpdatedRuntimeDataMap =
+        {UpdatedRuntimeDataMap, UpdatedRuntimeDataConstraints} =
             case ChangedFilesStruct of
                 [] ->
-                    OldRuntimeDataMap;
+                    {OldRuntimeDataMap, OldRuntimeDataConstraints};
                 _DataChanged ->
+                    RuntimeDataConstraints = code_change_runtime_constraints(ChangedFilesStruct, OldRuntimeDataConstraints, PlayerProfile),
+
                     UpdatedOldRuntimeDataMap =
                         lists:foldl(
                             fun({DataKey, RecordKeys}, AccOldRuntimeDataMap) ->
                                 OldRuntimeData = maps:get(DataKey, AccOldRuntimeDataMap),
+
                                 AccOldRuntimeDataMap#{
                                     DataKey := maps:without(RecordKeys, OldRuntimeData)
                                 };
@@ -900,23 +904,26 @@ code_change(_OldVsn, StateName, State, _Extra) ->
                                 end
                             end, [], ChangedFilesStruct),
 
-                    case FilteredChangedFilesStruct of
-                        [] ->
-                            UpdatedOldRuntimeDataMap;
-                        _ChangeOccurs ->
-                            ChangedRuntimeDataMap = common_server:runtime_datas(FilteredChangedFilesStruct),
-                            NewRuntimeDataMap = maps:fold(
-                                fun(DataKey, ChangedRuntimeData, AccNewRuntimeDataMap) ->
-                                    AccNewRuntimeDataMap#{
-                                        DataKey := maps:merge(maps:get(DataKey, AccNewRuntimeDataMap), ChangedRuntimeData)
-                                    }
-                                end, UpdatedOldRuntimeDataMap, ChangedRuntimeDataMap),
-                            NewRuntimeDataMap
-                    end
+                    NewRuntimeDataMap =
+                        case FilteredChangedFilesStruct of
+                            [] ->
+                                UpdatedOldRuntimeDataMap;
+                            _ChangeOccurs ->
+                                ChangedRuntimeDataMap = common_server:runtime_datas(FilteredChangedFilesStruct),
+                                maps:fold(
+                                    fun(DataKey, ChangedRuntimeData, AccNewRuntimeDataMap) ->
+                                        AccNewRuntimeDataMap#{
+                                            % TODO: try to add constraint for all data types (fix born_type_info merges unrelative records)
+                                            DataKey := maps:merge(maps:get(DataKey, AccNewRuntimeDataMap), ChangedRuntimeData)
+                                        }
+                                    end, UpdatedOldRuntimeDataMap, ChangedRuntimeDataMap)
+                        end,
+                    {NewRuntimeDataMap, RuntimeDataConstraints}
             end,
         {ok, StateName, UpdatedState#player_state{
             runtime_data = UpdatedRuntimeDataMap,
-            pending_update_runtime_data = undefined
+            pending_update_runtime_data = undefined,
+            runtime_data_constraints = UpdatedRuntimeDataConstraints
         }}
     catch
         Type:Reason ->
@@ -945,6 +952,39 @@ format_status(Opt, StatusData) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Special handling codes for hot code upgrading runtime constraints.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec code_change_runtime_constraints(ChangedFilesStruct, RuntimeDataConstraints, PlayerProfile) -> UpdatedRuntimeDataConstraints when
+    ChangedFilesStruct :: [csv_to_object:csv_data_struct()],
+    RuntimeDataConstraints :: [csv_to_object:csv_data_struct()],
+    PlayerProfile :: #player_profile{},
+    UpdatedRuntimeDataConstraints :: RuntimeDataConstraints.
+code_change_runtime_constraints(
+    ChangedFilesStruct,
+    RuntimeDataConstraints,
+    #player_profile{
+        born_month = BornMonth
+    }
+) ->
+    case lists:keyfind(born_type_info, 1, ChangedFilesStruct) of
+        false ->
+            RuntimeDataConstraints;
+        {born_type_info, ChangedBornMonths} ->
+            case lists:member(BornMonth, ChangedBornMonths) of
+                true ->
+                    #born_type_info{
+                        skill = NewSkillConstraints
+                    } = common_server:runtime_data(born_type_info, BornMonth),
+                    lists:keyreplace(skill, 1, RuntimeDataConstraints, {skill, NewSkillConstraints});
+                false ->
+                    RuntimeDataConstraints
+            end
+    end.
 
 %%--------------------------------------------------------------------
 %% @doc

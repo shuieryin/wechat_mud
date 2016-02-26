@@ -5,5 +5,5 @@ no_such_skill,没有${input_skill_name}这个武功。,no such skill: ${input_sk
 punch_act,你对${player}打出了一拳，造成了${damage_point}点伤害。,"You hit a punch to ${player}, causing ${damage_point} point damage."
 punch_psv,${player}对你打出了一拳，造成了${damage_point}点伤害。,"${player} hit a punch to you, causing ${damage_point} point damage."
 def_down,${player}的防御减弱了${point}点。,${player} defense slightly weakened ${point} point.
-kicked_act,你对${player}踢了一脚，造成了${damage_point}点伤害。,"You kicked ${player}, causing ${damage_point} point damage."
-kicked_psv,${player}对你踢了一脚，造成了${damage_point}点伤害。,"${player} kicked you, causing ${damage_point} point damage."
+kick_act,你对${player}踢了一脚，造成了${damage_point}点伤害。,"You kicked ${player}, causing ${damage_point} point damage."
+kick_psv,${player}对你踢了一脚，造成了${damage_point}点伤害。,"${player} kicked you, causing ${damage_point} point damage."
