@@ -7,3 +7,5 @@ punch_psv,${player}对你打出了一拳，造成了${damage_point}点伤害。,
 def_down,${player}的防御减弱了${point}点。,${player} defense slightly weakened ${point} point.
 kick_act,你对${player}踢了一脚，造成了${damage_point}点伤害。,"You kicked ${player}, causing ${damage_point} point damage."
 kick_psv,${player}对你踢了一脚，造成了${damage_point}点伤害。,"${player} kicked you, causing ${damage_point} point damage."
+slap_act,你对${player}扇了一巴掌，造成了${damage_point}点伤害。,"You slapped ${player}, causing ${damage_point} point damage."
+slap_psv,${player}对你扇了一巴掌，造成了${damage_point}点伤害。,"${player} splapped you, causing ${damage_point} point damage."

@@ -177,11 +177,11 @@ runtime_data(DataName, RecordName) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec runtime_datas(TargetDataList) -> RuntimeDatas when
-    TargetDataList :: [csv_to_object:csv_data_struct()],
+-spec runtime_datas(TargetDataStruct) -> RuntimeDatas when
+    TargetDataStruct :: [csv_to_object:csv_data_struct()],
     RuntimeDatas :: csv_to_object:csv_object().
-runtime_datas(TargetDataList) ->
-    gen_server:call(?MODULE, {runtime_datas, TargetDataList}).
+runtime_datas(TargetDataStruct) ->
+    gen_server:call(?MODULE, {runtime_datas, TargetDataStruct}).
 
 
 %%--------------------------------------------------------------------
@@ -262,7 +262,7 @@ init([]) ->
     is_wechat_debug |
     {set_wechat_debug, IsWechatDebug} |
     {runtime_data, Phases} |
-    {runtime_datas, TargetDataList},
+    {runtime_datas, TargetDataStruct},
 
     Reply ::
     IsWechatDebug |
@@ -272,7 +272,7 @@ init([]) ->
     IsWechatDebug :: boolean(),
     TargetRuntimeData :: csv_to_object:csv_data(),
     Phases :: [csv_to_object:key()],
-    TargetDataList :: [csv_to_object:csv_data_struct()],
+    TargetDataStruct :: [csv_to_object:csv_data_struct()],
     RuntimeDatas :: csv_to_object:csv_object(),
 
     From :: {pid(), Tag :: term()}, % generic term
@@ -310,28 +310,8 @@ handle_call(
 ) ->
     TargetRuntimeData = grab_runtime_data(Phases, RuntimeDatasMap),
     {reply, TargetRuntimeData, State};
-handle_call(
-    {runtime_datas, TargetDataList},
-    _From,
-    #state{
-        runtime_datas = RuntimeDatasMap
-    } = State
-) ->
-    TargetRuntimeDataMap = lists:foldl(
-        fun(DataStruct, AccTargetRuntimeDataMap) ->
-            case DataStruct of
-                {DataKey, RecordKeys} ->
-                    DataMap = maps:get(DataKey, RuntimeDatasMap),
-                    AccTargetRuntimeDataMap#{
-                        DataKey => maps:with(RecordKeys, DataMap)
-                    };
-                DataKey ->
-                    AccTargetRuntimeDataMap#{
-                        DataKey => maps:get(DataKey, RuntimeDatasMap)
-                    }
-            end
-        end, #{}, TargetDataList),
-    {reply, TargetRuntimeDataMap, State};
+handle_call({runtime_datas, TargetDataStruct}, _From, State) ->
+    {reply, grab_runtime_datas(State, TargetDataStruct), State};
 handle_call(
     random_npc,
     _From,
@@ -518,3 +498,36 @@ grab_runtime_data([Phase | Tail], RuntimeDatasMap) ->
         DeeperMap ->
             grab_runtime_data(Tail, DeeperMap)
     end.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Retrieves runtime datas by data struct.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec grab_runtime_datas(State, DataStruct) -> TargetRuntimeDataMap when
+    State :: #state{},
+    DataStruct :: [csv_to_object:csv_data_struct()],
+    TargetRuntimeDataMap :: csv_to_object:csv_data().
+grab_runtime_datas(#state{
+    runtime_datas = RuntimeDatasMap
+} = State, DataStruct) ->
+    lists:foldl(
+        fun
+            ({DataKey, RecordKeys}, AccTargetRuntimeDataMap) ->
+                DataMap = maps:get(DataKey, RuntimeDatasMap),
+                AccTargetRuntimeDataMap#{
+                    DataKey => maps:with(RecordKeys, DataMap)
+                };
+            ({DataKey, RecordKeys, DependencyDataStructFunc}, AccTargetRuntimeDataMap) ->
+                TargetDataMap = maps:with(RecordKeys, maps:get(DataKey, RuntimeDatasMap)),
+                DependencyDataStruct = DependencyDataStructFunc(TargetDataMap),
+                DependencyDataMap = grab_runtime_datas(State, DependencyDataStruct),
+                maps:merge(AccTargetRuntimeDataMap#{
+                    DataKey => TargetDataMap
+                }, DependencyDataMap);
+            (DataKey, AccTargetRuntimeDataMap) ->
+                AccTargetRuntimeDataMap#{
+                    DataKey => maps:get(DataKey, RuntimeDatasMap)
+                }
+        end, #{}, DataStruct).

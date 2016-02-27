@@ -34,7 +34,7 @@
 -type field_info() :: {key(), field_type()}.
 -type field_infos() :: [field_info()].
 -type csv_object() :: #{key() => csv_data()}.
--type csv_data_struct() :: {module(), [atom()]} | module(). % generic atom
+-type csv_data_struct() :: {module(), [atom()]} | module() | {module(), [atom()], function()}. % generic atom
 
 -include("../data_type/player_profile.hrl").
 

@@ -428,21 +428,30 @@ init({Uid, DispatcherPid}) ->
         born_month = BornMonth
     } = PlayerProfile = redis_client_server:get(Uid),
 
-    #born_type_info{
-        skill = Skills
-    } = BornTypeInfo = common_server:runtime_data(born_type_info, BornMonth),
-    SkillConstraint = {skill, Skills},
-    #{skill := SkillsMap} = common_server:runtime_datas([SkillConstraint]),
+    GrabSkillConstraintFunc =
+        fun(BornTypeInfoMap) ->
+            #{
+                BornMonth := #born_type_info{
+                    skill = Skills
+                }
+            } = BornTypeInfoMap,
+            [{skill, Skills}]
+        end,
+
+    #{
+        born_type_info := #{
+            BornMonth := #born_type_info{
+                skill = SkillKeys
+            }
+        }
+    } = RuntimeDataMap = common_server:runtime_datas([{born_type_info, [BornMonth], GrabSkillConstraintFunc}]),
 
     State = #player_state{
         self = PlayerProfile,
         lang_map = nls_server:lang_map(Lang),
         mail_box = #mailbox{},
-        runtime_data = #{
-            born_type_info => #{BornMonth => BornTypeInfo},
-            skill => SkillsMap
-        },
-        runtime_data_constraints = [SkillConstraint]
+        runtime_data = RuntimeDataMap,
+        runtime_data_constraints = [{born_type_info, [BornMonth]}, {skill, SkillKeys}]
     },
 
     ok = scene_fsm:enter(CurSceneName, DispatcherPid, simple_player(PlayerProfile), undefined),
@@ -878,12 +887,13 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 
                     UpdatedOldRuntimeDataMap =
                         lists:foldl(
-                            fun({DataKey, RecordKeys}, AccOldRuntimeDataMap) ->
-                                OldRuntimeData = maps:get(DataKey, AccOldRuntimeDataMap),
+                            fun
+                                ({DataKey, RecordKeys}, AccOldRuntimeDataMap) ->
+                                    OldRuntimeData = maps:get(DataKey, AccOldRuntimeDataMap),
 
-                                AccOldRuntimeDataMap#{
-                                    DataKey := maps:without(RecordKeys, OldRuntimeData)
-                                };
+                                    AccOldRuntimeDataMap#{
+                                        DataKey := maps:without(RecordKeys, OldRuntimeData)
+                                    };
                                 (DataKey, AccOldRuntimeDataMap) ->
                                     maps:remove(DataKey, AccOldRuntimeDataMap)
                             end, OldRuntimeDataMap, DeletedFilesStruct),
@@ -913,7 +923,6 @@ code_change(_OldVsn, StateName, State, _Extra) ->
                                 maps:fold(
                                     fun(DataKey, ChangedRuntimeData, AccNewRuntimeDataMap) ->
                                         AccNewRuntimeDataMap#{
-                                            % TODO: try to add constraint for all data types (fix born_type_info merges unrelative records)
                                             DataKey := maps:merge(maps:get(DataKey, AccNewRuntimeDataMap), ChangedRuntimeData)
                                         }
                                     end, UpdatedOldRuntimeDataMap, ChangedRuntimeDataMap)
