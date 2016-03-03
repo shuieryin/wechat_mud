@@ -6,7 +6,7 @@
 %%% Scene gen_fsm. This gen_fsm states linear as
 %%% state_name
 %%% This gen_fsm acts as template server and is initialized per csv
-%%% file under priv/scene by scene_sup.erl which the number of initialized
+%%% file under priv/scene by scene_fsm_sup.erl which the number of initialized
 %%% scene_fsm (server name is set as scene name) equals to the number
 %%% of rows in scene csv file.
 %%%
@@ -21,6 +21,7 @@
 %% API
 -export([
     start_link/1,
+    scene_child_spec/4,
     enter/4,
     leave/2,
     show_scene/3,
@@ -92,6 +93,30 @@ start_link(
     } = SceneInfo
 ) ->
     gen_fsm:start_link({local, SceneName}, ?MODULE, SceneInfo, []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Generates scene fsm worker configs entry.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec scene_child_spec(SceneValues, Restart, Shutdown, Type) -> SceneChild when
+    SceneValues :: [csv_to_object:value()],
+    Restart :: supervisor:restart(),
+    Shutdown :: supervisor:shutdown(),
+    Type :: supervisor:worker(),
+    SceneChild :: scene_fsm_sup:scene_child().
+scene_child_spec([_CityName | SceneValues], Restart, Shutdown, Type) ->
+    [Verify | _RestSceneValues] = SceneValues,
+    case Verify of
+        undefined ->
+            undefined;
+        _Verify ->
+            #scene_info{
+                id = Id
+            } = SceneInfo = list_to_tuple([scene_info | SceneValues]),
+            {Id, {?MODULE, start_link, [SceneInfo]}, Restart, Shutdown, Type, [?MODULE]}
+    end.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -735,7 +760,14 @@ terminate(_Reason, _StateName, _State) ->
     NextStateName :: secene_state_name(),
     NewStateData :: StateData.
 code_change(_OldVsn, StateName, State, _Extra) ->
-    {ok, StateName, State}.
+    try
+        UpdatedState = temp_scene_data_update(State),
+        {ok, StateName, UpdatedState}
+    catch
+        Type:Reason ->
+            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
+            {ok, StateName, State}
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -950,3 +982,15 @@ scene_player_by_uid([_OtherSceneObject | Rest], TargetPlayerUid) ->
     scene_player_by_uid(Rest, TargetPlayerUid);
 scene_player_by_uid([], _TargetPlayerUid) ->
     undefined.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Temporary code for handling data change for scene fsms.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec temp_scene_data_update(State) -> UpdatedState when
+    State :: tuple(), % generic tuple
+    UpdatedState :: State.
+temp_scene_data_update(State) ->
+    State.

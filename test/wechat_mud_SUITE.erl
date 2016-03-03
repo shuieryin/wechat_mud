@@ -83,14 +83,14 @@ init_per_suite(Config) ->
     nls_server:start(),
     npc_root_sup:start(),
     login_server:start(),
-    scene_sup:start(),
+    scene_root_sup:start(),
     register_fsm_sup:start(),
     player_fsm_sup:start(),
     Config.
 
 end_per_suite(_Config) ->
     register_fsm_sup:stop(),
-    scene_sup:stop(),
+    scene_root_sup:stop(),
     login_server:stop(),
     npc_root_sup:stop(),
     nls_server:stop(),

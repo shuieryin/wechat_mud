@@ -101,12 +101,12 @@ init([]) ->
                 [npc_root_sup]
             },
 
-            {scene_sup,
-                {scene_sup, start_link, []},
+            {scene_root_sup,
+                {scene_root_sup, start_link, []},
                 permanent,
                 10000,
                 supervisor,
-                [scene_sup]
+                [scene_root_sup]
             },
 
             {register_fsm_sup,
