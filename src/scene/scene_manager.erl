@@ -111,7 +111,7 @@ scene_specs_map() ->
     State :: #state{},
     Reason :: term(). % generic term
 init([]) ->
-    {SceneSpecsMap, _ChangedSceneSpecsMap} = load_scene_specs(),
+    {SceneSpecsMap, _ChangedSceneSpecsMap} = load_scene_specs(#{}),
     {ok, #state{
         scene_specs_map = SceneSpecsMap
     }}.
@@ -222,10 +222,18 @@ terminate(_Reason, _State) ->
     Reason :: term(). % generic term
 code_change(_OldVsn, State, _Extra) ->
     try
-        {_SceneSpecsMap, _ChangedSceneSpecsMap} = load_scene_specs(),
-        % TODO implement hot code upgrade for scene features
-        UpdatedState = State,
-        {ok, UpdatedState}
+        #state{
+            scene_specs_map = OldSceneSpecsMap
+        } = State,
+        {SceneSpecsMap, ChangedSceneSpecsMap} = load_scene_specs(OldSceneSpecsMap),
+        error_logger:info_msg("~p~n============changed scenes~n~tp~n", [?MODULE_STRING, ChangedSceneSpecsMap]),
+        ok = maps:fold(
+            fun(SceneName, {_SceneName, {scene_fsm, start_link, [SceneInfo]}, _RestartTime, _ShutdownTime, _WorkerType, [scene_fsm]}, ok) ->
+                scene_fsm:update_scene_info(SceneName, SceneInfo)
+            end, ok, ChangedSceneSpecsMap),
+        {ok, State#state{
+            scene_specs_map = SceneSpecsMap
+        }}
     catch
         Type:Reason ->
             error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
@@ -261,10 +269,11 @@ format_status(Opt, StatusData) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec load_scene_specs() -> {SceneSpecsMap, ChangedSceneSpecsMap} when
+-spec load_scene_specs(ExistingSceneSpecsMap) -> {SceneSpecsMap, ChangedSceneSpecsMap} when
     SceneSpecsMap :: scene_specs_map(),
+    ExistingSceneSpecsMap :: SceneSpecsMap,
     ChangedSceneSpecsMap :: SceneSpecsMap.
-load_scene_specs() ->
+load_scene_specs(ExistingSceneSpecsMap) ->
     Restart = permanent,
     Shutdown = 2000,
     Type = worker,
@@ -277,4 +286,4 @@ load_scene_specs() ->
     SceneNlsPath = filename:join(code:priv_dir(cm:app_name()), ?MODULE_STRING),
     {ok, FileNameList} = file:list_dir(SceneNlsPath),
     FilePathList = [filename:join(SceneNlsPath, FileName) || FileName <- FileNameList],
-    csv_to_object:traverse_merge_files(FilePathList, #{}, #{}, ChildFun).
+    csv_to_object:traverse_merge_files(FilePathList, #{}, ExistingSceneSpecsMap, ChildFun).

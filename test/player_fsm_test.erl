@@ -79,7 +79,7 @@ look_target(#state{pid = Self, player_uid = PlayerUid}) ->
 
 go_direction(#state{pid = Self, player_uid = PlayerUid}) ->
     CurrentSceneName = player_fsm:current_scene_name(PlayerUid),
-    ExitsMap = scene_fsm:get_exits_map(CurrentSceneName),
+    ExitsMap = scene_fsm:exits_map(CurrentSceneName),
     ExitNames = [invalid_direction_1, invalid_direction_2 | maps:keys(ExitsMap)],
     TargetDirection = ?ONE_OF(ExitNames),
 

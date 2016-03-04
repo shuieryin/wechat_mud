@@ -27,11 +27,12 @@
     show_scene/3,
     go_direction/3,
     scene_object_list/1,
-    get_exits_map/1,
+    exits_map/1,
     general_target/1,
     morning/2,
     morning/3,
-    player_quit/2
+    player_quit/2,
+    update_scene_info/2
 ]).
 
 %% gen_fsm callbacks
@@ -218,10 +219,10 @@ scene_object_list(CurSceneName) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_exits_map(CurSceneName) -> exits_map() when
+-spec exits_map(CurSceneName) -> exits_map() when
     CurSceneName :: scene_name().
-get_exits_map(CurSceneName) ->
-    gen_fsm:sync_send_all_state_event(CurSceneName, get_exits_map).
+exits_map(CurSceneName) ->
+    gen_fsm:sync_send_all_state_event(CurSceneName, exits_map).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -235,6 +236,18 @@ get_exits_map(CurSceneName) ->
     Uid :: player_fsm:uid().
 player_quit(SceneName, Uid) ->
     gen_fsm:send_all_state_event(SceneName, {player_quit, Uid}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Scene info hot code upgrade.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec update_scene_info(SceneName, SceneInfo) -> ok when
+    SceneName :: scene_name(),
+    SceneInfo :: #scene_info{}.
+update_scene_info(SceneName, SceneInfo) ->
+    gen_fsm:sync_send_all_state_event(SceneName, {update_scene_info, SceneInfo}).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -263,25 +276,12 @@ player_quit(SceneName, Uid) ->
     Reason :: term(). % generic term
 init(
     #scene_info{
-        id = SceneName,
-        npcs = NpcsSpec,
-        exits = ExitsMap
+        id = SceneName
     } = SceneInfo
 ) ->
     io:format("scene server ~p starting...", [SceneName]),
 
-    SceneNpcsList = npc_fsm_manager:new_npcs(NpcsSpec),
-    ExitsScenes = maps:fold(
-        fun(CurExit, CurSceneName, AccExitsScenes) ->
-            AccExitsScenes#{CurSceneName => CurExit}
-        end, #{}, ExitsMap),
-
-    State = #scene_state{
-        scene_info = SceneInfo,
-        scene_object_list = SceneNpcsList,
-        exits_scenes = ExitsScenes,
-        exits_description = gen_exits_desc(ExitsMap)
-    },
+    State = populate_scene_state(SceneInfo, undefined),
 
     io:format("started~n"),
     {ok, morning, State}.
@@ -649,12 +649,15 @@ remove_scene_object(
 
     Event :: {go_direction, Uid, TargetDirection} |
     scene_object_list |
-    get_exits_map,
-    Reply :: SceneName,
+    exits_map |
+    {update_scene_info, SceneInfo},
+
+    Reply :: SceneName | ok,
 
     Uid :: player_fsm:uid(),
     TargetDirection :: direction:directions(),
     SceneName :: scene_name(),
+    SceneInfo :: #scene_info{},
 
     From :: {pid(), Tag :: term()}, % generic term
     StateName :: secene_state_name(),
@@ -694,7 +697,7 @@ handle_sync_event(
 ) ->
     {reply, SceneObjectList, StateName, State};
 handle_sync_event(
-    get_exits_map,
+    exits_map,
     _From,
     StateName,
     #scene_state{
@@ -703,7 +706,12 @@ handle_sync_event(
         }
     } = State
 ) ->
-    {reply, ExitsMap, StateName, State}.
+    {reply, ExitsMap, StateName, State};
+handle_sync_event({update_scene_info, NewSceneInfo}, _From, StateName, #scene_state{
+    scene_object_list = ExistingSceneObjectList
+}) ->
+    UpdatedState = populate_scene_state(NewSceneInfo, ExistingSceneObjectList),
+    {reply, ok, StateName, UpdatedState}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -982,6 +990,60 @@ scene_player_by_uid([_OtherSceneObject | Rest], TargetPlayerUid) ->
     scene_player_by_uid(Rest, TargetPlayerUid);
 scene_player_by_uid([], _TargetPlayerUid) ->
     undefined.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Populate scene state for init and code change.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec populate_scene_state(#scene_info{}, ExistingSceneObjectList) -> #scene_state{} when
+    ExistingSceneObjectList :: [scene_object()] | undefined.
+populate_scene_state(#scene_info{
+    npcs = NpcsSpec,
+    exits = ExitsMap
+} = SceneInfo, ExistingSceneObjectList) ->
+    SceneNpcsList = case ExistingSceneObjectList of
+                        undefined ->
+                            npc_fsm_manager:new_npcs(NpcsSpec);
+                        _Exist ->
+                            NpcSize = length(npcs(ExistingSceneObjectList)),
+                            if
+                                NpcSize > 0 ->
+                                    ExistingSceneObjectList;
+                                true ->
+                                    npc_fsm_manager:new_npcs(NpcsSpec) ++ ExistingSceneObjectList
+                            end
+                    end,
+
+    ExitsScenes = maps:fold(
+        fun(CurExit, CurSceneName, AccExitsScenes) ->
+            AccExitsScenes#{CurSceneName => CurExit}
+        end, #{}, ExitsMap),
+
+    #scene_state{
+        scene_info = SceneInfo,
+        scene_object_list = SceneNpcsList,
+        exits_scenes = ExitsScenes,
+        exits_description = gen_exits_desc(ExitsMap)
+    }.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Grab npcs of current scene.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec npcs(SceneObjectList) -> [#simple_npc{}] when
+    SceneObjectList :: [scene_object()].
+npcs(SceneObjectList) ->
+    lists:filter(
+        fun
+            (#simple_npc{}) ->
+                true;
+            (_OtherObject) ->
+                false
+        end, SceneObjectList).
 
 %%--------------------------------------------------------------------
 %% @doc
