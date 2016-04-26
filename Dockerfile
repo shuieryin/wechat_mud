@@ -1,4 +1,4 @@
-FROM shuieryin/erlang:18.2-1
+FROM shuieryin/erlang:18.3
 
 MAINTAINER Shuieryin <shuieryin@gmail.com>
 
