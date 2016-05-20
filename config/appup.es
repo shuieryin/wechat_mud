@@ -128,10 +128,10 @@ str_to_term(SrcStr) ->
 
 gen_appup(AppName, OldVsn, NewVsn, OldAppupPath, Instructions) ->
     {ok, HcuConfigs} = file:consult("./config/hcu.config"),
-    {server_priv_dependency, ServerDependencies} = lists:keyfind(server_priv_dependency, 1, HcuConfigs),
+    {server_priv_dependency, ServerPrivDependencies} = lists:keyfind(server_priv_dependency, 1, HcuConfigs),
     UpdatedInstructions =
         lists:foldl(
-            fun({TargetServerModName, DependencyServerModNames}, AccUpdatedInstructions) ->
+            fun({TargetServerModName, PrivDependencyServerModNames}, AccUpdatedInstructions) ->
                 case lists:keyfind(TargetServerModName, 2, Instructions) of
                     {update, TargetServerModName, {advanced, {OldVsn, NewVsn, {ModifiedFilesExtra, AddedFilesExtra, DeletedFilesExtra}}}} ->
                         if
@@ -146,12 +146,12 @@ gen_appup(AppName, OldVsn, NewVsn, OldAppupPath, Instructions) ->
                                             true ->
                                                 AccAccUpdatedInstructions
                                         end
-                                    end, AccUpdatedInstructions, DependencyServerModNames)
+                                    end, AccUpdatedInstructions, PrivDependencyServerModNames)
                         end;
                     false ->
                         AccUpdatedInstructions
                 end
-            end, Instructions, ServerDependencies),
+            end, Instructions, ServerPrivDependencies),
 
     ModuleSequnce = str_to_term(os:cmd("./config/module_sequence.sh")),
     if
