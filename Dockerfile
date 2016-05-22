@@ -5,7 +5,7 @@ MAINTAINER Shuieryin <shuieryin@gmail.com>
 ENV container docker
 ENV WORKSPACE_PATH=/root/workspaces
 
-LABEL "version"="0.1.3" \
+LABEL "version"="0.1.3.2" \
 	"description"="Wechat mud game." \
 	"author"="Shuieryin"
 
