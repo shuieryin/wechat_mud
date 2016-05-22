@@ -130,7 +130,7 @@ answer(
 ) ->
     UpdatedCommandContext = CommandContext#command_context{
         command_func = feedback,
-        command_args = {undfined, TargetName}
+        command_args = [{nls, dunno, [TargetName]}, <<"\n">>]
     },
     ok = cm:execute_command(SrcUid, UpdatedCommandContext),
     {ok, StateName, State};
