@@ -1,0 +1,6 @@
+id,zh,en
+sb_register,注册,register
+sb_registered_success,注册SB帐号成功,Register SB account successfully
+sb_account_password,账号: ${account}~n密码: ${password},Account: ${account}~nPassword: ${password}
+sb_account_already_registered,已注册SB帐号,SB account already registered
+sb_check_password,查看SB帐号密码请再次输入:~n ask sb_manager about 注册,Enter below command again to check your SB account and password:~n ask sb_manager about register

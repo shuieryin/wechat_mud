@@ -687,6 +687,7 @@ state_name(_Event, _From, State) ->
     NewStateData :: StateData,
     Reason :: term(). % generic term
 handle_event({response_content, NlsObjectList, DispatcherPid}, StateName, State) ->
+    io:format("NlsObjectList:~p~n", [NlsObjectList]),
     UpdatedState = do_response_content(State, NlsObjectList, DispatcherPid),
     {next_state, StateName, UpdatedState};
 handle_event({append_message, Message, MailType}, StateName, State) ->

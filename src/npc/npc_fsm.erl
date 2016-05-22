@@ -121,8 +121,16 @@ init(NpcProfile) ->
         strength = M_strength,
         defense = M_defense,
         hp = M_hp,
-        dexterity = M_dexterity
+        dexterity = M_dexterity,
+        ask_n_answers = AskNAnswers
     } = NpcProfile,
+
+    NpcContext = lists:foldl(
+        fun(#ask_n_answer{affair_mod = AffairMod}, AccNpcContext) ->
+            UpdatedAccNpcContext = AffairMod:init(NpcProfile, AccNpcContext),
+            UpdatedAccNpcContext
+        end, #{}, AskNAnswers),
+
     State = #npc_state{
         self = NpcProfile,
         battle_status = #battle_status{
@@ -134,7 +142,8 @@ init(NpcProfile) ->
             'M_hp' = M_hp,
             'Dexterity' = M_dexterity,
             'M_dexterity' = M_dexterity
-        }
+        },
+        npc_context = NpcContext
     },
     {ok, non_battle, State}.
 

@@ -45,7 +45,8 @@
     to_binary/1,
     app_name/0,
     remove_record_fields/3,
-    add_record_fields/4
+    add_record_fields/4,
+    retrieve_n_break/2
 ]).
 
 -type valid_type() :: atom | binary | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple | map.
@@ -371,8 +372,8 @@ parse_target_id(TargetArgs) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% This function is for skipping the "from_init" stage and usually
-%% called by command exec function.
+%% This function is for skipping the implementation of from player initialization
+%% stage and usually called by command exec function.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -602,6 +603,26 @@ app_name() ->
                      filename:basename(ProjectPath)
                  end,
     list_to_atom(AppNameStr).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Retrieve value from List and return the match value once found by
+%% omitting rest elements from list.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec retrieve_n_break(Func, List) -> Elem | undefined when
+    Elem :: term(),
+    List :: list(),
+    Func :: fun((Elem) -> boolean()).
+retrieve_n_break(Func, [H | T]) ->
+    case Func(H) of
+        true ->
+            H;
+        false ->
+            retrieve_n_break(Func, T)
+    end;
+retrieve_n_break(Func, []) when is_function(Func, 1) -> undefined.
 
 %%%===================================================================
 %%% Internal functions

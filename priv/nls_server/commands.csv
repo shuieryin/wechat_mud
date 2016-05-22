@@ -16,3 +16,5 @@ look_help,指令:look [目标名称] [目标序号]~n描述:观察当前场景�
 perform_help,指令:perform [武功名字] on [目标名称]~n描述:用武功对目标进行攻击~n~n例子:perform attack on dog,COMMAND:perform [skill name] on [target name]~nDESCRIPTION:Perform skill attack on someone.~n~n例子:perform attack on dog
 hp_help,指令:hp~n描述:显示当前hp状态,COMMAND:hp~nDESCRIPTION: Display current hp status
 attack_help,指令:attack [目标名称] ~n描述:对目标发起攻击,COMMAND:attack [target name]~nDESCRIPTION: Launch attack on target
+ask_help,指令:ask [目标名称] about [事件] ~n描述:对目标发起问题,COMMAND:ask [target name] about [something]~nDESCRIPTION: ask someone about something
+dunno,${target}什么也不知道。,${target} dunno want you are talking about.

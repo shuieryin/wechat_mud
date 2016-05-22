@@ -604,4 +604,5 @@ is_command_exist(<<"rereg">>) -> true;
 is_command_exist(<<"hp">>) -> true;
 is_command_exist(<<"perform">>) -> true;
 is_command_exist(<<"attack">>) -> true;
+is_command_exist(<<"ask">>) -> true;
 is_command_exist(_InvalidCommand) -> false.

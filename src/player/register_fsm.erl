@@ -411,7 +411,11 @@ input_confirmation(
         born_type_info_map = BornTypeInfoMap
     } = State
 ) when Answer == <<"y">> orelse Answer == <<"yes">> ->
-    #npc_profile{npc_name = NpcName, character_desc = CharacterDescription, self_description = SelfDescription} = common_server:random_npc(),
+    #npc_profile{
+        npc_name = NpcName,
+        character_desc = CharacterDescription,
+        self_description = SelfDescription
+    } = common_server:random_npc(),
 
     #born_type_info{
         strength = M_strength,

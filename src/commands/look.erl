@@ -165,7 +165,7 @@ feedback(
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Display the current scene by response current scene info to player.
+%% Display the current scene by responding the current scene info back to player.
 %%
 %% @end
 %%--------------------------------------------------------------------

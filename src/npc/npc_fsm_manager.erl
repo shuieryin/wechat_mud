@@ -311,10 +311,37 @@ traverse_npcspec([{NpcId, Amount} | Tail], AccNpcsList, AccNpcsMap) ->
     OverallNpcsMap :: AccOverallNpcsMap.
 new_npc(0, _NpcBornProfile, AccNpcsList, AccOverallNpcsMap) ->
     {AccNpcsList, AccOverallNpcsMap};
-new_npc(Amount, NpcBornProfile, AccNpcsList, AccOverallNpcsMap) ->
+new_npc(Amount, #npc_profile{ask_n_answers = RawAskNAnswers} = NpcBornProfile, AccNpcsList, AccOverallNpcsMap) ->
     NpcUid = cm:uuid(),
+
+    %% =========Convert AskNAnswers from "nls_server:nls_object()" to "nls_server:value()" - START=========
+    AskNAnswers = case RawAskNAnswers of
+                      [] ->
+                          [];
+                      _HasAskNAnswers ->
+                          AffairNlsKeyList = lists:foldl(
+                              fun(#ask_n_answer{affair_nls_values = AffairNlsKey}, AccAffairNlsKeyList) ->
+                                  [AffairNlsKey | AccAffairNlsKeyList];
+                                  (IllegalAffair, _AccAffairNlsKeyList) ->
+                                      error_logger:error_msg("Illegal affair:~p~n", [IllegalAffair]),
+                                      throw(illegal_affair)
+                              end, [], RawAskNAnswers),
+
+                          AffairNlsValuesList = lists:reverse(nls_server:get_nls_langs(AffairNlsKeyList)),
+
+                          {ReturnAskNAnswers, []} = lists:foldl(
+                              fun(CurAskNAnswer, {AccAskNAnswers, [AffairNlsValues | OriAffairNlsValuesList]}) ->
+                                  {[CurAskNAnswer#ask_n_answer{
+                                      affair_nls_values = AffairNlsValues
+                                  } | AccAskNAnswers], OriAffairNlsValuesList}
+                              end, {[], AffairNlsValuesList}, RawAskNAnswers),
+                          ReturnAskNAnswers
+                  end,
+    %% =========Convert AskNAnswers from "nls_server:nls_object()" to "nls_server:value()" - END===========
+
     NpcProfile = NpcBornProfile#npc_profile{
-        npc_uid = NpcUid
+        npc_uid = NpcUid,
+        ask_n_answers = AskNAnswers
     },
     npc_fsm_sup:add_child(NpcProfile),
     SimpleNpc = npc_fsm:simple_npc(NpcProfile),
