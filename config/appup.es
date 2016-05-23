@@ -21,7 +21,7 @@ main(Args) ->
     end.
 
 start(AppName, OldVsn) ->
-    NewVsn = increase_vsn(OldVsn, 3, 1), %% will not modify version number in rebar.config and [app_name].app.src
+    NewVsn = increase_vsn(OldVsn, 4, 1), %% will not modify version number in rebar.config and [app_name].app.src
 
     %% -------------------------get existing instructions - start-------------------------
     OldAppupPath = "ebin/" ++ AppName ++ ".appup",

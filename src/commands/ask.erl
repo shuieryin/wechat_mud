@@ -118,9 +118,12 @@ ask_init(
 answer(
     #command_context{
         from = #simple_player{
-            uid = SrcUid
+            uid = SrcUid,
+            name = FromName
         },
-        command_args = AffairContext
+        command_args = #affair_context{
+            affair_name = AffairName
+        } = AffairContext
     } = CommandContext,
     #player_state{
         self = #player_profile{
@@ -135,8 +138,10 @@ answer(
             response_message = [{nls, dunno, [TargetName]}, <<"\n">>]
         }
     },
+    AppendMessage = [{nls, ask_someone, [FromName, {nls, you}, AffairName]}, <<"\n">>, {nls, dunno, [{nls, you}]}, <<"\n">>],
+    UpdatedState = player_fsm:append_message_local(AppendMessage, scene, State),
     ok = cm:execute_command(SrcUid, UpdatedCommandContext),
-    {ok, StateName, State};
+    {ok, StateName, UpdatedState};
 answer(
     #command_context{
         from = #simple_player{
@@ -210,18 +215,18 @@ feedback(
     State,
     StateName
 ) ->
-    TargeName = case Target of
-                    #simple_player{
-                        name = PlayerName
-                    } ->
-                        PlayerName;
-                    #simple_npc{
-                        npc_name = NpcName
-                    } ->
-                        NpcName
-                end,
+    TargetName = case Target of
+                     #simple_player{
+                         name = PlayerName
+                     } ->
+                         PlayerName;
+                     #simple_npc{
+                         npc_name = NpcName
+                     } ->
+                         NpcName
+                 end,
 
-    FinalMessage = [{nls, ask_someone, [{nls, you}, TargeName, AffairName]}, <<"\n">> | Message],
+    FinalMessage = [{nls, ask_someone, [{nls, you}, TargetName, AffairName]}, <<"\n">> | Message],
 
     player_fsm:do_response_content(State, FinalMessage, DispatcherPid),
     {ok, StateName, State}.

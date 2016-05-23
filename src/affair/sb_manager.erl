@@ -67,7 +67,9 @@ register(#npc_state{
     {UpdatedSBRegisteredPlayerInfo, ResponseMessage} =
         case maps:get(PlayerId, SBRegisteredPlayerInfo, undefined) of
             undefined ->
-                NewPassword = list_to_binary(uuid:uuid_to_string(uuid:get_v4())),
+                PasswordSrc = uuid:uuid_to_string(uuid:get_v4()),
+                RawPassword = re:split(PasswordSrc, "-"), % already converted to binary
+                NewPassword = lists:nth(random:uniform(3) + 1, RawPassword),
                 % TODO execute command to write PlayerId as username and the new generated password into starbound.config
 
                 PasswordMessage = [{nls, sb_registered_success}, <<"\n">>, {nls, sb_account_password, [PlayerId, NewPassword]}, <<"\n">>, {nls, sb_check_password}, <<"\n">>],
