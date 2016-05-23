@@ -13,8 +13,8 @@
 
 -record(affair_context, {
     from_player :: #player_profile{},
-    to_target :: #player_profile{} | #npc_state{},
     affair_name :: binary(),
     answer :: #ask_n_answer{},
-    dispatcher_pid :: pid()
+    dispatcher_pid :: pid(),
+    response_message :: [nls_server:nls_object()]
 }).

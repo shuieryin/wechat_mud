@@ -119,7 +119,8 @@ answer(
     #command_context{
         from = #simple_player{
             uid = SrcUid
-        }
+        },
+        command_args = AffairContext
     } = CommandContext,
     #player_state{
         self = #player_profile{
@@ -130,7 +131,9 @@ answer(
 ) ->
     UpdatedCommandContext = CommandContext#command_context{
         command_func = feedback,
-        command_args = [{nls, dunno, [TargetName]}, <<"\n">>]
+        command_args = AffairContext#affair_context{
+            response_message = [{nls, dunno, [TargetName]}, <<"\n">>]
+        }
     },
     ok = cm:execute_command(SrcUid, UpdatedCommandContext),
     {ok, StateName, State};
@@ -160,7 +163,9 @@ answer(
                        undefined ->
                            UpdatedCommandContext = CommandContext#command_context{
                                command_func = feedback,
-                               command_args = [{nls, dunno, [NpcName]}, <<"\n">>]
+                               command_args = AffairContext#affair_context{
+                                   response_message = [{nls, dunno, [NpcName]}, <<"\n">>]
+                               }
                            },
                            ok = cm:execute_command(SrcUid, UpdatedCommandContext),
                            State;
@@ -168,11 +173,15 @@ answer(
                            affair_mod = AffairMod,
                            affair_func = AffairFunc
                        } ->
-                           UpdatedAffairContext = AffairContext#affair_context{
-                               to_target = State,
-                               answer = TargetAskNAnswer
+                           UpdatedCommandContext = CommandContext#command_context{
+                               command_func = feedback,
+                               command_args = AffairContext#affair_context{
+                                   answer = TargetAskNAnswer
+                               }
                            },
-                           AffairMod:AffairFunc(UpdatedAffairContext)
+                           {UpdatedStateFromAffair, FinalCommandContext} = AffairMod:AffairFunc(State, UpdatedCommandContext),
+                           ok = cm:execute_command(SrcUid, FinalCommandContext),
+                           UpdatedStateFromAffair
                    end,
 
     {ok, StateName, UpdatedState}.
@@ -191,13 +200,30 @@ answer(
     UpdatedState :: State.
 feedback(
     #command_context{
-        command_args = Message,
-        dispatcher_pid = DispatcherPid
+        command_args = #affair_context{
+            affair_name = AffairName,
+            response_message = Message
+        },
+        dispatcher_pid = DispatcherPid,
+        to = Target
     },
     State,
     StateName
 ) ->
-    player_fsm:do_response_content(State, Message, DispatcherPid),
+    TargeName = case Target of
+                    #simple_player{
+                        name = PlayerName
+                    } ->
+                        PlayerName;
+                    #simple_npc{
+                        npc_name = NpcName
+                    } ->
+                        NpcName
+                end,
+
+    FinalMessage = [{nls, ask_someone, [{nls, you}, TargeName, AffairName]}, <<"\n">> | Message],
+
+    player_fsm:do_response_content(State, FinalMessage, DispatcherPid),
     {ok, StateName, State}.
 
 

@@ -18,3 +18,4 @@ hp_help,指令:hp~n描述:显示当前hp状态,COMMAND:hp~nDESCRIPTION: Display 
 attack_help,指令:attack [目标名称] ~n描述:对目标发起攻击,COMMAND:attack [target name]~nDESCRIPTION: Launch attack on target
 ask_help,指令:ask [目标名称] about [事件] ~n描述:对目标发起问题,COMMAND:ask [target name] about [something]~nDESCRIPTION: ask someone about something
 dunno,${target}什么也不知道。,${target} dunno want you are talking about.
+ask_someone,${from}向${to}请教有关${something}的事情。,${from} ask ${to} about ${something}.

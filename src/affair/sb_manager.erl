@@ -14,9 +14,10 @@
 %% API
 -export([
     init/2,
-    register/1
+    register/2
 ]).
 
+-include("../data_type/scene_info.hrl").
 -include("../data_type/ask.hrl").
 
 -define(SB_REGISTERED_PLAYERS_INFO, sb_registered_players_info).
@@ -42,40 +43,49 @@ init(_NpcProfile, NpcContext) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Comment starts here
+%% Register SB account and password.
 %%
 %% @end
 %%--------------------------------------------------------------------
-register(#affair_context{
-    from_player = #player_profile{
-        uid = Uid,
-        id = PlayerId
-    },
-    dispatcher_pid = DispatcherPid,
-    to_target = #npc_state{
-        npc_context = #{
-            ?SB_REGISTERED_PLAYERS_INFO := SBRegisteredPlayerInfo
-        } = NpcContext
-    } = NpcState
-}) ->
+-spec register(NpcState, CommandContext) -> {UpdatedNpcState, UpdatedCommandContext} when
+    NpcState :: #npc_state{},
+    CommandContext :: #command_context{},
+    UpdatedNpcState :: NpcState,
+    UpdatedCommandContext :: CommandContext.
+register(#npc_state{
+    npc_context = #{
+        ?SB_REGISTERED_PLAYERS_INFO := SBRegisteredPlayerInfo
+    } = NpcContext
+} = NpcState, #command_context{
+    command_args = #affair_context{
+        from_player = #player_profile{
+            id = PlayerId
+        }
+    } = AffairContext
+} = CommandContext) ->
     % TODO implement logic to register SB ID.
-    UpdatedSBRegisteredPlayerInfo =
+    {UpdatedSBRegisteredPlayerInfo, ResponseMessage} =
         case maps:get(PlayerId, SBRegisteredPlayerInfo, undefined) of
             undefined ->
                 NewPassword = list_to_binary(uuid:uuid_to_string(uuid:get_v4())),
                 % TODO execute command to write PlayerId as username and the new generated password into starbound.config
 
                 PasswordMessage = [{nls, sb_registered_success}, <<"\n">>, {nls, sb_account_password, [PlayerId, NewPassword]}, <<"\n">>, {nls, sb_check_password}, <<"\n">>],
-                player_fsm:response_content(Uid, PasswordMessage, DispatcherPid),
-                SBRegisteredPlayerInfo#{PlayerId => NewPassword};
+                {SBRegisteredPlayerInfo#{PlayerId => NewPassword}, PasswordMessage};
             Password ->
                 PasswordMessage = [{nls, sb_account_already_registered}, <<"\n">>, {nls, sb_account_password, [PlayerId, Password]}, <<"\n">>, {nls, sb_check_password}, <<"\n">>],
-                player_fsm:response_content(Uid, PasswordMessage, DispatcherPid),
-                SBRegisteredPlayerInfo
+                {SBRegisteredPlayerInfo, PasswordMessage}
         end,
-    NpcState#npc_state{
-        npc_context = NpcContext#{
-            ?SB_REGISTERED_PLAYERS_INFO := UpdatedSBRegisteredPlayerInfo
+    {
+        NpcState#npc_state{
+            npc_context = NpcContext#{
+                ?SB_REGISTERED_PLAYERS_INFO := UpdatedSBRegisteredPlayerInfo
+            }
+        },
+        CommandContext#command_context{
+            command_args = AffairContext#affair_context{
+                response_message = ResponseMessage
+            }
         }
     }.
 
