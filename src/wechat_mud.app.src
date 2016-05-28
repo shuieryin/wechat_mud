@@ -1,22 +1,7 @@
-{application, wechat_mud,
-    [
-        {vsn,
-            "0.1.3.2" %% release-version-marker
-        },
-        {description, "This project aims to provide mud games funny stuffs."},
-        {registered, []},
-        {applications,
-            [
-                kernel,
-                stdlib,
-                cowboy,
-                erlsom,
-                eredis,
-                ecsv,
-                uuid
-            ]
-        },
-        {mod, {wechat_mud_app, []}},
-        {env, []}
-    ]
-}.
+{application,wechat_mud,
+             [{vsn,"0.1.3.2"},
+              {description,"This project aims to provide mud games funny stuffs."},
+              {registered,[]},
+              {applications,[kernel,stdlib,cowboy,erlsom,eredis,ecsv,uuid]},
+              {mod,{wechat_mud_app,[]}},
+              {env,[]}]}.

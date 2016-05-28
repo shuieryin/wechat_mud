@@ -832,7 +832,7 @@ handle_info(_Info, StateName, State) ->
 %% terminate. It should be the opposite of Module:init/1 and do any
 %% necessary cleaning up. When it returns, the gen_fsm terminates with
 %% Reason. The return value is ignored. If the gen_fsm is terminated
-%% abnormally, it is restarted with the current state name and state data.
+%% abnormally, it is restarted with the current state name and state data. test
 %%
 %% @end
 %%--------------------------------------------------------------------

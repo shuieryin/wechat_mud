@@ -3,10 +3,14 @@ all: install_rebar3 ck build ct
 install_rebar3:
 	@./config/install_rebar3.sh
 
-build:
-	@./config/build.sh
+ck:
+	@./config/rebar3 ck
 
-ck: dialyzer edoc
+build:
+	@./config/rebar3 build
+
+ct:
+	@./config/rebar3 cmt
 
 cu: clean_upgrade
 
@@ -21,21 +25,3 @@ upgrade:
 
 run:
 	@./config/run.sh
-
-reset:
-	@git fetch --all
-	@git reset --hard origin/master
-
-ct:
-	@./config/rebar3 do ct -c, cover
-	@rm -f test/*.beam
-	@./config/test_coverage.sh
-
-ct_analyze:
-	@./config/show_ct_errors.sh
-
-dialyzer:
-	@./config/rebar3 dialyzer
-
-edoc:
-	@./config/gen_edoc.sh

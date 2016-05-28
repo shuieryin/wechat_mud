@@ -46,7 +46,8 @@
     app_name/0,
     remove_record_fields/3,
     add_record_fields/4,
-    retrieve_n_break/2
+    retrieve_n_break/2,
+    str_to_term/1
 ]).
 
 -type valid_type() :: atom | binary | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple | map.
@@ -623,6 +624,18 @@ retrieve_n_break(Func, [H | T]) ->
             retrieve_n_break(Func, T)
     end;
 retrieve_n_break(Func, []) when is_function(Func, 1) -> undefined.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Convert string content to term.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec str_to_term(string()) -> term().
+str_to_term(SrcStr) ->
+    {ok, Tokens, _EndLocation} = erl_scan:string(SrcStr),
+    {ok, Term} = erl_parse:parse_term(Tokens),
+    Term.
 
 %%%===================================================================
 %%% Internal functions
