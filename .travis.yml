@@ -20,7 +20,6 @@ services:
 
 script:
   - make
-  - make ct_analyze
 
 notifications:
   email:
