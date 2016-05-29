@@ -1,20 +1,10 @@
-all: install_rebar3 ck build ct
+all: install_rebar3 install
 
 install_rebar3:
 	@./config/install_rebar3.sh
 
-ck:
-	@./config/rebar3 ck
-
-build:
-	@./config/rebar3 build
-
-ct:
-	@./config/rebar3 cmt
-
-upgrade:
-	@#bash -x
-	@./config/hcu.sh
+install:
+	@./config/rebar3 install
 
 run:
-	@./config/run.sh
+	@./_build/default/rel/wechat_mud/bin/wechat_mud console

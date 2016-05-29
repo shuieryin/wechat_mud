@@ -47,7 +47,8 @@
     remove_record_fields/3,
     add_record_fields/4,
     retrieve_n_break/2,
-    str_to_term/1
+    str_to_term/1,
+    cmd/1
 ]).
 
 -type valid_type() :: atom | binary | bitstring | boolean | float | function | integer | list | pid | port | reference | tuple | map.
@@ -636,6 +637,36 @@ str_to_term(SrcStr) ->
     {ok, Tokens, _EndLocation} = erl_scan:string(SrcStr),
     {ok, Term} = erl_parse:parse_term(Tokens),
     Term.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Execute command and print output in realtime.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec cmd(string()) -> ok.
+cmd(CmdStr) ->
+    OutputNode = erlang:open_port({spawn, CmdStr},
+        [stderr_to_stdout, in, exit_status,
+            binary, stream, {line, 255}]),
+
+    cmd_receive(OutputNode).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Receive func for cmd/1.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec cmd_receive(port()) -> ok.
+cmd_receive(OutputNode) ->
+    receive
+        {OutputNode, {data, {eol, OutputBin}}} ->
+            io:format(<<"~n", OutputBin/binary>>),
+            cmd_receive(OutputNode);
+        {OutputNode, {exit_status, 0}} ->
+            io:format("~n")
+    end.
 
 %%%===================================================================
 %%% Internal functions

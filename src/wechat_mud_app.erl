@@ -35,6 +35,7 @@
     StartArgs :: term(), % generic term
     Return :: {ok, pid(), State :: #state{}}.
 start(normal, _StartArgs) ->
+    ok = start_redis(),
     ok = start_web(),
     {ok, Pid} = wechat_mud_sup:start_link(),
     ok = cm:show_errors(20),
@@ -49,6 +50,20 @@ start(normal, _StartArgs) ->
 -spec stop(State) -> ok when
     State :: #state{}.
 stop(_State) ->
+    ok.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Launch web service
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec start_redis() -> ok.
+start_redis() ->
+    spawn(
+        fun() ->
+            cm:cmd("redis-server")
+        end),
     ok.
 
 %%--------------------------------------------------------------------

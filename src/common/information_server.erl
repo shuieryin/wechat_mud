@@ -3,7 +3,7 @@
 %%% @copyright (C) 2016, Shuieryin
 %%% @doc
 %%%
-%%% Information server for storing basic configs of app.
+%%% Information server for storing basic configs of app. teset
 %%%
 %%% @end
 %%% Created : 19. Feb 2016 7:08 PM
