@@ -402,7 +402,7 @@ handle_call(
     } = State
 ) ->
     LoggedOutState = logout(internal, Uid, State),
-    ok = cm:until_process_terminated(Uid),
+    ok = elib:until_process_terminated(Uid),
     UpdatedUidsCrossIds = lists:keydelete(Uid, 1, UidsCrossIds),
 
     ok = redis_client_server:async_del([Uid], false),

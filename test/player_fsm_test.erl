@@ -34,7 +34,7 @@ test(_Config) ->
     Self = self(),
     LoggedInUidsSet = login_server:logged_in_player_uids(),
     CurrentPlayerUid = ?ONE_OF(gb_sets:to_list(LoggedInUidsSet)),
-    ValidLangs = cm:type_values(nls_server, support_lang),
+    ValidLangs = elib:type_values(nls_server, support_lang),
 
     ModelState = #state{
         player_uid = CurrentPlayerUid,
@@ -101,7 +101,7 @@ perform(#state{pid = Self, player_uid = PlayerUid}) ->
     IdList = scene_targets(PlayerUid),
 
     CommandContent = <<"perform ${skill} on ${target_id}">>,
-    Skills = cm:type_values(player_fsm, skills),
+    Skills = elib:type_values(player_fsm, skills),
     SkillName = atom_to_binary(?ONE_OF(Skills), utf8),
     Command = nls_server:fill_in_content(CommandContent, [SkillName, ?ONE_OF(IdList)], <<>>),
     ?assertMatch(ok, perform:exec(Self, PlayerUid, Command)).

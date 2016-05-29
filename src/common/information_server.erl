@@ -3,7 +3,7 @@
 %%% @copyright (C) 2016, Shuieryin
 %%% @doc
 %%%
-%%% Information server for storing basic configs of app. teset
+%%% Information server for storing basic configs of app.
 %%%
 %%% @end
 %%% Created : 19. Feb 2016 7:08 PM
@@ -120,7 +120,7 @@ stop() ->
 init([]) ->
     io:format("~p starting...", [?MODULE]),
 
-    RootSupName = list_to_atom(atom_to_list(cm:app_name()) ++ "_sup"),
+    RootSupName = list_to_atom(atom_to_list(elib:app_name()) ++ "_sup"),
 
     io:format("started~n"),
 

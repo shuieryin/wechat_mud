@@ -425,7 +425,7 @@ input_confirmation(
     } = maps:get(BornMonth, BornTypeInfoMap),
 
     FinalPlayerProfile = PlayerProfile#player_profile{
-        register_time = cm:timestamp(),
+        register_time = elib:timestamp(),
         scene = ?BORN_SCENE,
         name = NpcName,
         description = CharacterDescription,

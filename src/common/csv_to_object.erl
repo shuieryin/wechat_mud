@@ -198,7 +198,7 @@ parse_file(FilePath, ExistingChangedValuesMap, RowFun) ->
     AddedFilePaths :: ModifiedFiles,
     DeletedFileNames :: [atom()]. % file name % generic atom
 convert_priv_paths({ModifiedFiles, AddedFiles, DeletedFiles}) ->
-    BasePath = filename:dirname(code:priv_dir(cm:app_name())),
+    BasePath = filename:dirname(code:priv_dir(elib:app_name())),
 
     if
         ModifiedFiles == [] andalso AddedFiles == [] andalso DeletedFiles == [] ->

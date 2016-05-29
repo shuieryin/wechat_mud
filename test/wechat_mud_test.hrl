@@ -11,7 +11,7 @@
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--define(ONE_OF(List), cm:random_from_list(List)).
+-define(ONE_OF(List), elib:random_from_list(List)).
 
 %% =======================Gen server macros - Start=======================
 -define(SERVER_TEST_FULL(Setup, Cleanup, Opts), ?assert(proper:quickcheck(?FORALL(_Cmds, commands(?MODULE),

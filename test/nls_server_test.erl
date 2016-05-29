@@ -41,7 +41,7 @@ test(_Config) ->
     ?ST().
 
 initial_state() ->
-    ValidLangs = cm:type_values(?SERVER, support_lang),
+    ValidLangs = elib:type_values(?SERVER, support_lang),
     NlsKeys = ?SERVER:lang_map(?ONE_OF(ValidLangs)),
 
     #state{
@@ -67,9 +67,9 @@ precondition(_ModelState, {call, ?SERVER, _Action, _Args}) ->
 postcondition(#state{valid_langs = ValidLangs}, {call, ?SERVER, is_valid_lang, [TargetLang]}, Result) ->
     lists:member(TargetLang, ValidLangs) == Result;
 postcondition(_ModelState, {call, ?SERVER, lang_map, _Args}, Result) ->
-    map == cm:type_of(Result);
+    map == elib:type_of(Result);
 postcondition(_ModelState, {call, ?SERVER, get_nls_content, _Args}, Result) ->
-    Type = cm:type_of(list_to_binary(Result)),
+    Type = elib:type_of(list_to_binary(Result)),
     binary == Type.
 
 %%%===================================================================

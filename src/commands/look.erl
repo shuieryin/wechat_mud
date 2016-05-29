@@ -63,7 +63,7 @@ exec(DispatcherPid, Uid) ->
     DispatcherPid :: pid(),
     TargetArgs :: binary().
 exec(DispatcherPid, Uid, TargetArgs) ->
-    {ok, TargetId, Sequence} = cm:parse_target_id(TargetArgs),
+    {ok, TargetId, Sequence} = elib:parse_target_id(TargetArgs),
     CommandContext = #command_context{
         command_func = being_look,
         dispatcher_pid = DispatcherPid,

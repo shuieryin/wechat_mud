@@ -38,7 +38,7 @@ start(normal, _StartArgs) ->
     ok = start_redis(),
     ok = start_web(),
     {ok, Pid} = wechat_mud_sup:start_link(),
-    ok = cm:show_errors(20),
+    ok = elib:show_errors(20),
     {ok, Pid, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -62,7 +62,7 @@ stop(_State) ->
 start_redis() ->
     spawn(
         fun() ->
-            cm:cmd("redis-server")
+            elib:cmd("redis-server")
         end),
     ok.
 

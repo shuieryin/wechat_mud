@@ -231,7 +231,7 @@ init([]) ->
                 Config
         end,
 
-    RuntimeFilePath = filename:join(code:priv_dir(cm:app_name()), ?MODULE_STRING),
+    RuntimeFilePath = filename:join(code:priv_dir(elib:app_name()), ?MODULE_STRING),
     {ok, FileNameList} = file:list_dir(RuntimeFilePath),
     FilePathList = [filename:join(RuntimeFilePath, FileName) || FileName <- FileNameList],
     {RuntimeDatas, _ChangedRuntimeDatas, _DeletedFilesStruct} = csv_to_object:traverse_files(FilePathList, #{}, #{}),
@@ -321,7 +321,7 @@ handle_call(
         }
     } = State
 ) ->
-    RandomKey = cm:random_from_list(maps:keys(NpcsRuntimeDataMap)),
+    RandomKey = elib:random_from_list(maps:keys(NpcsRuntimeDataMap)),
     #{RandomKey := RandomNpc} = NpcsRuntimeDataMap,
     {reply, RandomNpc, State}.
 

@@ -39,7 +39,7 @@
 exec(DispatcherPid, Uid, Args) ->
     [TargetArgs, AffairName] = re:split(Args, <<"\s+about\s+">>),
     % TODO merge cm:parse_target_id into cm:general_target & cm:execute_command
-    {ok, TargetId, Sequence} = cm:parse_target_id(TargetArgs),
+    {ok, TargetId, Sequence} = elib:parse_target_id(TargetArgs),
     CommandContext = #command_context{
         command_func = ask_init,
         command_args = #affair_context{
@@ -159,7 +159,7 @@ answer(
     } = State,
     StateName
 ) ->
-    TargetAskNAnswer = cm:retrieve_n_break(
+    TargetAskNAnswer = elib:retrieve_n_break(
         fun(#ask_n_answer{affair_nls_values = AffairValues}) ->
             lists:member(AffairName, AffairValues)
         end, AskNAnswers),

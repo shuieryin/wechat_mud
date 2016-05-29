@@ -260,7 +260,7 @@ nls_file_name_map() ->
     AccContent :: SrcContent,
     FinalContent :: AccContent.
 fill_in_content(<<"${}", Rest/binary>>, [RawReplacement | Replacements], AccContent) ->
-    Replacement = cm:to_binary(RawReplacement),
+    Replacement = elib:to_binary(RawReplacement),
     fill_in_content(Rest, Replacements, <<AccContent/binary, Replacement/binary>>);
 fill_in_content(<<"${", _IgnoreOneByte, Rest/binary>>, Replacements, AccContent) ->
     fill_in_content(<<"${", Rest/binary>>, Replacements, AccContent);
@@ -336,7 +336,7 @@ convert_target_nls([], _LangMap, _TargetNlsSet, NlsObjectList) ->
 init([]) ->
     io:format("nls server starting..."),
 
-    NlsPath = filename:join(code:priv_dir(cm:app_name()), ?MODULE_STRING),
+    NlsPath = filename:join(code:priv_dir(elib:app_name()), ?MODULE_STRING),
     {ok, FileNameList} = file:list_dir(NlsPath),
 
     CommonNlsFilePath = filename:append(NlsPath, ?COMMON_NLS),
@@ -410,7 +410,7 @@ handle_call(
         valid_langs = ValidLangs
     } = State
 ) ->
-    Result = case cm:type_of(TargetLang) of
+    Result = case elib:type_of(TargetLang) of
                  binary ->
                      lists:member(TargetLang, ValidLangs);
                  atom ->
@@ -884,7 +884,7 @@ fill_in_nls([{NlsContent, Replacements} | Tail], LangMap, AccContentList) ->
     ReplacedContent = fill_in_content(NlsContent, ConvertedReplacements, <<>>),
     fill_in_nls(Tail, LangMap, [ReplacedContent | AccContentList]);
 fill_in_nls([NonNlsKey | Tail], LangMap, AccContentList) ->
-    fill_in_nls(Tail, LangMap, [cm:to_binary(NonNlsKey) | AccContentList]).
+    fill_in_nls(Tail, LangMap, [elib:to_binary(NonNlsKey) | AccContentList]).
 
 %%--------------------------------------------------------------------
 %% @doc

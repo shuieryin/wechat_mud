@@ -36,9 +36,9 @@ test() ->
 
     login_server:register_uid(Self, TestUid),
 
-    ValidLangs = cm:type_values(nls_server, support_lang),
-    ValidGenders = cm:type_values(player_fsm, gender),
-    ValidBornMonths = apply(lists, seq, cm:type_values(player_fsm, born_month)),
+    ValidLangs = elib:type_values(nls_server, support_lang),
+    ValidGenders = elib:type_values(player_fsm, gender),
+    ValidBornMonths = apply(lists, seq, elib:type_values(player_fsm, born_month)),
     InvalidLangs = [kr, jp, 124134, <<"fasdf">>],
     InvalidInputs = [<<"@342342KKK">>, <<"$%^^$%^@!%$@">>],
     PlayerProfile = #player_profile{uid = TestUid},
@@ -149,7 +149,7 @@ input(InvalidInput, ValidInput, Value, FieldName, #player_profile{uid = Uid} = P
                 ResetPlayerProfile;
             _ ->
                 RecordInfo = [player_profile | record_info(fields, player_profile)],
-                Pos = cm:index_of(FieldName, RecordInfo),
+                Pos = elib:index_of(FieldName, RecordInfo),
                 UpdatedList = replace_pos(Value, Pos, tuple_to_list(PlayerProfile)),
                 list_to_tuple(UpdatedList)
         end,

@@ -255,7 +255,7 @@ process_request(Req) ->
                         <<>>;
                     _ReturnContent ->
                         try
-                            ReturnContentBinary = list_to_binary(lists:flatten(cm:remove_last_newline(ReturnContent))),
+                            ReturnContentBinary = list_to_binary(lists:flatten(elib:remove_last_newline(ReturnContent))),
                             spawn(cm, pp, [ReturnContentBinary]),
                             compose_xml_response(UidBin, PlatformId, ReturnContentBinary)
                         catch
@@ -413,7 +413,7 @@ compose_xml_response(UidBin, PlatformIdBin, ContentBin) ->
         <<"]]></ToUserName><FromUserName><![CDATA[">>,
         PlatformIdBin,
         <<"]]></FromUserName><CreateTime>">>,
-        integer_to_binary(cm:timestamp()),
+        integer_to_binary(elib:timestamp()),
         <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>],
 
     list_to_binary(XmlContentList).

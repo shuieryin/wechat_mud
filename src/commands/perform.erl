@@ -54,7 +54,7 @@
     RestArgsBin :: binary().
 exec(DispatcherPid, Uid, Args) ->
     [SkillId, TargetArgs] = re:split(Args, <<"\s+on\s+">>),
-    {ok, TargetId, Sequence} = cm:parse_target_id(TargetArgs),
+    {ok, TargetId, Sequence} = elib:parse_target_id(TargetArgs),
     CommandContext = #command_context{
         command_func = from_init,
         command_args = SkillId,
@@ -114,7 +114,7 @@ from_init(
                             from_var_names = FromVarNames
                         }
                     } = Skill ->
-                        ValueBindings = cm:collect_record_value(BattleStatusRi, BattleStatus, FromVarNames, erl_eval:new_bindings()),
+                        ValueBindings = elib:collect_record_value(BattleStatusRi, BattleStatus, FromVarNames, erl_eval:new_bindings()),
                         UpdatedCommandContext = CommandContext#command_context{
                             command_func = to_settle,
                             scene = CurSceneName,
@@ -241,12 +241,12 @@ skill_calc(
     TargetBattleStatus,
     BattleStatusRi
 ) ->
-    FinalBindings = cm:collect_record_value(BattleStatusRi, TargetBattleStatus, ToVarNames, ValueBindings),
+    FinalBindings = elib:collect_record_value(BattleStatusRi, TargetBattleStatus, ToVarNames, ValueBindings),
     {value, PerformResults, _NewBindings} = erl_eval:exprs(SkillFormula, FinalBindings),
 
     {FinalMessages, FinalCalcValueBindings} = handle_perform_results(to, SrcName, PerformResults, [], []),
 
-    UpdatedTargetBattleStatus = cm:update_record_value(BattleStatusRi, TargetBattleStatus, FinalCalcValueBindings),
+    UpdatedTargetBattleStatus = elib:update_record_value(BattleStatusRi, TargetBattleStatus, FinalCalcValueBindings),
 
     UpdatedCommandContext = CommandContext#command_context{
         command_func = feedback,
@@ -332,7 +332,7 @@ handle_feedback(
     } = State
 ) ->
     {FinalMessages, FinalCalcValueBindings} = handle_perform_results(from, TargetName, PerformResults, [], []),
-    UpdatedTargetBattleStatus = cm:update_record_value(BattleStatusRi, BattleStatus, FinalCalcValueBindings),
+    UpdatedTargetBattleStatus = elib:update_record_value(BattleStatusRi, BattleStatus, FinalCalcValueBindings),
     UpdatedState = player_fsm:do_response_content(State, FinalMessages, DispatcherPid),
     UpdatedState#player_state{
         self = PlayerProfile#player_profile{

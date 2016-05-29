@@ -283,7 +283,7 @@ load_scene_specs(ExistingSceneSpecsMap) ->
             scene_fsm:scene_child_spec(SceneValues, Restart, Shutdown, Type)
         end,
 
-    SceneNlsPath = filename:join(code:priv_dir(cm:app_name()), ?MODULE_STRING),
+    SceneNlsPath = filename:join(code:priv_dir(elib:app_name()), ?MODULE_STRING),
     {ok, FileNameList} = file:list_dir(SceneNlsPath),
     FilePathList = [filename:join(SceneNlsPath, FileName) || FileName <- FileNameList],
     csv_to_object:traverse_merge_files(FilePathList, #{}, ExistingSceneSpecsMap, ChildFun).

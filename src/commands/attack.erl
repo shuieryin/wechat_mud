@@ -39,7 +39,7 @@
     Uid :: player_fsm:uid(),
     TargetArgs :: binary().
 exec(DispatcherPid, Uid, TargetArgs) ->
-    {ok, TargetId, Sequence} = cm:parse_target_id(TargetArgs),
+    {ok, TargetId, Sequence} = elib:parse_target_id(TargetArgs),
     CommandContext = #command_context{
         command_func = to_settle,
         dispatcher_pid = DispatcherPid,
