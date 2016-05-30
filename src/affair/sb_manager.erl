@@ -58,8 +58,8 @@ register(NpcState, #command_context{
     } = AffairContext
 } = CommandContext) ->
     ResponseMessage =
-        case net_adm:ping('sb@starbound.local') of
-            pong ->
+        case elib:connect_node('sb@starbound.local') of
+            true ->
                 case gen_server:call({global, starbound_common_server}, {user, PlayerId}) of
                     undefined ->
                         PasswordSrc = uuid:uuid_to_string(uuid:get_v4()),
