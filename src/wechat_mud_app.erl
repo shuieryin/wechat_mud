@@ -62,6 +62,7 @@ stop(_State) ->
 start_redis() ->
     spawn(
         fun() ->
+            io:format("~p~n", [file:get_cwd()]),
             elib:cmd("redis-server")
         end),
     ok.
