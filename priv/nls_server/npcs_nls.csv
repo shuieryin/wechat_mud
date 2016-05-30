@@ -7,3 +7,6 @@ self_npc_dog_desc,你是一只傻狗。,You are a silly dog.
 self_npc_little_boy_desc,你是一个小男孩。,You are a little boy.
 sb_manager,SB管理员,SB manager
 sb_manager_desc,这位是SB管理员负责管理SB服务器日常事务~n输入 `ask sb_manager about 注册` 来注册/查看帐号密码,This is SB manager for maintaining SB server affairs~nType `ask sb_manager about register` for registering/checking SB account and password
+npc_little_girl,小女孩,Little girl
+npc_little_girl_desc,这是一个小女孩。,This is a little girl.
+self_npc_little_girl_desc,你是一个小女孩。,You are a little girl.

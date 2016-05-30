@@ -406,17 +406,12 @@ input_confirmation(
     #state{
         self = #player_profile{
             uid = PlayerUid,
-            born_month = BornMonth
+            born_month = BornMonth,
+            gender = Gender
         } = PlayerProfile,
         born_type_info_map = BornTypeInfoMap
     } = State
 ) when Answer == <<"y">> orelse Answer == <<"yes">> ->
-    #npc_profile{
-        npc_name = NpcName,
-        character_desc = CharacterDescription,
-        self_description = SelfDescription
-    } = common_server:random_npc(),
-
     #born_type_info{
         strength = M_strength,
         defense = M_defense,
@@ -424,10 +419,18 @@ input_confirmation(
         dexterity = M_dexterity
     } = maps:get(BornMonth, BornTypeInfoMap),
 
+    {PlayerName, CharacterDescription, SelfDescription} =
+        case Gender of
+            male ->
+                {npc_little_boy, npc_little_boy_desc, self_npc_little_boy_desc};
+            female ->
+                {npc_little_girl, npc_little_girl_desc, self_npc_little_girl_desc}
+        end,
+
     FinalPlayerProfile = PlayerProfile#player_profile{
         register_time = elib:timestamp(),
         scene = ?BORN_SCENE,
-        name = NpcName,
+        name = PlayerName,
         description = CharacterDescription,
         self_description = SelfDescription,
         battle_status = #battle_status{

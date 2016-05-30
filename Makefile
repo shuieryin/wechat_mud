@@ -7,7 +7,7 @@ install:
 	@./config/rebar3 install
 
 run:
-	@./_build/default/rel/wechat_mud/bin/wechat_mud console
+	@redis-server & ./_build/default/rel/wechat_mud/bin/wechat_mud console
 
 build:
 	@./config/rebar3 build
