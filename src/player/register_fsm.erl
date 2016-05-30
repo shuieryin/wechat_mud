@@ -422,9 +422,9 @@ input_confirmation(
     {PlayerName, CharacterDescription, SelfDescription} =
         case Gender of
             male ->
-                {npc_little_boy, npc_little_boy_desc, self_npc_little_boy_desc};
+                {{nls, npc_little_boy}, {nls, npc_little_boy_desc}, {nls, self_npc_little_boy_desc}};
             female ->
-                {npc_little_girl, npc_little_girl_desc, self_npc_little_girl_desc}
+                {{nls, npc_little_girl}, {nls, npc_little_girl_desc}, {nls, self_npc_little_girl_desc}}
         end,
 
     FinalPlayerProfile = PlayerProfile#player_profile{
