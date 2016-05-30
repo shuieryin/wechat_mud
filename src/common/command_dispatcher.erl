@@ -256,7 +256,7 @@ process_request(Req) ->
                     _ReturnContent ->
                         try
                             ReturnContentBinary = list_to_binary(lists:flatten(elib:remove_last_newline(ReturnContent))),
-                            spawn(cm, pp, [ReturnContentBinary]),
+                            spawn(elib, pp, [ReturnContentBinary]),
                             compose_xml_response(UidBin, PlatformId, ReturnContentBinary)
                         catch
                             Type:Reason ->

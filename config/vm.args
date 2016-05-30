@@ -1,5 +1,5 @@
 ## Name of the node
--name wechat_mud@127.0.0.1
+-name wechat_mud@wechat_mud.local
 
 ## Cookie for distributed erlang, the cookie name has to be identical to app
 ## name because below -setcookie only works for maintenance processes, hence
