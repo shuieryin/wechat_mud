@@ -228,8 +228,8 @@ feedback(
 
     FinalMessage = [{nls, ask_someone, [{nls, you}, TargetName, AffairName]}, <<"\n">> | Message],
 
-    player_fsm:do_response_content(State, FinalMessage, DispatcherPid),
-    {ok, StateName, State}.
+    UpdatedState = player_fsm:do_response_content(State, FinalMessage, DispatcherPid),
+    {ok, StateName, UpdatedState}.
 
 
 %%%===================================================================

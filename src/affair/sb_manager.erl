@@ -58,7 +58,7 @@ register(NpcState, #command_context{
     } = AffairContext
 } = CommandContext) ->
     ResponseMessage =
-        case elib:connect_node('sb@starbound.local') of
+        case elib:connect_node('starbound_support@starbound.local') of
             true ->
                 case gen_server:call({global, starbound_common_server}, {user, PlayerId}) of
                     undefined ->
