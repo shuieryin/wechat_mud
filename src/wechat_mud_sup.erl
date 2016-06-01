@@ -126,7 +126,7 @@ init([]) ->
             },
 
             {information_server,
-                {information_server, start_link, []},
+                {information_server, start_link, [{cm, q, []}]},
                 permanent,
                 10000,
                 worker,
