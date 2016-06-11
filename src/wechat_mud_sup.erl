@@ -52,6 +52,8 @@ init([]) ->
     [{AppName, _AppVersion, _Applications, _ReleaseStatus}] = release_handler:which_releases(permanent),
     erlang:set_cookie(node(), list_to_atom(AppName)),
 
+    InfoServerName = list_to_atom(AppName ++ "_information_server"),
+
     RestartStrategy = one_for_one,
     MaxRestarts = 1000,
     MaxSecondsBetweenRestarts = 3600,
@@ -125,8 +127,8 @@ init([]) ->
                 [player_fsm_sup]
             },
 
-            {information_server,
-                {information_server, start_link, [{cm, q, []}]},
+            {InfoServerName,
+                {information_server, start_link, [{cm, q, []}, InfoServerName]},
                 permanent,
                 10000,
                 worker,

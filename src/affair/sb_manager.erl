@@ -65,10 +65,23 @@ register(NpcState, #command_context{
                         PasswordSrc = uuid:uuid_to_string(uuid:get_v4()),
                         RawPassword = re:split(PasswordSrc, "-"), % already converted to binary
                         NewPassword = lists:nth(random:uniform(3) + 1, RawPassword),
-                        gen_server:call({global, starbound_common_server}, {add_user, PlayerId, NewPassword}),
-                        [{nls, sb_registered_success}, <<"\n">>, {nls, sb_account_password, [PlayerId, NewPassword]}, <<"\n">>, {nls, sb_check_password}, <<"\n">>];
-                    Password ->
-                        [{nls, sb_account_already_registered}, <<"\n">>, {nls, sb_account_password, [PlayerId, Password]}, <<"\n">>, {nls, sb_check_password}, <<"\n">>]
+                        RestartMessage =
+                            case gen_server:call({global, starbound_common_server}, {add_user, PlayerId, NewPassword}) of
+                                done ->
+                                    {nls, sb_restarted};
+                                pending ->
+                                    {nls, sb_restart_pending}
+                            end,
+                        [{nls, sb_registered_success}, <<"\n">>, {nls, sb_account_password, [PlayerId, NewPassword]}, <<"\n">>, {nls, sb_check_password}, <<"\n\n">>, RestartMessage, <<"\n">>];
+                    {Password, IsPendingRestart} ->
+                        RestartMessage =
+                            case IsPendingRestart of
+                                true ->
+                                    {nls, sb_restart_pending};
+                                false ->
+                                    <<"">>
+                            end,
+                        [{nls, sb_account_already_registered}, <<"\n">>, {nls, sb_account_password, [PlayerId, Password]}, <<"\n">>, {nls, sb_check_password}, <<"\n\n">>, RestartMessage, <<"\n">>]
                 end;
             _NoConnection ->
                 [{nls, sb_server_offline}, <<"\n">>]

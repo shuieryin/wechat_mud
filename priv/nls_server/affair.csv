@@ -5,3 +5,5 @@ sb_account_password,账号: ${account}~n密码: ${password},Account: ${account}~
 sb_account_already_registered,已注册SB帐号,SB account already registered
 sb_check_password,查看SB帐号密码请再次输入:~n ask sb_manager about 注册,Enter below command again to check your SB account and password:~n ask sb_manager about register
 sb_server_offline,SB服务器下线了,SB server offline
+sb_restarted,SB服务器已重启，请一分钟后登陆,"SB server is restarted, please login after 1 minute"
+sb_restart_pending,SB服务器现在有人，将于无人时重启，请耐心等待，或到群里叫大家下线让服务器自动重启，重启后即可登陆。,"There are players in SB server now, please wait until all players logged out and server will be restarted automatically, you may login after server is restarted."
