@@ -159,13 +159,10 @@ answer(
     } = State,
     StateName
 ) ->
-    io:format("==============AskNAnswers:~p~n", [AskNAnswers]),
     TargetAskNAnswer = elib:retrieve_n_break(
         fun(#ask_n_answer{affair_nls_values = AffairValues}) ->
             lists:member(AffairName, AffairValues)
         end, AskNAnswers),
-
-    io:format("=======AffairName~tp~nTargetAskNAnswer:~tp~n", [AffairName, TargetAskNAnswer]),
 
     UpdatedState = case TargetAskNAnswer of
                        undefined ->
