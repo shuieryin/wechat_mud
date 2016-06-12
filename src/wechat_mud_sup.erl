@@ -132,7 +132,7 @@ init([]) ->
                 permanent,
                 10000,
                 worker,
-                [information_server]
+                [InfoServerName]
             }
         ]
     }}.

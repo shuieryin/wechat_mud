@@ -327,7 +327,7 @@ new_npc(Amount, #npc_profile{ask_n_answers = RawAskNAnswers} = NpcBornProfile, A
                                       throw(illegal_affair)
                               end, [], RawAskNAnswers),
 
-                          AffairNlsValuesList = lists:reverse(nls_server:get_nls_langs(AffairNlsKeyList)),
+                          AffairNlsValuesList = nls_server:get_nls_langs(AffairNlsKeyList),
 
                           {ReturnAskNAnswers, []} = lists:foldl(
                               fun(CurAskNAnswer, {AccAskNAnswers, [AffairNlsValues | OriAffairNlsValuesList]}) ->
