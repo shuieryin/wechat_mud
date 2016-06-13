@@ -24,3 +24,4 @@ hp_status,血量: ${hp} / ${max_hp},HP: ${hp} / ${max_hp}
 strength_status,力量: ${strength} / ${max_strength},ST: ${strength} / ${max_strength}
 defense_status,防御: ${defense} / ${max_defense},DF: ${defense} / ${max_defense}
 dexterity_status,敏捷: ${dexterity} / ${max_dexterity},DX: ${dexterity} / ${max_dexterity}
+ask_self,你问自己是谁，从哪里来，要往哪里去。,"You ask yourself who you are, where you come from and where you are heading."
