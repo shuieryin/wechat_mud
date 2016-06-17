@@ -36,7 +36,8 @@
     lang_map/1,
     mail_box/1,
     pending_update_runtime_data/2,
-    player_id/1
+    player_id/1,
+    upgrade_value_by_id/2
 ]).
 
 %% gen_fsm callbacks
@@ -395,6 +396,17 @@ lang_map(PlayerUid) ->
 mail_box(PlayerUid) ->
     gen_fsm:sync_send_all_state_event(PlayerUid, mail_box).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Upgrade player values by integer.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec upgrade_value_by_id(id(), integer()) -> ok.
+upgrade_value_by_id(PlayerId, Value) ->
+    PlayerUid = login_server:uid_by_id(PlayerId),
+    gen_fsm:send_all_state_event(PlayerUid, {upgrade_value_by_id, Value}).
+
 %%%===================================================================
 %%% gen_fsm callbacks
 %%%===================================================================
@@ -674,12 +686,14 @@ state_name(_Event, _From, State) ->
     Event ::
     {response_content, NlsObjectList, DispatcherPid} |
     {append_message, Message, MailType} |
+    {upgrade_value_by_id, Value} |
     stop,
 
     NlsObjectList :: [nls_server:nls_object()],
     DispatcherPid :: pid(),
     Message :: mail_object(),
     MailType :: mail_type(),
+    Value :: integer(),
 
     StateName :: player_state_name(),
     StateData :: #player_state{},
@@ -692,6 +706,26 @@ handle_event({response_content, NlsObjectList, DispatcherPid}, StateName, State)
     {next_state, StateName, UpdatedState};
 handle_event({append_message, Message, MailType}, StateName, State) ->
     {next_state, StateName, append_message_local(Message, MailType, State)};
+handle_event({upgrade_value_by_id, Value}, StateName, #player_state{
+    self = #player_profile{
+        battle_status = #battle_status{
+            'Strength' = Strength,
+            'Defense' = Defense,
+            'Hp' = Hp,
+            'Dexterity' = Dexterity
+        } = BattleStatus
+    } = PlayerProfile
+} = State) ->
+    {next_state, StateName, State#player_state{
+        self = PlayerProfile#player_profile{
+            battle_status = BattleStatus#battle_status{
+                'Strength' = Strength + Value,
+                'Defense' = Defense + Value,
+                'Hp' = Hp + Value,
+                'Dexterity' = Dexterity + Value
+            }
+        }
+    }};
 handle_event(stop, _StateName, State) ->
     {stop, normal, State}.
 
