@@ -121,17 +121,22 @@ status(NpcState, #command_context{
     ResponseMessage =
         case elib:connect_node(?SB_NODE) of
             true ->
-                OnlineUsers = gen_server:call({global, ?SB_GEN_SERVER}, online_users),
+                #{
+                    online_users := OnlineUsers,
+                    memory_usage := MemoryUsage
+                } = gen_server:call({global, ?SB_GEN_SERVER}, server_status),
                 OnlinePlayernames = maps:fold(
                     fun(_Username, #player_info{player_name = Playername}, AccPlayernames) ->
-                        [Playername, <<"\n">> | AccPlayernames]
+                        [<<"[">>, Playername, <<"]\n">> | AccPlayernames]
                     end, [], OnlineUsers),
-                case OnlinePlayernames of
-                    [] ->
-                        [{nls, sb_no_one_online}, <<"\n">>];
-                    _Else ->
-                        [{nls, sb_online_players}, <<"\n">>, OnlinePlayernames]
-                end;
+                PlayerStatus =
+                    case OnlinePlayernames of
+                        [] ->
+                            [{nls, sb_no_one_online}, <<"\n">>];
+                        _Else ->
+                            [{nls, sb_online_players}, <<"\n">>, OnlinePlayernames]
+                    end,
+                [PlayerStatus, [{nls, sb_memory_usage}, <<"\n">>, MemoryUsage]];
             _NoConnection ->
                 [{nls, sb_server_offline}, <<"\n">>]
         end,
