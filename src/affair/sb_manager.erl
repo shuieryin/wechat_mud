@@ -144,7 +144,7 @@ status(NpcState, #command_context{
         NpcState,
         CommandContext#command_context{
             command_args = AffairContext#affair_context{
-                response_message = ResponseMessage
+                response_message = lists:flatten(ResponseMessage)
             }
         }
     }.
