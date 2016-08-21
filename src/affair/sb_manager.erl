@@ -81,16 +81,36 @@ register(NpcState, #command_context{
                                 pending ->
                                     {nls, sb_restart_pending}
                             end,
-                        [{nls, sb_registered_success}, <<"\n">>, {nls, sb_account_password, [PlayerId, NewPassword]}, <<"\n">>, {nls, sb_check_password}, <<"\n\n">>, RestartMessage, <<"\n">>];
-                    {Password, IsPendingRestart} ->
+                        [
+                            {nls, sb_registered_success}, <<"\n">>,
+                            {nls, sb_account_password, [PlayerId, NewPassword]}, <<"\n">>,
+                            {nls, sb_check_password}, <<"\n\n">>,
+                            RestartMessage
+                        ];
+                    {Password, IsPendingRestart, BanReason} ->
+                        BanMessages =
+                            case BanReason of
+                                undefined ->
+                                    <<"">>;
+                                _Banned ->
+                                    [<<"\n">>, {nls, sb_account_inactivated}, {nls, BanReason}]
+                            end,
+
                         RestartMessage =
                             case IsPendingRestart of
                                 true ->
-                                    {nls, sb_restart_pending};
+                                    [<<"\n\n">>, {nls, sb_restart_pending}];
                                 false ->
                                     <<"">>
                             end,
-                        [{nls, sb_account_already_registered}, <<"\n">>, {nls, sb_account_password, [PlayerId, Password]}, <<"\n">>, {nls, sb_check_password}, <<"\n\n">>, RestartMessage, <<"\n">>]
+
+                        lists:flatten([
+                            {nls, sb_account_already_registered}, <<"\n">>,
+                            {nls, sb_account_password, [PlayerId, Password]}, <<"\n">>,
+                            {nls, sb_check_password},
+                            BanMessages,
+                            RestartMessage
+                        ])
                 end;
             _NoConnection ->
                 [{nls, sb_server_offline}, <<"\n">>]
