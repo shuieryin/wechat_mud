@@ -2,8 +2,6 @@ FROM shuieryin/erlang:19.0
 
 MAINTAINER Shuieryin <shuieryin@gmail.com>
 
-ENV container docker
-
 LABEL "version"="0.2.0" \
 	"description"="Wechat mud game." \
 	"author"="Shuieryin"
