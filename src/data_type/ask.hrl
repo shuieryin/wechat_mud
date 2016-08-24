@@ -12,9 +12,9 @@
 -include("../data_type/npc_profile.hrl").
 
 -record(affair_context, {
-    from_player :: #player_profile{},
-    affair_name :: binary(),
-    answer :: #ask_n_answer{},
-    dispatcher_pid :: pid(),
-    response_message :: [nls_server:nls_object()]
+    from_player :: #player_profile{} | undefined,
+    affair_name :: binary() | undefined,
+    answer :: #ask_n_answer{} | undefined,
+    dispatcher_pid :: pid() | undefined,
+    response_message :: [nls_server:nls_object()] | undefined
 }).

@@ -14,3 +14,6 @@ build:
 
 hcu:
 	@./config/rebar3 hcu
+
+reset:
+	@./config/rebar3 reset

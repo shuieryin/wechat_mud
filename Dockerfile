@@ -1,11 +1,11 @@
-FROM shuieryin/erlang:18.3
+FROM shuieryin/erlang:19.0
 
 MAINTAINER Shuieryin <shuieryin@gmail.com>
 
 ENV container docker
 ENV WORKSPACE_PATH=/root/workspaces
 
-LABEL "version"="0.1.3.2" \
+LABEL "version"="0.2.0" \
 	"description"="Wechat mud game." \
 	"author"="Shuieryin"
 
@@ -24,4 +24,4 @@ CMD ["/usr/sbin/init"]
 #	docker exec -ti wechat_mud passwd
 
 #Create container without ssh:
-#	docker run -ti --link starbound:starbound.local --name=wechat_mud --hostname=wechat_mud.local -p 13579:13579 -p 4369:4369 -v /home/collin/workspaces/wechat_mud:/root/workspaces/wechat_mud shuieryin/wechat_mud:latest /bin/bash
+#	docker run -ti --link starbound:starbound.local --name=wechat_mud --hostname=wechat_mud.local -p 13579:13579 -p 4369:4369 -v /home/shuieryin/workspaces/wechat_mud:/root/workspaces/wechat_mud shuieryin/wechat_mud:latest /bin/bash

@@ -51,7 +51,7 @@
 -type value() :: term(). % generic term
 
 -record(state, {
-    redis_client_pid :: redis_client()
+    redis_client_pid :: redis_client() | undefined
 }).
 
 %%%===================================================================

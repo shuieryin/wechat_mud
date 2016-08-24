@@ -22,7 +22,7 @@
 }).
 
 -record(perform_args, {
-    skill :: #skill{},
-    value_bindings :: erl_eval:bindings(),
-    perform_results :: [perform:perform_result()]
+    skill :: #skill{} | undefined,
+    value_bindings :: erl_eval:bindings() | undefined,
+    perform_results :: [perform:perform_result()] | undefined
 }).

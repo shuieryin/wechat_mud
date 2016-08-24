@@ -30,18 +30,18 @@
 }).
 
 -record(player_profile, {
-    uid :: player_fsm:uid(),
-    id :: player_fsm:id(),
-    name :: player_fsm:name(),
-    description :: nls_server:nls_object(),
-    self_description :: nls_server:nls_object(),
-    born_month :: player_fsm:born_month(),
-    gender :: player_fsm:gender(),
-    lang :: nls_server:support_lang(),
-    register_time :: pos_integer(),
-    scene :: scene_fsm:scene_name(),
-    avatar_profile :: #avatar_profile{},
-    battle_status :: #battle_status{}
+    uid :: player_fsm:uid() | undefined,
+    id :: player_fsm:id() | undefined,
+    name :: player_fsm:name() | undefined,
+    description :: nls_server:nls_object() | undefined,
+    self_description :: nls_server:nls_object() | undefined,
+    born_month :: player_fsm:born_month() | undefined,
+    gender :: player_fsm:gender() | undefined,
+    lang :: nls_server:support_lang() | undefined,
+    register_time :: pos_integer() | undefined,
+    scene :: scene_fsm:scene_name() | undefined,
+    avatar_profile :: #avatar_profile{} | undefined,
+    battle_status :: #battle_status{} | undefined
 }).
 
 -record(simple_player, {
@@ -63,6 +63,6 @@
     lang_map :: nls_server:lang_map(),
     runtime_data :: csv_to_object:csv_object(),
     battle_status_ri = record_info(fields, battle_status) :: [atom()], % generic atom % battle status record info
-    pending_update_runtime_data :: {[csv_to_object:csv_data_struct()], [csv_to_object:csv_data_struct()]},
+    pending_update_runtime_data :: {[csv_to_object:csv_data_struct()], [csv_to_object:csv_data_struct()]} | undefined,
     runtime_data_constraints :: [csv_to_object:csv_data_struct()]
 }).

@@ -53,9 +53,9 @@
 -type born_type_info_map() :: #{player_fsm:born_month() => #born_type_info{}}.
 
 -record(state, {
-    self :: #player_profile{},
-    summary_content :: [nls_server:value()],
-    born_type_info_map :: born_type_info_map()
+    self :: #player_profile{} | undefined,
+    summary_content :: [nls_server:value()] | undefined,
+    born_type_info_map :: born_type_info_map() | undefined
 }).
 
 -export_type([

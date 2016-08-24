@@ -44,7 +44,7 @@
 -include("../data_type/npc_profile.hrl").
 
 -record(common_config, {
-    is_wechat_debug :: boolean()
+    is_wechat_debug = false :: boolean()
 }).
 
 -record(state, {

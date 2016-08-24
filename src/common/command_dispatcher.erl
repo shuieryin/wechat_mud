@@ -32,18 +32,18 @@
     signature :: get_param(),
     timestamp :: get_param(),
     nonce :: get_param(),
-    echostr :: get_param()
+    echostr :: get_param() | undefined
 }).
 
 -record(wechat_post_params, {
-    'Content' :: post_param(),
-    'CreateTime' :: post_param(),
-    'FromUserName' :: post_param(),
-    'MsgId' :: post_param(),
-    'MsgType' :: post_param(),
-    'ToUserName' :: post_param(),
-    'Event' :: post_param(),
-    'EventKey' :: post_param()
+    'Content' :: post_param() | undefined,
+    'CreateTime' :: post_param() | undefined,
+    'FromUserName' :: post_param() | undefined,
+    'MsgId' :: post_param() | undefined,
+    'MsgType' :: post_param() | undefined,
+    'ToUserName' :: post_param() | undefined,
+    'Event' :: post_param() | undefined,
+    'EventKey' :: post_param() | undefined
 }).
 
 %%%===================================================================
@@ -602,7 +602,12 @@ is_command_exist(<<"login">>) -> true;
 is_command_exist(<<"logout">>) -> true;
 is_command_exist(<<"rereg">>) -> true;
 is_command_exist(<<"hp">>) -> true;
-is_command_exist(<<"perform">>) -> true;
 is_command_exist(<<"attack">>) -> true;
 is_command_exist(<<"ask">>) -> true;
-is_command_exist(_InvalidCommand) -> false.
+is_command_exist(SpecialHandling) ->
+    if
+        SpecialHandling == <<"perform">> ->
+            true;
+        true ->
+            false
+    end.

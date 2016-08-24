@@ -17,15 +17,15 @@
 }).
 
 -record(command_context, {
-    command = ?MODULE :: module(),
-    command_func :: player_fsm:command_func(),
-    command_args :: player_fsm:command_args(),
-    scene :: scene_fsm:scene_name(),
-    from :: scene_fsm:scene_object(),
-    to :: scene_fsm:scene_object(),
-    dispatcher_pid :: pid(),
-    target_name :: player_fsm:id() | npc_fsm:npc_id(),
-    sequence :: non_neg_integer(),
-    target_name_bin :: binary(),
-    self_targeted_message :: [nls_server:nls_object()]
+    command = ?MODULE :: module() | undefined,
+    command_func :: player_fsm:command_func() | undefined,
+    command_args :: player_fsm:command_args() | undefined,
+    scene :: scene_fsm:scene_name() | undefined,
+    from :: scene_fsm:scene_object() | undefined,
+    to :: scene_fsm:scene_object() | undefined,
+    dispatcher_pid :: pid() | undefined,
+    target_name :: player_fsm:id() | npc_fsm:npc_id() | undefined,
+    sequence :: non_neg_integer() | undefined,
+    target_name_bin :: binary() | undefined,
+    self_targeted_message :: [nls_server:nls_object()] | undefined
 }).

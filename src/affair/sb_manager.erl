@@ -73,7 +73,7 @@ register(NpcState, #command_context{
                     undefined ->
                         PasswordSrc = uuid:uuid_to_string(uuid:get_v4()),
                         RawPassword = re:split(PasswordSrc, "-"), % already converted to binary
-                        NewPassword = lists:nth(random:uniform(3) + 1, RawPassword),
+                        NewPassword = lists:nth(rand:uniform(3) + 1, RawPassword),
                         RestartMessage =
                             case gen_server:call({global, ?SB_GEN_SERVER}, {add_user, PlayerId, NewPassword}) of
                                 done ->
@@ -138,27 +138,35 @@ register(NpcState, #command_context{
 status(NpcState, #command_context{
     command_args = AffairContext
 } = CommandContext) ->
+    ServerDownMessage = [{nls, sb_server_offline}, <<"\n">>],
+
     ResponseMessage =
         case elib:connect_node(?SB_NODE) of
             true ->
                 #{
+                    is_sb_server_up := IsSbServerUp,
                     online_users := OnlineUsers,
                     memory_usage := MemoryUsage
                 } = gen_server:call({global, ?SB_GEN_SERVER}, server_status),
-                OnlinePlayernames = maps:fold(
-                    fun(_Username, #player_info{player_name = Playername}, AccPlayernames) ->
-                        [<<"[">>, Playername, <<"]\n">> | AccPlayernames]
-                    end, [], OnlineUsers),
-                PlayerStatus =
-                    case OnlinePlayernames of
-                        [] ->
-                            [{nls, sb_no_one_online}, <<"\n">>];
-                        _Else ->
-                            [{nls, sb_online_players}, <<"\n">>, OnlinePlayernames]
-                    end,
-                [PlayerStatus, [{nls, sb_memory_usage}, <<"\n">>, MemoryUsage]];
+                case IsSbServerUp of
+                    true ->
+                        OnlinePlayernames = maps:fold(
+                            fun(_Username, #player_info{player_name = Playername}, AccPlayernames) ->
+                                [<<"[">>, Playername, <<"]\n">> | AccPlayernames]
+                            end, [], OnlineUsers),
+                        PlayerStatus =
+                            case OnlinePlayernames of
+                                [] ->
+                                    [{nls, sb_no_one_online}, <<"\n">>];
+                                _Else ->
+                                    [{nls, sb_online_players}, <<"\n">>, OnlinePlayernames]
+                            end,
+                        [PlayerStatus, [{nls, sb_memory_usage}, <<"\n">>, MemoryUsage]];
+                    false ->
+                        ServerDownMessage
+                end;
             _NoConnection ->
-                [{nls, sb_server_offline}, <<"\n">>]
+                ServerDownMessage
         end,
     {
         NpcState,
