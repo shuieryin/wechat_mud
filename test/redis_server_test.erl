@@ -37,14 +37,14 @@ initial_state() ->
     gb_sets:new().
 
 command(ModelState) ->
-    RandomInteger = binary_to_atom(integer_to_binary(random:uniform(100000)), utf8),
+    RandomInteger = binary_to_atom(integer_to_binary(rand:uniform(100000)), utf8),
     CurIntegerListSize = gb_sets:size(ModelState),
     RandomDeletes = case CurIntegerListSize of
                         0 ->
                             [];
                         _ ->
                             CurIntegerList = gb_sets:to_list(ModelState),
-                            lists:nthtail(random:uniform(CurIntegerListSize), CurIntegerList)
+                            lists:nthtail(rand:uniform(CurIntegerListSize), CurIntegerList)
                     end,
     oneof([
         {call, ?SERVER, set, [RandomInteger, RandomInteger, false]},
