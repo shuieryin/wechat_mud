@@ -3,13 +3,12 @@ FROM shuieryin/erlang:19.0
 MAINTAINER Shuieryin <shuieryin@gmail.com>
 
 ENV container docker
-ENV WORKSPACE_PATH=/root/workspaces
 
 LABEL "version"="0.2.0" \
 	"description"="Wechat mud game." \
 	"author"="Shuieryin"
 
-WORKDIR ${WORKSPACE_PATH}
+WORKDIR /root/workspaces
 #Install & Run wechat_mud
 RUN git clone https://github.com/shuieryin/wechat_mud.git ;\
 	cd wechat_mud ;\
