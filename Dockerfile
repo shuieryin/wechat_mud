@@ -21,4 +21,4 @@ CMD ["/usr/sbin/init"]
 #	docker exec -ti wechat_mud passwd
 
 #Create container without ssh:
-#	docker run -ti --link starbound:starbound.local --name=wechat_mud --hostname=wechat_mud.local -p 13579:13579 -p 4369:4369 -v /home/shuieryin/workspaces/wechat_mud:/root/workspaces/wechat_mud shuieryin/wechat_mud:latest /bin/bash
+#	docker run -ti --link starbound:starbound.local --name=wechat_mud --hostname=wechatmud.local -p 13579:13579 -p 4369:4369 -v /home/shuieryin/workspaces/wechat_mud:/root/workspaces/wechat_mud shuieryin/wechat_mud:latest /bin/bash
