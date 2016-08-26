@@ -2,6 +2,6 @@
              [{vsn,"0.2.0"},
               {description,"This project aims to provide mud games funny stuffs."},
               {registered,[]},
-              {applications,[kernel,stdlib,cowboy,erlsom,eredis,ecsv,uuid]},
+              {applications,[kernel,stdlib,cowboy,erlsom,eredis,ecsv,uuid,recon]},
               {mod,{wechat_mud_app,[]}},
               {env,[]}]}.

@@ -16,3 +16,4 @@ logs
 doc
 docs/sketch*
 config/rebar3
+*.dot
