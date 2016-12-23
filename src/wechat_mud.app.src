@@ -1,5 +1,5 @@
 {application,wechat_mud,
-             [{vsn,"0.2.0"},
+             [{vsn,"0.2.1"},
               {description,"This project aims to provide mud games funny stuffs."},
               {registered,[]},
               {applications,[kernel,stdlib,cowboy,erlsom,eredis,ecsv,uuid,recon]},

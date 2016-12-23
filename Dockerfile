@@ -2,7 +2,7 @@ FROM shuieryin/erlang:19.2
 
 MAINTAINER Shuieryin <shuieryin@gmail.com>
 
-LABEL "version"="0.2.0" \
+LABEL "version"="0.2.1" \
 	"description"="Wechat mud game." \
 	"author"="Shuieryin"
 
