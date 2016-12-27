@@ -161,7 +161,7 @@ status(NpcState, #command_context{
                                 _Else ->
                                     [{nls, sb_online_players}, <<"\n">>, OnlinePlayernames]
                             end,
-                        [PlayerStatus, [{nls, sb_memory_usage}, <<"\n">>, MemoryUsage]];
+                        [PlayerStatus, [{nls, sb_memory_usage}, MemoryUsage]];
                     false ->
                         ServerDownMessage
                 end;
