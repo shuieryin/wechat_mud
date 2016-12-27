@@ -13,3 +13,4 @@ sb_no_one_online,当前无人在线,No one online for the moment
 sb_memory_usage,当前内存状态: ,Current memory usage: 
 sb_account_inactivated,SB账号已冻结:,Account inactivated:
 simultaneously_duplicated_login,同时多人登录。,Multiple players logged simultaneously.
+sb_temperature,温度: ,Temperature: 

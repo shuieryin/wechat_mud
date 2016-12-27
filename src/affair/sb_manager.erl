@@ -146,7 +146,8 @@ status(NpcState, #command_context{
                 #{
                     is_sb_server_up := IsSbServerUp,
                     online_users := OnlineUsers,
-                    memory_usage := MemoryUsage
+                    memory_usage := MemoryUsage,
+                    temperature := Temperature
                 } = gen_server:call({global, ?SB_GEN_SERVER}, server_status),
                 case IsSbServerUp of
                     true ->
@@ -161,7 +162,7 @@ status(NpcState, #command_context{
                                 _Else ->
                                     [{nls, sb_online_players}, <<"\n">>, OnlinePlayernames]
                             end,
-                        [PlayerStatus, [{nls, sb_memory_usage}, MemoryUsage]];
+                        [PlayerStatus, [{nls, sb_memory_usage}, MemoryUsage, <<"\n">>, {nls, sb_temperature}, Temperature]];
                     false ->
                         ServerDownMessage
                 end;
