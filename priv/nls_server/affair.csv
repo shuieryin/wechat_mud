@@ -10,7 +10,8 @@ sb_restart_pending,SB服务器现在有人，将于无人时重启，请耐心�
 sb_status,状态,status
 sb_online_players,当前在线玩家:,Current online players:
 sb_no_one_online,当前无人在线,No one online for the moment
-sb_memory_usage,当前内存状态: ,Current memory usage: 
+sb_memory_usage,内存使用率: ,Memory usage: 
 sb_account_inactivated,SB账号已冻结:,Account inactivated:
 simultaneously_duplicated_login,同时多人登录。,Multiple players logged simultaneously.
 sb_temperature,温度: ,Temperature: 
+sb_cpuusage,CPU使用率: ,CPU Usage: 
