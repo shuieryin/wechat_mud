@@ -14,8 +14,8 @@
 %% API
 -export([
     init/2,
-    register/2,
-    status/2
+    register/3,
+    status/3
 ]).
 
 -include("../data_type/scene_info.hrl").
@@ -54,18 +54,20 @@ init(_NpcProfile, NpcContext) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec register(NpcState, CommandContext) -> {UpdatedNpcState, UpdatedCommandContext} when
+-spec register(NpcState, CommandContext, StateName) -> {UpdatedNpcState, UpdatedCommandContext, UpdatedStateName} when
     NpcState :: #npc_state{},
     CommandContext :: #command_context{},
     UpdatedNpcState :: NpcState,
-    UpdatedCommandContext :: CommandContext.
+    UpdatedCommandContext :: CommandContext,
+    StateName :: gen_statem:state_name(),
+    UpdatedStateName :: StateName.
 register(NpcState, #command_context{
     command_args = #affair_context{
         from_player = #player_profile{
             id = PlayerId
         }
     } = AffairContext
-} = CommandContext) ->
+} = CommandContext, StateName) ->
     ResponseMessage =
         case elib:connect_node(?SB_NODE) of
             true ->
@@ -121,7 +123,7 @@ register(NpcState, #command_context{
             command_args = AffairContext#affair_context{
                 response_message = ResponseMessage
             }
-        }
+        }, StateName
     }.
 
 %%--------------------------------------------------------------------
@@ -130,14 +132,16 @@ register(NpcState, #command_context{
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec status(NpcState, CommandContext) -> {UpdatedNpcState, UpdatedCommandContext} when
+-spec status(NpcState, CommandContext, StateName) -> {UpdatedNpcState, UpdatedCommandContext, UpdatedStateName} when
     NpcState :: #npc_state{},
     CommandContext :: #command_context{},
     UpdatedNpcState :: NpcState,
-    UpdatedCommandContext :: CommandContext.
+    UpdatedCommandContext :: CommandContext,
+    StateName :: gen_statem:state_name(),
+    UpdatedStateName :: StateName.
 status(NpcState, #command_context{
     command_args = AffairContext
-} = CommandContext) ->
+} = CommandContext, StateName) ->
     ServerDownMessage = [{nls, sb_server_offline}, <<"\n">>],
 
     ResponseMessage =
@@ -176,7 +180,7 @@ status(NpcState, #command_context{
             command_args = AffairContext#affair_context{
                 response_message = lists:flatten(ResponseMessage)
             }
-        }
+        }, StateName
     }.
 
 %%%===================================================================

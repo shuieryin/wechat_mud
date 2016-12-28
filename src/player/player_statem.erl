@@ -37,6 +37,7 @@
     pending_update_runtime_data/2,
     player_id/1,
     upgrade_value_by_id/2
+%%    affair_fsm/3
 ]).
 
 %% gen_fsm callbacks
@@ -67,7 +68,7 @@
 -type skills() :: punch | kick.
 
 -type command_args() :: #perform_args{} | term(). % generic term
--type player_state_name() :: battle | non_battle | state_name.
+-type player_state_name() :: non_battle | affair_fsm.
 
 -export_type([
     born_month/0,
@@ -721,6 +722,28 @@ non_battle({call, From}, player_id, #player_state{
     }
 }) ->
     {keep_state_and_data, {reply, From, PlayerId}}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Affair finite state machine.
+%%
+%% @end
+%%--------------------------------------------------------------------
+%%-spec affair_fsm(EventType, EventContent, Data) -> StateFunctionResult when
+%%    EventType :: gen_statem:event_type(),
+%%
+%%    EventContent :: term(),
+%%
+%%    StateFunctionResult :: gen_statem:event_handler_result(Data) |
+%%    {keep_state_and_data, Action} |
+%%    {next_state, State, Data, {reply, From, Reply}},
+%%
+%%    From :: gen_statem:from(),
+%%    Reply :: term(),
+%%    Data :: #player_state{},
+%%    State :: gen_statem:state().
+%%affair_fsm(EventType, EventContent, Data) ->
+%%    StateFunctionResult.
 
 %%--------------------------------------------------------------------
 %% @private

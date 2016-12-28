@@ -478,7 +478,12 @@ handle_call(
     UpdatedLoggedInUidsSet =
         case gb_sets:is_element(Uid, LoggedInUidsSet) of
             false ->
-                {ok, _Pid} = player_statem_sup:add_child(Uid, DispatcherPid),
+                case player_statem_sup:add_child(Uid, DispatcherPid) of
+                    {ok, _Pid} ->
+                        ok;
+                    Exception ->
+                        throw(Exception)
+                end,
                 gb_sets:add(Uid, LoggedInUidsSet);
             true ->
                 ok = player_statem:response_content(Uid, [{nls, already_login}], DispatcherPid),

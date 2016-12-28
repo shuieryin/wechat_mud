@@ -38,7 +38,6 @@
     RestArgsBin :: binary().
 exec(DispatcherPid, Uid, Args) ->
     [TargetArgs, AffairName] = re:split(Args, <<"\s+about\s+">>),
-    % TODO merge cm:parse_target_id into cm:general_target & cm:execute_command
     {ok, TargetId, Sequence} = elib:parse_target_id(TargetArgs),
     CommandContext = #command_context{
         command_func = ask_init,
@@ -164,32 +163,33 @@ answer(
             lists:member(AffairName, AffairValues)
         end, AskNAnswers),
 
-    UpdatedState = case TargetAskNAnswer of
-                       undefined ->
-                           UpdatedCommandContext = CommandContext#command_context{
-                               command_func = feedback,
-                               command_args = AffairContext#affair_context{
-                                   response_message = [{nls, dunno, [NpcName]}, <<"\n">>]
-                               }
-                           },
-                           ok = cm:execute_command(SrcUid, UpdatedCommandContext),
-                           State;
-                       #ask_n_answer{
-                           affair_mod = AffairMod,
-                           affair_func = AffairFunc
-                       } ->
-                           UpdatedCommandContext = CommandContext#command_context{
-                               command_func = feedback,
-                               command_args = AffairContext#affair_context{
-                                   answer = TargetAskNAnswer
-                               }
-                           },
-                           {UpdatedStateFromAffair, FinalCommandContext} = AffairMod:AffairFunc(State, UpdatedCommandContext),
-                           ok = cm:execute_command(SrcUid, FinalCommandContext),
-                           UpdatedStateFromAffair
-                   end,
+    {UpdatedState, FinalStateName}
+        = case TargetAskNAnswer of
+              undefined ->
+                  UpdatedCommandContext = CommandContext#command_context{
+                      command_func = feedback,
+                      command_args = AffairContext#affair_context{
+                          response_message = [{nls, dunno, [NpcName]}, <<"\n">>]
+                      }
+                  },
+                  ok = cm:execute_command(SrcUid, UpdatedCommandContext), % TODO process state name while executing command
+                  {State, StateName};
+              #ask_n_answer{
+                  affair_mod = AffairMod,
+                  affair_func = AffairFunc
+              } ->
+                  UpdatedCommandContext = CommandContext#command_context{
+                      command_func = feedback,
+                      command_args = AffairContext#affair_context{
+                          answer = TargetAskNAnswer
+                      }
+                  },
+                  {UpdatedStateFromAffair, FinalCommandContext, UpdatedStateName} = AffairMod:AffairFunc(State, UpdatedCommandContext, StateName),
+                  ok = cm:execute_command(SrcUid, FinalCommandContext),
+                  {UpdatedStateFromAffair, UpdatedStateName}
+          end,
 
-    {ok, StateName, UpdatedState}.
+    {ok, FinalStateName, UpdatedState}.
 
 %%--------------------------------------------------------------------
 %% @doc
