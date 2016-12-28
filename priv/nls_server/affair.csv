@@ -15,3 +15,5 @@ sb_account_inactivated,SB账号已冻结:,Account inactivated:
 simultaneously_duplicated_login,同时多人登录。,Multiple players logged simultaneously.
 sb_temperature,温度: ,Temperature: 
 sb_cpuusage,CPU使用率: ,CPU Usage: 
+affair_help,帮助,help
+bilibili_manager_help,BILIBILI管理员指令帮助:~nask bilibili manager about 管理,BILIBILI manager instruction:~nask bilibili manager about manage

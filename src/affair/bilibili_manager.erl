@@ -13,7 +13,8 @@
 
 %% API
 -export([
-    init/2
+    init/2,
+    help/2
 ]).
 
 -include("../data_type/scene_info.hrl").
@@ -38,6 +39,33 @@
     UpdatedNpcContext :: NpcContext.
 init(_NpcProfile, NpcContext) ->
     NpcContext.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Show help text. May make it a common method in future.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec help(NpcState, CommandContext) -> {UpdatedNpcState, UpdatedCommandContext} when
+    NpcState :: #npc_state{},
+    CommandContext :: #command_context{},
+    UpdatedNpcState :: NpcState,
+    UpdatedCommandContext :: CommandContext.
+help(#npc_state{
+    self = #npc_profile{
+        npc_id = NpcId
+    }
+} = NpcState, #command_context{
+    command_args = AffairContext
+} = CommandContext) ->
+    {
+        NpcState,
+        CommandContext#command_context{
+            command_args = AffairContext#affair_context{
+                response_message = [{nls, binary_to_atom(<<NpcId/binary, "_help">>, utf8)}, <<"\n">>]
+            }
+        }
+    }.
 
 %%%===================================================================
 %%% Internal functions (N/A)

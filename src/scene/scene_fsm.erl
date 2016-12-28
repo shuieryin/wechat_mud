@@ -783,7 +783,6 @@ terminate(_Reason, _StateName, _State) ->
     NewStateData :: StateData.
 code_change(_OldVsn, StateName, State, _Extra) ->
     try
-        % TODO implement new added npc
         UpdatedState = temp_scene_data_update(State),
         {ok, StateName, UpdatedState}
     catch
