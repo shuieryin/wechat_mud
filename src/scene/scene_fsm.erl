@@ -1024,7 +1024,6 @@ populate_scene_state(#scene_info{
                         _Exist ->
                             new_npcs(NpcsSpec, ExistingSceneObjectList) ++ ExistingSceneObjectList
                     end,
-    error_logger:info_msg("SceneNpcsList:~p~n", [SceneNpcsList]),
 
     ExitsScenes = maps:fold(
         fun(CurExit, CurSceneName, AccExitsScenes) ->
@@ -1052,7 +1051,6 @@ new_npcs(NewNpcsSpec, ExistingSceneObjectList) ->
         lists:foldr(
             fun({NpcName, _NpcAmount} = NewNpcSpec, AccDiffNpcsSpec) ->
                 SceneNpcSize = length(scene_npcs_by_name([NpcName], ExistingSceneObjectList)),
-                error_logger:info_msg("NpcName:~p~nSceneNpcSize:~p~n", [NpcName, SceneNpcSize]),
                 if
                     SceneNpcSize > 0 ->
                         AccDiffNpcsSpec;
@@ -1060,8 +1058,6 @@ new_npcs(NewNpcsSpec, ExistingSceneObjectList) ->
                         [NewNpcSpec | AccDiffNpcsSpec]
                 end
             end, [], NewNpcsSpec),
-
-    error_logger:info_msg("DiffNpcsSpec:~p~n", [DiffNpcsSpec]),
 
     case DiffNpcsSpec of
         [] ->
