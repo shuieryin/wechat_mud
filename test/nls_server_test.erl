@@ -77,7 +77,7 @@ postcondition(_ModelState, {call, ?SERVER, get_nls_content, _Args}, Result) ->
 %%%===================================================================
 
 gen_nls_object_list(LangMap) ->
-    RandomSize = random:uniform(?NLS_LIST_SIZE),
+    RandomSize = rand:uniform(?NLS_LIST_SIZE),
     gen_nls_object_list(RandomSize, maps:keys(LangMap), []).
 
 gen_nls_object_list(0, _, AccList) ->
