@@ -30,14 +30,14 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec exec(DispatcherPid, Uid) -> ok when
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     DispatcherPid :: pid().
 exec(DispatcherPid, Uid) ->
     case whereis(Uid) of
         undefined ->
             login_server:register_uid(DispatcherPid, Uid);
         _Pid ->
-            player_fsm:response_content(Uid, [{nls, please_logout_first}], DispatcherPid)
+            player_statem:response_content(Uid, [{nls, please_logout_first}], DispatcherPid)
     end.
 
 %%%===================================================================

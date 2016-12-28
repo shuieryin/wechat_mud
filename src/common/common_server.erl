@@ -428,7 +428,7 @@ code_change(
 
                         ok = gb_sets:fold(
                             fun(PlayerUid, ok) ->
-                                player_fsm:pending_update_runtime_data(PlayerUid, {ChangedFilesStruct, DeletedFilesStruct ++ DeletedFileNames})
+                                player_statem:pending_update_runtime_data(PlayerUid, {ChangedFilesStruct, DeletedFilesStruct ++ DeletedFileNames})
                             end, ok, login_server:logged_in_player_uids()),
 
                         {ok, State#state{

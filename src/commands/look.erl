@@ -43,7 +43,7 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec exec(DispatcherPid, Uid) -> ok when
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     DispatcherPid :: pid().
 exec(DispatcherPid, Uid) ->
     CommandContext = #command_context{
@@ -59,7 +59,7 @@ exec(DispatcherPid, Uid) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec exec(DispatcherPid, Uid, TargetArgs) -> ok when
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     DispatcherPid :: pid(),
     TargetArgs :: binary().
 exec(DispatcherPid, Uid, TargetArgs) ->
@@ -83,7 +83,7 @@ exec(DispatcherPid, Uid, TargetArgs) ->
 -spec being_look(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
     CommandContext :: #command_context{},
     State :: #player_state{},
-    StateName :: player_fsm:player_state_name(),
+    StateName :: player_statem:player_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
 being_look(
@@ -116,7 +116,7 @@ being_look(
     ok = cm:execute_command(SrcUid, UpdatedCommandContext),
 
     SceneMessage = [SrcName, {nls, under_look}, <<"\n">>],
-    UpdatedState = player_fsm:append_message_local(SceneMessage, scene, State),
+    UpdatedState = player_statem:append_message_local(SceneMessage, scene, State),
     {ok, StateName, UpdatedState};
 being_look(
     #command_context{
@@ -149,7 +149,7 @@ being_look(
 -spec feedback(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
     CommandContext :: #command_context{},
     State :: #player_state{},
-    StateName :: player_fsm:player_state_name(),
+    StateName :: player_statem:player_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
 feedback(
@@ -160,7 +160,7 @@ feedback(
     State,
     StateName
 ) ->
-    UpdatedState = player_fsm:do_response_content(State, TargetDescription, DispatcherPid),
+    UpdatedState = player_statem:do_response_content(State, TargetDescription, DispatcherPid),
     {ok, StateName, UpdatedState}.
 
 %%--------------------------------------------------------------------
@@ -172,7 +172,7 @@ feedback(
 -spec look_scene(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
     CommandContext :: #command_context{},
     State :: #player_state{},
-    StateName :: player_fsm:player_state_name(),
+    StateName :: player_statem:player_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
 look_scene(

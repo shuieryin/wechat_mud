@@ -673,7 +673,7 @@ code_change(_OldVsn, #state{
 
                         ok = gb_sets:fold(
                             fun(PlayerUid, ok) ->
-                                PlayerLang = player_fsm:get_lang(PlayerUid),
+                                PlayerLang = player_statem:get_lang(PlayerUid),
                                 PlayerDiffLangMap = maps:get(PlayerLang, DiffNlsMap, #{}),
                                 case gb_sets:is_empty(UpdatedRemovedNlsSet) of
                                     true ->
@@ -682,10 +682,10 @@ code_change(_OldVsn, #state{
                                             true ->
                                                 ok;
                                             false ->
-                                                player_fsm:update_nls(PlayerUid, PlayerDiffLangMap, UpdatedRemovedNlsSet)
+                                                player_statem:update_nls(PlayerUid, PlayerDiffLangMap, UpdatedRemovedNlsSet)
                                         end;
                                     false ->
-                                        player_fsm:update_nls(PlayerUid, PlayerDiffLangMap, UpdatedRemovedNlsSet)
+                                        player_statem:update_nls(PlayerUid, PlayerDiffLangMap, UpdatedRemovedNlsSet)
                                 end
                             end, ok, login_server:logged_in_player_uids()),
 

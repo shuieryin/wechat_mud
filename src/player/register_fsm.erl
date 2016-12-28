@@ -50,7 +50,7 @@
 -include("../data_type/npc_profile.hrl").
 
 -type state_name() :: select_lang | input_id | input_gender | input_born_month | input_confirmation | state_name.
--type born_type_info_map() :: #{player_fsm:born_month() => #born_type_info{}}.
+-type born_type_info_map() :: #{player_statem:born_month() => #born_type_info{}}.
 
 -record(state, {
     self :: #player_profile{} | undefined,
@@ -79,7 +79,7 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec start_link(DispatcherPid, Uid, BornTypeInfoMap) -> gen:start_ret() when
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     DispatcherPid :: pid(),
     BornTypeInfoMap :: register_fsm:born_type_info_map().
 start_link(DispatcherPid, Uid, BornTypeInfoMap) ->
@@ -92,7 +92,7 @@ start_link(DispatcherPid, Uid, BornTypeInfoMap) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec stop(Uid) -> ok when
-    Uid :: player_fsm:uid().
+    Uid :: player_statem:uid().
 stop(Uid) ->
     gen_fsm:send_all_state_event(register_server_name(Uid), stop).
 
@@ -105,7 +105,7 @@ stop(Uid) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec input(DispatcherPid, Uid, Input) -> ok when
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     Input :: binary(),
     DispatcherPid :: pid().
 input(DispatcherPid, Uid, Input) ->
@@ -118,7 +118,7 @@ input(DispatcherPid, Uid, Input) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec current_player_profile(Uid) -> CurrentPlayerProfile when
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     CurrentPlayerProfile :: #player_profile{}.
 current_player_profile(Uid) ->
     gen_fsm:sync_send_all_state_event(register_server_name(Uid), current_player_profile).
@@ -130,7 +130,7 @@ current_player_profile(Uid) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec register_server_name(Uid) -> PlayerServerName when
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     PlayerServerName :: erlang:registered_name().
 register_server_name(Uid) ->
     list_to_atom(atom_to_list(Uid) ++ "_register_fsm").
@@ -156,7 +156,7 @@ register_server_name(Uid) ->
     {stop, Reason} |
     ignore when
 
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     DispatcherPid :: pid(),
     BornTypeInfoMap :: register_fsm:born_type_info_map(),
 
@@ -697,7 +697,7 @@ format_status(Opt, StatusData) ->
 %%--------------------------------------------------------------------
 -spec validate_month(MonthBin) -> {ok, Month} | {false, MonthBin} when
     MonthBin :: binary(),
-    Month :: player_fsm:born_month().
+    Month :: player_statem:born_month().
 validate_month(MonthBin) ->
     try
         case binary_to_integer(MonthBin) of

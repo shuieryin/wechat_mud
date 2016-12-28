@@ -37,8 +37,8 @@ test() ->
     login_server:register_uid(Self, TestUid),
 
     ValidLangs = elib:type_values(nls_server, support_lang),
-    ValidGenders = elib:type_values(player_fsm, gender),
-    ValidBornMonths = apply(lists, seq, elib:type_values(player_fsm, born_month)),
+    ValidGenders = elib:type_values(player_statem, gender),
+    ValidBornMonths = apply(lists, seq, elib:type_values(player_statem, born_month)),
     InvalidLangs = [kr, jp, 124134, <<"fasdf">>],
     InvalidInputs = [<<"@342342KKK">>, <<"$%^^$%^@!%$@">>],
     PlayerProfile = #player_profile{uid = TestUid},

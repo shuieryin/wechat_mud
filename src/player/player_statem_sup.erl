@@ -9,7 +9,7 @@
 %%% @end
 %%% Created : 01. Nov 2015 6:12 PM
 %%%-------------------------------------------------------------------
--module(player_fsm_sup).
+-module(player_statem_sup).
 -author("shuieryin").
 
 -behaviour(supervisor).
@@ -70,7 +70,7 @@ stop() ->
 %% @end
 %%--------------------------------------------------------------------
 -spec add_child(Uid, DispatcherPid) -> supervisor:startchild_ret() when
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     DispatcherPid :: pid().
 add_child(Uid, DispatcherPid) ->
     supervisor:start_child(?MODULE, [Uid, DispatcherPid]).
@@ -102,7 +102,7 @@ init([]) ->
     Shutdown = 2000,
     Type = worker,
 
-    ChildSpec = {player_fsm, {player_fsm, start_link, []}, Restart, Shutdown, Type, [player_fsm]},
+    ChildSpec = {player_statem, {player_statem, start_link, []}, Restart, Shutdown, Type, [player_statem]},
 
     {ok, {SupFlags, [ChildSpec]}}.
 

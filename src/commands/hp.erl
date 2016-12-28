@@ -31,7 +31,7 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec exec(DispatcherPid, Uid) -> ok when
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     DispatcherPid :: pid().
 exec(DispatcherPid, Uid) ->
     CommandContext = #command_context{
@@ -49,7 +49,7 @@ exec(DispatcherPid, Uid) ->
 -spec show_hp(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
     CommandContext :: #command_context{},
     State :: #player_state{},
-    StateName :: player_fsm:player_state_name(),
+    StateName :: player_statem:player_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
 show_hp(
@@ -78,7 +78,7 @@ show_hp(
         {nls, defense_status, [Defense, MaxDefense]}, <<"\n">>,
         {nls, dexterity_status, [Dexterity, MaxDexDexterity]}, <<"\n">>
     ],
-    UpdatedState = player_fsm:do_response_content(State, Message, DispatcherPid),
+    UpdatedState = player_statem:do_response_content(State, Message, DispatcherPid),
     {ok, StateName, UpdatedState}.
 
 %%%===================================================================

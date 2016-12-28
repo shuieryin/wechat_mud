@@ -49,7 +49,7 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec exec(DispatcherPid, Uid, RestArgsBin) -> ok when
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     DispatcherPid :: pid(),
     RestArgsBin :: binary().
 exec(DispatcherPid, Uid, Args) ->
@@ -77,7 +77,7 @@ exec(DispatcherPid, Uid, Args) ->
 -spec from_init(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
     CommandContext :: #command_context{},
     State :: #player_state{},
-    StateName :: player_fsm:player_state_name(),
+    StateName :: player_statem:player_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
 from_init(
@@ -104,11 +104,11 @@ from_init(
     UpdatedState =
         if
             SrcPlayerId == TargetId ->
-                player_fsm:do_response_content(State, SelfMessage, DispatcherPid);
+                player_statem:do_response_content(State, SelfMessage, DispatcherPid);
             true ->
                 case maps:get(SkillId, SkillMap, undefined) of
                     undefined ->
-                        player_fsm:do_response_content(State, [{nls, no_such_skill, [SkillId]}], DispatcherPid);
+                        player_statem:do_response_content(State, [{nls, no_such_skill, [SkillId]}], DispatcherPid);
                     #skill{
                         skill_formula = #skill_formula{
                             from_var_names = FromVarNames
@@ -118,7 +118,7 @@ from_init(
                         UpdatedCommandContext = CommandContext#command_context{
                             command_func = to_settle,
                             scene = CurSceneName,
-                            from = player_fsm:simple_player(PlayerProfile),
+                            from = player_statem:simple_player(PlayerProfile),
                             command_args = #perform_args{
                                 value_bindings = ValueBindings,
                                 skill = Skill
@@ -140,7 +140,7 @@ from_init(
 -spec to_settle(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
     CommandContext :: #command_context{},
     State :: #player_state{} | #npc_state{},
-    StateName :: player_fsm:player_state_name() | npc_fsm:npc_state_name(),
+    StateName :: player_statem:player_state_name() | npc_fsm:npc_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
 to_settle(
@@ -154,7 +154,7 @@ to_settle(
     StateName
 ) ->
     {FinalMessages, UpdatedTargetBattleStatus} = skill_calc(CommandContext, TargetBattleStatus, BattleStatusRi),
-    UpdatedState = player_fsm:append_message_local(FinalMessages, battle, State),
+    UpdatedState = player_statem:append_message_local(FinalMessages, battle, State),
     {ok, StateName, UpdatedState#player_state{self = TargetPlayerProfile#player_profile{battle_status = UpdatedTargetBattleStatus}}};
 to_settle(
     CommandContext,
@@ -182,7 +182,7 @@ to_settle(
 -spec feedback(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
     CommandContext :: #command_context{},
     State :: #player_state{} | #npc_state{},
-    StateName :: player_fsm:player_state_name() | npc_fsm:npc_state_name(),
+    StateName :: player_statem:player_state_name() | npc_fsm:npc_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
 feedback(
@@ -266,11 +266,11 @@ skill_calc(
 %%--------------------------------------------------------------------
 -spec handle_perform_results(BaseFromTo, SrcName, PerformResults, AccMessages, AccCalcValueBindings) -> {FinalMessages, FinalCalcValueBindings} when
     BaseFromTo :: from | to,
-    SrcName :: player_fsm:name(),
+    SrcName :: player_statem:name(),
     PerformResults :: [perform_result()],
-    AccMessages :: [player_fsm:mail_object()],
+    AccMessages :: [player_statem:mail_object()],
     AccCalcValueBindings :: erl_eval:expressions(),
-    FinalMessages :: player_fsm:mail_object(),
+    FinalMessages :: player_statem:mail_object(),
     FinalCalcValueBindings :: AccCalcValueBindings.
 handle_perform_results(BaseFromTo, RawSrcName, [{FromTo, FieldName, FieldValue, ChangedValue, NlsKeys} | RestPerformResults], AccMessages, AccCalcValueBindings) ->
     {NlsKey, SrcName} = case NlsKeys of
@@ -312,7 +312,7 @@ handle_perform_results(_BaseFromTo, _SrcName, [], FinalMessages, FinalCalcValueB
 %% @end
 %%--------------------------------------------------------------------
 -spec handle_feedback(TargetName, CommandContext, State) -> UpdatedState when
-    TargetName :: player_fsm:name() | npc_fsm:npc_name(),
+    TargetName :: player_statem:name() | npc_fsm:npc_name(),
     CommandContext :: #command_context{},
     State :: #player_state{},
     UpdatedState :: State.
@@ -333,7 +333,7 @@ handle_feedback(
 ) ->
     {FinalMessages, FinalCalcValueBindings} = handle_perform_results(from, TargetName, PerformResults, [], []),
     UpdatedTargetBattleStatus = elib:update_record_value(BattleStatusRi, BattleStatus, FinalCalcValueBindings),
-    UpdatedState = player_fsm:do_response_content(State, FinalMessages, DispatcherPid),
+    UpdatedState = player_statem:do_response_content(State, FinalMessages, DispatcherPid),
     UpdatedState#player_state{
         self = PlayerProfile#player_profile{
             battle_status = UpdatedTargetBattleStatus

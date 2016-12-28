@@ -338,7 +338,7 @@ gen_action_from_message_type(
         _MsgType ->
             {<<>>,
                 fun(Uid) ->
-                    nls_server:get_nls_content([{nls, message_type_not_support}], player_fsm:get_lang(Uid))
+                    nls_server:get_nls_content([{nls, message_type_not_support}], player_statem:get_lang(Uid))
                 end}
     end.
 
@@ -361,7 +361,7 @@ gen_action_from_message_type(
 %% @end
 %%--------------------------------------------------------------------
 -spec handle_input(Uid, ModuleNameBin, RawCommandArgs) -> ReturnContent when
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     ModuleNameBin :: binary(),
     RawCommandArgs :: [binary()],
     ReturnContent :: [nls_server:value()].
@@ -392,11 +392,11 @@ handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
                 true ->
                     pending_content(ModuleName, exec, Args);
                 false ->
-                    nls_server:get_nls_content([{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(binary_to_list(RawModuleName) ++ "_help")}], player_fsm:get_lang(Uid))
+                    nls_server:get_nls_content([{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(binary_to_list(RawModuleName) ++ "_help")}], player_statem:get_lang(Uid))
             end;
 
         invalid_command ->
-            nls_server:get_nls_content([{nls, invalid_command}, ModuleNameBin], player_fsm:get_lang(Uid))
+            nls_server:get_nls_content([{nls, invalid_command}, ModuleNameBin], player_statem:get_lang(Uid))
     end.
 
 %%--------------------------------------------------------------------
@@ -579,7 +579,7 @@ execute_command(Module, Function, [DispatcherPid, Uid | CommandArgs] = FunctionA
         apply(Module, Function, FunctionArgs)
     catch
         Type:Reason ->
-            ok = player_fsm:response_content(Uid, [{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(atom_to_list(Module) ++ "_help")}], DispatcherPid),
+            ok = player_statem:response_content(Uid, [{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(atom_to_list(Module) ++ "_help")}], DispatcherPid),
             error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
             throw(Reason)
     end.

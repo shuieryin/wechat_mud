@@ -54,7 +54,7 @@
 -include("../data_type/player_profile.hrl").
 
 -type scene_object() :: #simple_player{} | #simple_npc{}.
--type scene_character_name() :: npc_fsm:npc_id() | player_fsm:uid().
+-type scene_character_name() :: npc_fsm:npc_id() | player_statem:uid().
 -type scene_name() :: atom(). % generic atom
 -type exits_map() :: #{direction:directions() => nls_server:key()}.
 -type exits_scenes() :: #{scene_name() => direction:directions()}.
@@ -147,7 +147,7 @@ enter(SceneName, DispatcherPid, SimplePlayer, FromSceneName) ->
 %%--------------------------------------------------------------------
 -spec go_direction(SceneName, Uid, TargetDirection) -> Result when
     SceneName :: scene_name(),
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     TargetDirection :: direction:directions(),
     Result :: TargetSceneName | {undefined, SceneNlsServerName},
     TargetSceneName :: scene_name(),
@@ -164,7 +164,7 @@ go_direction(SceneName, Uid, TargetDirection) ->
 %%--------------------------------------------------------------------
 -spec leave(SceneName, Uid) -> ok when
     SceneName :: scene_name(),
-    Uid :: player_fsm:uid().
+    Uid :: player_statem:uid().
 leave(SceneName, Uid) ->
     gen_fsm:send_all_state_event(SceneName, {leave, Uid}).
 
@@ -178,7 +178,7 @@ leave(SceneName, Uid) ->
 -spec show_scene(CurSceneName, Uid, DispatcherPid) -> ok when
     CurSceneName :: scene_name(),
     DispatcherPid :: pid(),
-    Uid :: player_fsm:uid().
+    Uid :: player_statem:uid().
 show_scene(CurSceneName, Uid, DispatcherPid) ->
     gen_fsm:send_all_state_event(CurSceneName, {show_scene, Uid, DispatcherPid}).
 
@@ -234,7 +234,7 @@ exits_map(CurSceneName) ->
 %%--------------------------------------------------------------------
 -spec player_quit(SceneName, Uid) -> ok when
     SceneName :: scene_name(),
-    Uid :: player_fsm:uid().
+    Uid :: player_statem:uid().
 player_quit(SceneName, Uid) ->
     gen_fsm:send_all_state_event(SceneName, {player_quit, Uid}).
 
@@ -448,7 +448,7 @@ state_name(_Event, _From, State) ->
     SimplePlayer :: #simple_player{},
     FromSceneName :: scene_name(),
     DispatcherPid :: pid(),
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     CommandContext :: #command_context{},
 
     StateName :: secene_state_name(),
@@ -522,7 +522,7 @@ handle_event(
     TargetSceneObject = grab_target_scene_objects(SceneObjectList, TargetId, Sequence),
     if
         undefined == TargetSceneObject ->
-            ok = player_fsm:response_content(SrcUid, [{nls, no_such_target}, TargetBin, <<"\n">>], DispatcherPid);
+            ok = player_statem:response_content(SrcUid, [{nls, no_such_target}, TargetBin, <<"\n">>], DispatcherPid);
         true ->
             UpdatedCommandContext = CommandContext#command_context{
                 to = TargetSceneObject
@@ -628,7 +628,7 @@ grab_target_scene_objects([], _TargetName, _Sequence, _Counter) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec remove_scene_object(SceneObjectKey, State) -> UpdatedState when
-    SceneObjectKey :: npc_fsm:npc_uid() | player_fsm:uid(),
+    SceneObjectKey :: npc_fsm:npc_uid() | player_statem:uid(),
     State :: #scene_state{},
     UpdatedState :: State.
 remove_scene_object(
@@ -666,7 +666,7 @@ remove_scene_object(
 
     Reply :: SceneName | ok,
 
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     TargetDirection :: direction:directions(),
     SceneName :: scene_name(),
     SceneInfo :: #scene_info{},
@@ -833,7 +833,7 @@ gen_exits_desc(ExitsMap) ->
 %%--------------------------------------------------------------------
 -spec gen_characters_name_list(SceneObjectList, CallerUid) -> {IsCallerExist, CharacterNameList} when
     SceneObjectList :: [scene_object()],
-    CallerUid :: player_fsm:uid(),
+    CallerUid :: player_statem:uid(),
     CharacterNameList :: [nls_server:nls_object()],
     IsCallerExist :: boolean().
 gen_characters_name_list(SceneObjectList, CallerUid) ->
@@ -852,7 +852,7 @@ gen_characters_name_list(SceneObjectList, CallerUid) ->
 %%--------------------------------------------------------------------
 -spec gen_character_name(SceneObjectList, CallerUid, AccSceneObjectNameList, IsCallerExist) -> {UpdatedIsCallerExist, SceneObjectNameList} when
     SceneObjectList :: [scene_object()],
-    CallerUid :: player_fsm:uid(),
+    CallerUid :: player_statem:uid(),
     AccSceneObjectNameList :: [nls_server:nls_object()],
     SceneObjectNameList :: AccSceneObjectNameList,
     IsCallerExist :: boolean(),
@@ -913,7 +913,7 @@ gen_character_name(
 -spec do_show_scene(State, Uid, DispatcherPid) -> {ok, IsCallerExist} when
     DispatcherPid :: pid(),
     State :: #scene_state{},
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     IsCallerExist :: boolean().
 do_show_scene(
     #scene_state{
@@ -938,7 +938,7 @@ do_show_scene(
         <<"\n">>,
         ExitsDescription
     ]),
-    ok = player_fsm:response_content(Uid, ContentList, DispatcherPid),
+    ok = player_statem:response_content(Uid, ContentList, DispatcherPid),
     {ok, IsCallerExist}.
 
 %%--------------------------------------------------------------------
@@ -950,9 +950,9 @@ do_show_scene(
 %%--------------------------------------------------------------------
 -spec broadcast(State, Message, MailType, ExceptUids) -> ok when
     State :: #scene_state{},
-    Message :: player_fsm:mail_object(),
-    MailType :: player_fsm:mail_type(),
-    ExceptUids :: [player_fsm:uid()].
+    Message :: player_statem:mail_object(),
+    MailType :: player_statem:mail_type(),
+    ExceptUids :: [player_statem:uid()].
 broadcast(
     #scene_state{
         scene_object_list = SceneObjectList
@@ -970,7 +970,7 @@ broadcast(
                     IsBroadcast = not lists:member(TargetPlayerUid, ExceptUids),
                     if
                         IsBroadcast ->
-                            player_fsm:append_message(TargetPlayerUid, Message, MailType);
+                            player_statem:append_message(TargetPlayerUid, Message, MailType);
                         true ->
                             do_nothing
                     end;
@@ -989,7 +989,7 @@ broadcast(
 %%--------------------------------------------------------------------
 -spec scene_player_by_uid(SceneObjectList, TargetPlayerUid) -> Result when
     SceneObjectList :: [scene_object()],
-    TargetPlayerUid :: player_fsm:uid(),
+    TargetPlayerUid :: player_statem:uid(),
     Result :: #simple_player{} | undefined.
 scene_player_by_uid(
     [

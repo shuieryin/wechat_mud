@@ -27,7 +27,7 @@
     common_server_test/1,
     nls_server_test/1,
     register_fsm_test/1,
-    player_fsm_test/1
+    player_statem_test/1
 ]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -59,7 +59,7 @@ groups() ->
             common_server_test,
             nls_server_test,
             register_fsm_test,
-            player_fsm_test
+            player_statem_test
         ]
     }].
 
@@ -67,7 +67,7 @@ redis_server_test(Cfg) -> redis_server_test:test(Cfg).
 common_server_test(Cfg) -> common_server_test:test(Cfg).
 nls_server_test(Cfg) -> nls_server_test:test(Cfg).
 register_fsm_test(Cfg) -> register_fsm_test:test(Cfg).
-player_fsm_test(Cfg) -> player_fsm_test:test(Cfg).
+player_statem_test(Cfg) -> player_statem_test:test(Cfg).
 
 %%%===================================================================
 %%% Init states
@@ -85,7 +85,7 @@ init_per_suite(Config) ->
     login_server:start(),
     scene_root_sup:start(),
     register_fsm_sup:start(),
-    player_fsm_sup:start(),
+    player_statem_sup:start(),
     Config.
 
 end_per_suite(_Config) ->

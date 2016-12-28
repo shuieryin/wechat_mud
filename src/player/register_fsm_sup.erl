@@ -69,7 +69,7 @@ stop() ->
 %%--------------------------------------------------------------------
 -spec add_child(DispatcherPid, Uid, BornTypeInfoMap) -> supervisor:startchild_ret() when
     DispatcherPid :: pid(),
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     BornTypeInfoMap :: register_fsm:born_type_info_map().
 add_child(DispatcherPid, Uid, BornTypeInfoMap) ->
     supervisor:start_child(?MODULE, [DispatcherPid, Uid, BornTypeInfoMap]).

@@ -27,7 +27,7 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec exec(DispatcherPid, Uid) -> ok when
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     DispatcherPid :: pid().
 exec(DispatcherPid, Uid) ->
     login_server:logout(DispatcherPid, Uid).

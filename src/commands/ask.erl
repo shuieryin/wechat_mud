@@ -33,7 +33,7 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec exec(DispatcherPid, Uid, RestArgsBin) -> ok when
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     DispatcherPid :: pid(),
     RestArgsBin :: binary().
 exec(DispatcherPid, Uid, Args) ->
@@ -63,7 +63,7 @@ exec(DispatcherPid, Uid, Args) ->
 -spec ask_init(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
     CommandContext :: #command_context{},
     State :: #player_state{},
-    StateName :: player_fsm:player_state_name(),
+    StateName :: player_statem:player_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
 ask_init(
@@ -85,13 +85,13 @@ ask_init(
     UpdatedState =
         if
             SrcPlayerId == TargetId ->
-                player_fsm:do_response_content(State, SelfMessage, DispatcherPid),
+                player_statem:do_response_content(State, SelfMessage, DispatcherPid),
                 State;
             true ->
                 UpdatedCommandContext = CommandContext#command_context{
                     command_func = answer,
                     scene = CurSceneName,
-                    from = player_fsm:simple_player(PlayerProfile),
+                    from = player_statem:simple_player(PlayerProfile),
                     command_args = AffairContext#affair_context{
                         from_player = PlayerProfile,
                         dispatcher_pid = DispatcherPid
@@ -112,7 +112,7 @@ ask_init(
 -spec answer(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
     CommandContext :: #command_context{},
     State :: #player_state{} | #npc_state{},
-    StateName :: player_fsm:player_state_name() | npc_fsm:npc_state_name(),
+    StateName :: player_statem:player_state_name() | npc_fsm:npc_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
 answer(
@@ -139,7 +139,7 @@ answer(
         }
     },
     AppendMessage = [{nls, ask_someone, [FromName, {nls, you}, AffairName]}, <<"\n">>, {nls, dunno, [{nls, you}]}, <<"\n">>],
-    UpdatedState = player_fsm:append_message_local(AppendMessage, scene, State),
+    UpdatedState = player_statem:append_message_local(AppendMessage, scene, State),
     ok = cm:execute_command(SrcUid, UpdatedCommandContext),
     {ok, StateName, UpdatedState};
 answer(
@@ -200,7 +200,7 @@ answer(
 -spec feedback(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
     CommandContext :: #command_context{},
     State :: #player_state{},
-    StateName :: player_fsm:player_state_name(),
+    StateName :: player_statem:player_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
 feedback(
@@ -228,7 +228,7 @@ feedback(
 
     FinalMessage = [{nls, ask_someone, [{nls, you}, TargetName, AffairName]}, <<"\n">> | Message],
 
-    UpdatedState = player_fsm:do_response_content(State, FinalMessage, DispatcherPid),
+    UpdatedState = player_statem:do_response_content(State, FinalMessage, DispatcherPid),
     {ok, StateName, UpdatedState}.
 
 

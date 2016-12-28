@@ -15,7 +15,7 @@
 }).
 
 -record(skill, {
-    skill_id :: player_fsm:skill_id(),
+    skill_id :: player_statem:skill_id(),
     skill_seq :: integer(),
     skill_formula :: #skill_formula{},
     buff :: [term()] % generic term

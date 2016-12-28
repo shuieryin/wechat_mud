@@ -1,6 +1,6 @@
 %%%-------------------------------------------------------------------
 %%% @author Shuieryin
-%%% @copyright (C) 2015, Shuieryin
+%%% @copyright (C) 2016, Shuieryin
 %%% @doc
 %%%
 %%% Player gen_fsm. This gen_fsm is created when player logs in and
@@ -10,10 +10,10 @@
 %%% @end
 %%% Created : 18. Aug 2015 8:57 PM
 %%%-------------------------------------------------------------------
--module(player_fsm).
+-module(player_statem).
 -author("shuieryin").
 
--behaviour(gen_fsm).
+-behaviour(gen_statem).
 
 %% API
 -export([
@@ -27,7 +27,6 @@
     append_message/3,
     append_message_local/3,
     simple_player/1,
-    non_battle/2,
     non_battle/3,
     battle/2,
     update_nls/3,
@@ -43,14 +42,11 @@
 %% gen_fsm callbacks
 -export([
     init/1,
-    state_name/2,
-    state_name/3,
-    handle_event/3,
-    handle_sync_event/4,
     handle_info/3,
     terminate/3,
     code_change/4,
-    format_status/2
+    format_status/2,
+    callback_mode/0
 ]).
 
 -type uid() :: atom().
@@ -106,7 +102,7 @@
     Uid :: uid(),
     DispatcherPid :: pid().
 start_link(Uid, DispatcherPid) ->
-    gen_fsm:start_link({local, Uid}, ?MODULE, {Uid, DispatcherPid}, []).
+    gen_statem:start_link({local, Uid}, ?MODULE, {Uid, DispatcherPid}, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -119,7 +115,7 @@ start_link(Uid, DispatcherPid) ->
     Uid :: uid(),
     DispatcherPid :: pid().
 start(Uid, DispatcherPid) ->
-    gen_fsm:start({local, Uid}, ?MODULE, {Uid, DispatcherPid}, []).
+    gen_statem:start({local, Uid}, ?MODULE, {Uid, DispatcherPid}, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -128,9 +124,9 @@ start(Uid, DispatcherPid) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec current_scene_name(PlayerUid) -> scene_fsm:scene_name() when
-    PlayerUid :: player_fsm:uid().
+    PlayerUid :: player_statem:uid().
 current_scene_name(PlayerUid) ->
-    gen_fsm:sync_send_all_state_event(PlayerUid, current_scene_name).
+    gen_statem:call(PlayerUid, current_scene_name).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -142,7 +138,7 @@ current_scene_name(PlayerUid) ->
     Uid :: uid(),
     Lang :: nls_server:support_lang().
 get_lang(Uid) ->
-    gen_fsm:sync_send_all_state_event(Uid, get_lang).
+    gen_statem:call(Uid, get_lang).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -161,7 +157,7 @@ get_lang(Uid) ->
     ContentList :: [term()], % generic term
     DispatcherPid :: pid().
 response_content(Uid, ContentList, DispatcherPid) ->
-    gen_fsm:send_all_state_event(Uid, {response_content, ContentList, DispatcherPid}).
+    gen_statem:cast(Uid, {response_content, ContentList, DispatcherPid}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -173,7 +169,7 @@ response_content(Uid, ContentList, DispatcherPid) ->
 -spec logout(Uid) -> ok when
     Uid :: uid().
 logout(Uid) ->
-    gen_fsm:sync_send_event(Uid, logout).
+    gen_statem:call(Uid, logout).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -183,11 +179,11 @@ logout(Uid) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec append_message(Uid, Message, MailType) -> ok when
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     Message :: mail_object(),
     MailType :: mail_type().
 append_message(Uid, Message, MailType) ->
-    gen_fsm:send_all_state_event(Uid, {append_message, Message, MailType}).
+    gen_statem:cast(Uid, {append_message, Message, MailType}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -319,7 +315,7 @@ do_response_content(
     ChangedLangMap :: nls_server:lang_map(),
     RemovedNlsSet :: gb_sets:set(atom()). % generic atom
 update_nls(PlayerUid, ChangedLangMap, RemovedNlsSet) ->
-    gen_fsm:sync_send_all_state_event(PlayerUid, {update_nls, ChangedLangMap, RemovedNlsSet}).
+    gen_statem:call(PlayerUid, {update_nls, ChangedLangMap, RemovedNlsSet}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -335,7 +331,7 @@ update_nls(PlayerUid, ChangedLangMap, RemovedNlsSet) ->
     ChangedFilesStruct :: [csv_to_object:csv_data_struct()],
     DeletedFilesStruct :: ChangedFilesStruct.
 pending_update_runtime_data(PlayerUid, {ChangedFilesStruct, DeletedFilesStruct}) ->
-    gen_fsm:sync_send_all_state_event(PlayerUid, {pending_update_runtime_data, {ChangedFilesStruct, DeletedFilesStruct}}).
+    gen_statem:call(PlayerUid, {pending_update_runtime_data, {ChangedFilesStruct, DeletedFilesStruct}}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -347,7 +343,7 @@ pending_update_runtime_data(PlayerUid, {ChangedFilesStruct, DeletedFilesStruct})
     PlayerUid :: uid(),
     PlayerState :: #player_state{}.
 player_state(PlayerUid) ->
-    gen_fsm:sync_send_all_state_event(PlayerUid, player_state).
+    gen_statem:call(PlayerUid, player_state).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -370,7 +366,7 @@ player_state_by_id(PlayerId) ->
 %%--------------------------------------------------------------------
 -spec player_id(uid()) -> id().
 player_id(PlayerUid) ->
-    gen_fsm:sync_send_all_state_event(PlayerUid, player_id).
+    gen_statem:call(PlayerUid, player_id).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -382,7 +378,7 @@ player_id(PlayerUid) ->
     PlayerUid :: uid(),
     LangMap :: nls_server:lang_map().
 lang_map(PlayerUid) ->
-    gen_fsm:sync_send_all_state_event(PlayerUid, lang_map).
+    gen_statem:call(PlayerUid, lang_map).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -394,7 +390,7 @@ lang_map(PlayerUid) ->
     PlayerUid :: uid(),
     Mailbox :: #mailbox{}.
 mail_box(PlayerUid) ->
-    gen_fsm:sync_send_all_state_event(PlayerUid, mail_box).
+    gen_statem:call(PlayerUid, mail_box).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -405,7 +401,7 @@ mail_box(PlayerUid) ->
 -spec upgrade_value_by_id(id(), integer()) -> ok.
 upgrade_value_by_id(PlayerId, Value) ->
     PlayerUid = login_server:uid_by_id(PlayerId),
-    gen_fsm:send_all_state_event(PlayerUid, {upgrade_value_by_id, Value}).
+    gen_statem:cast(PlayerUid, {upgrade_value_by_id, Value}).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -472,114 +468,6 @@ init({Uid, DispatcherPid}) ->
 %%--------------------------------------------------------------------
 %% @doc
 %% Refer to below functions for details.
-%%
-%% @see general_target/3.
-%% @see execute_command/2.
-%% @see logout/1.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec non_battle(Event, State) ->
-    {next_state, NextStateName, NextState} |
-    {next_state, NextStateName, NextState, timeout() | hibernate} |
-    {stop, Reason, NewState} when
-
-    Event ::
-    {general_target, CommandContext} |
-    {execute_command, CommandContext},
-
-    CommandContext :: #command_context{},
-    Reason :: logout,
-
-    State :: #player_state{},
-    NextStateName :: player_state_name(),
-    NextState :: State,
-    NewState :: State.
-non_battle(
-    {
-        general_target,
-        #command_context{
-            target_name = TargetId,
-            self_targeted_message = SelfMessage,
-            dispatcher_pid = DispatcherPid
-        } = CommandContext
-    },
-    #player_state{
-        self = #player_profile{
-            scene = CurSceneName,
-            id = SrcPlayerId
-        } = PlayerProfile
-    } = State
-) ->
-    UpdatedState =
-        if
-            SrcPlayerId == TargetId ->
-                do_response_content(State, SelfMessage, DispatcherPid);
-            true ->
-                scene_fsm:general_target(CommandContext#command_context{
-                    scene = CurSceneName,
-                    from = simple_player(PlayerProfile)
-                }),
-                State
-        end,
-    {next_state, non_battle, UpdatedState};
-non_battle(
-    {
-        execute_command,
-        #command_context{
-            command = CommandModule,
-            command_func = CommandFunc
-        } = CommandContext
-    },
-    State
-) ->
-    {ok, NextStateName, UpdatedState} = CommandModule:CommandFunc(CommandContext, State, non_battle),
-    {next_state, NextStateName, UpdatedState}.
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Refer to below functions for details.
-%%
-%% @see logout/1.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec non_battle(Event, From, State) ->
-    {next_state, NextStateName, NextState} |
-    {next_state, NextStateName, NextState, timeout() | hibernate} |
-    {reply, Reply, NextStateName, NextState} |
-    {reply, Reply, NextStateName, NextState, timeout() | hibernate} |
-    {stop, Reason, NewState} |
-    {stop, Reason, Reply, NewState} when
-
-    Event :: logout,
-    Reply :: ok,
-
-    From :: {pid(), term()}, % generic term
-    State :: #player_state{},
-    NextStateName :: player_state_name(),
-    NextState :: State,
-    Reason :: normal | term(), % generic term
-    NewState :: State.
-non_battle(
-    logout,
-    From,
-    #player_state{
-        self = #player_profile{
-            scene = CurSceneName,
-            uid = Uid
-        } = PlayerProfile
-    } = State
-) ->
-    scene_fsm:leave(CurSceneName, Uid),
-    true = redis_client_server:set(Uid, PlayerProfile, true),
-    error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
-    gen_fsm:reply(From, ok),
-    {stop, normal, State}.
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Refer to below functions for details.
 %% @see perform/4.
 %%
 %% @end
@@ -613,100 +501,134 @@ battle(
     {next_state, NextStateName, UpdatedState}.
 
 %%--------------------------------------------------------------------
-%% @private
 %% @doc
-%% There should be one instance of this function for each possible
-%% state name. Whenever a gen_fsm receives an event sent using
-%% gen_fsm:send_event/2, the instance of this function with the same
-%% name as the current state name StateName is called to handle
-%% the event. It is also called if a timeout occurs.
+%% Refer to below functions for details.
+%%
+%% @see general_target/3.
+%% @see execute_command/2.
+%% @see logout/1.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec state_name(Event, State) ->
-    {next_state, NextStateName, NextState} |
-    {next_state, NextStateName, NextState, timeout() | hibernate} |
-    {stop, Reason, NewState} when
+-spec non_battle(EventType, EventContent, Data) -> StateFunctionResult when
 
-    Event :: term(), % generic term
-    State :: #player_state{},
-    NextStateName :: player_state_name(),
-    NextState :: State,
-    NewState :: State,
-    Reason :: term(). % generic term
-state_name(_Event, State) ->
-    {next_state, state_name, State}.
+    EventType :: gen_statem:event_type(),
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% There should be one instance of this function for each possible
-%% state name. Whenever a gen_fsm receives an event sent using
-%% gen_fsm:sync_send_event/[2,3], the instance of this function with
-%% the same name as the current state name StateName is called to
-%% handle the event.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec state_name(Event, From, State) ->
-    {next_state, NextStateName, NextState} |
-    {next_state, NextStateName, NextState, timeout() | hibernate} |
-    {reply, Reply, NextStateName, NextState} |
-    {reply, Reply, NextStateName, NextState, timeout() | hibernate} |
-    {stop, Reason, NewState} |
-    {stop, Reason, Reply, NewState} when
-
-    Event :: term(), % generic term
-    Reply :: ok,
-
-    From :: {pid(), term()}, % generic term
-    State :: #player_state{},
-    NextStateName :: player_state_name(),
-    NextState :: State,
-    Reason :: normal | term(), % generic term
-    NewState :: State.
-state_name(_Event, _From, State) ->
-    Reply = ok,
-    {reply, Reply, state_name, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Whenever a gen_fsm receives an event sent using
-%% gen_fsm:send_all_state_event/2, this function is called to handle
-%% the event.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec handle_event(Event, StateName, StateData) ->
-    {next_state, NextStateName, NewStateData} |
-    {next_state, NextStateName, NewStateData, timeout() | hibernate} |
-    {stop, Reason, NewStateData} when
-
-    Event ::
+    EventContent ::
+    {general_target, CommandContext} |
+    {execute_command, CommandContext} |
+    logout |
     {response_content, NlsObjectList, DispatcherPid} |
     {append_message, Message, MailType} |
     {upgrade_value_by_id, Value} |
-    stop,
+    stop |
+    get_lang |
+    current_scene_name |
+    {update_nls, ChangedLangMap, RemovedNlsSet} |
+    {pending_update_runtime_data, {ChangedFilesStruct, DeletedFilesStruct}} |
+    player_state |
+    lang_map |
+    mail_box |
+    player_id,
 
+    From :: gen_statem:from(),
+
+    Reply :: Lang |
+    scene_fsm:scene_name() |
+    ok |
+    Data |
+    LangMap |
+    PlayerId,
+
+    StateFunctionResult :: gen_statem:event_handler_result(Data) |
+    {keep_state_and_data, Action} |
+    {next_state, State, Data, {reply, From, Reply}},
+
+    Action :: gen_statem:reply_action() | {reply, From, Reply},
     NlsObjectList :: [nls_server:nls_object()],
     DispatcherPid :: pid(),
     Message :: mail_object(),
     MailType :: mail_type(),
     Value :: integer(),
+    Lang :: nls_server:support_lang(),
+    PlayerId :: id(),
+    ChangedLangMap :: nls_server:lang_map(),
+    RemovedNlsSet :: gb_sets:set(atom()), % generic atom
+    LangMap :: nls_server:lang_map(),
+    ChangedFilesStruct :: [csv_to_object:csv_data_struct()],
+    DeletedFilesStruct :: [csv_to_object:csv_data_struct()],
 
-    StateName :: player_state_name(),
-    StateData :: #player_state{},
-    NextStateName :: StateName,
-    NewStateData :: StateData,
-    Reason :: term(). % generic term
-handle_event({response_content, NlsObjectList, DispatcherPid}, StateName, State) ->
+    CommandContext :: #command_context{},
+
+    Data :: #player_state{},
+    State :: gen_statem:state().
+non_battle(
+    info,
+    {'$gen_event',
+        {
+            general_target,
+            #command_context{
+                target_name = TargetId,
+                self_targeted_message = SelfMessage,
+                dispatcher_pid = DispatcherPid
+            } = CommandContext
+        }},
+    #player_state{
+        self = #player_profile{
+            scene = CurSceneName,
+            id = SrcPlayerId
+        } = PlayerProfile
+    } = Data
+) ->
+    UpdatedData =
+        if
+            SrcPlayerId == TargetId ->
+                do_response_content(Data, SelfMessage, DispatcherPid);
+            true ->
+                scene_fsm:general_target(CommandContext#command_context{
+                    scene = CurSceneName,
+                    from = simple_player(PlayerProfile)
+                }),
+                Data
+        end,
+    {next_state, non_battle, UpdatedData};
+non_battle(
+    info,
+    {'$gen_event',
+        {
+            execute_command,
+            #command_context{
+                command = CommandModule,
+                command_func = CommandFunc
+            } = CommandContext
+        }},
+    Data
+) ->
+    {ok, NextStateName, UpdatedData} = CommandModule:CommandFunc(CommandContext, Data, non_battle),
+    {next_state, NextStateName, UpdatedData};
+non_battle(
+    {call, From},
+    logout,
+    #player_state{
+        self = #player_profile{
+            scene = CurSceneName,
+            uid = Uid
+        } = PlayerProfile
+    } = Data
+) ->
+    scene_fsm:leave(CurSceneName, Uid),
+    true = redis_client_server:set(Uid, PlayerProfile, true),
+    error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
+    gen_statem:reply(From, ok),
+    {stop, normal, Data};
+
+non_battle(cast, {response_content, NlsObjectList, DispatcherPid}, Data) ->
     io:format("NlsObjectList:~p~n", [NlsObjectList]),
-    UpdatedState = do_response_content(State, NlsObjectList, DispatcherPid),
-    {next_state, StateName, UpdatedState};
-handle_event({append_message, Message, MailType}, StateName, State) ->
-    {next_state, StateName, append_message_local(Message, MailType, State)};
-handle_event({upgrade_value_by_id, Value}, StateName, #player_state{
+    UpdatedData = do_response_content(Data, NlsObjectList, DispatcherPid),
+    {next_state, non_battle, UpdatedData};
+non_battle(cast, {append_message, Message, MailType}, Data) ->
+    {next_state, non_battle, append_message_local(Message, MailType, Data)};
+non_battle(cast, {upgrade_value_by_id, Value}, #player_state{
     self = #player_profile{
         battle_status = #battle_status{
             'Strength' = Strength,
@@ -715,8 +637,8 @@ handle_event({upgrade_value_by_id, Value}, StateName, #player_state{
             'Dexterity' = Dexterity
         } = BattleStatus
     } = PlayerProfile
-} = State) ->
-    {next_state, StateName, State#player_state{
+} = Data) ->
+    {next_state, Data#player_state{
         self = PlayerProfile#player_profile{
             battle_status = BattleStatus#battle_status{
                 'Strength' = Strength + Value,
@@ -726,115 +648,79 @@ handle_event({upgrade_value_by_id, Value}, StateName, #player_state{
             }
         }
     }};
-handle_event(stop, _StateName, State) ->
-    {stop, normal, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Whenever a gen_fsm receives an event sent using
-%% gen_fsm:sync_send_all_state_event/[2,3], this function is called
-%% to handle the event.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec handle_sync_event(Event, From, StateName, StateData) ->
-    {reply, Reply, NextStateName, NewStateData} |
-    {reply, Reply, NextStateName, NewStateData, timeout() | hibernate} |
-    {next_state, NextStateName, NewStateData} |
-    {next_state, NextStateName, NewStateData, timeout() | hibernate} |
-    {stop, Reason, Reply, NewStateData} |
-    {stop, Reason, NewStateData} when
-
-    Event :: get_lang |
-    current_scene_name |
-    {update_nls, ChangedLangMap, RemovedNlsSet} |
-    {pending_update_runtime_data, {ChangedFilesStruct, DeletedFilesStruct}} |
-    player_state |
-    lang_map |
-    mail_box |
-    player_id,
-
-    Reply :: Lang |
-    scene_fsm:scene_name() |
-    ok |
-    StateData |
-    LangMap |
-    PlayerId,
-
-    Lang :: nls_server:support_lang(),
-    ChangedLangMap :: nls_server:lang_map(),
-    RemovedNlsSet :: gb_sets:set(atom()), % generic atom
-    LangMap :: nls_server:lang_map(),
-    ChangedFilesStruct :: [csv_to_object:csv_data_struct()],
-    DeletedFilesStruct :: [csv_to_object:csv_data_struct()],
-    PlayerId :: id(),
-
-    From :: {pid(), Tag :: term()}, % generic term
-    StateName :: player_state_name(),
-    StateData :: #player_state{},
-    NextStateName :: StateName,
-    NewStateData :: StateData,
-    Reason :: term(). % generic term
-handle_sync_event(
+non_battle(cast, stop, Data) ->
+    {stop, normal, Data};
+non_battle(
+    {call, From},
     get_lang,
-    _From,
-    StateName,
     #player_state{
         self = #player_profile{
             lang = Lang
         }
-    } = State
+    }
 ) ->
-    {reply, Lang, StateName, State};
-handle_sync_event(
+    {keep_state_and_data, {reply, From, Lang}};
+non_battle(
+    {call, From},
     current_scene_name,
-    _From,
-    StateName,
     #player_state{
         self = #player_profile{
             scene = CurrentSceneName
         }
-    } = State
+    }
 ) ->
-    {reply, CurrentSceneName, StateName, State};
-handle_sync_event(
+
+    {keep_state_and_data, {reply, From, CurrentSceneName}};
+non_battle(
+    {call, From},
     {update_nls, ChangedLangMap, RemovedNlsSet},
-    _From,
-    StateName,
     #player_state{
         lang_map = OldLangMap,
         mail_box = OldMailboxRecord
-    } = State) ->
+    } = Data
+) ->
     UpdatedOldLangMap = maps:without(gb_sets:to_list(RemovedNlsSet), OldLangMap),
     NewLangMap = maps:merge(UpdatedOldLangMap, ChangedLangMap),
     [MailboxRecordName | OldMailboxes] = tuple_to_list(OldMailboxRecord),
     UpdatedMailboxes = [nls_server:convert_target_nls(OldMailbox, OldLangMap, RemovedNlsSet, []) || OldMailbox <- OldMailboxes],
-    {reply, ok, StateName, State#player_state{
-        lang_map = NewLangMap,
-        mail_box = list_to_tuple([MailboxRecordName | UpdatedMailboxes])
-    }};
-handle_sync_event({pending_update_runtime_data, {ChangedFilesStruct, DeletedFilesStruct}}, _From, StateName, State) ->
-    {reply, ok, StateName, State#player_state{
-        pending_update_runtime_data = {ChangedFilesStruct, DeletedFilesStruct}
-    }};
-handle_sync_event(player_state, _From, StateName, State) ->
-    Reply = State,
-    {reply, Reply, StateName, State};
-handle_sync_event(lang_map, _From, StateName, #player_state{
+    {
+        next_state,
+        non_battle,
+        Data#player_state{
+            lang_map = NewLangMap,
+            mail_box = list_to_tuple([MailboxRecordName | UpdatedMailboxes])
+        },
+        {reply, From, ok}
+    };
+non_battle(
+    {call, From},
+    {pending_update_runtime_data, {ChangedFilesStruct, DeletedFilesStruct}},
+    Data
+) ->
+    {
+        next_state,
+        non_battle,
+        Data#player_state{
+            pending_update_runtime_data = {ChangedFilesStruct, DeletedFilesStruct}
+        },
+        {reply, From, ok}
+    };
+non_battle({call, From}, player_state, Data) ->
+    {keep_state_and_data, {reply, From, Data}};
+non_battle({call, From}, lang_map, #player_state{
     lang_map = LangMap
-} = State) ->
-    {reply, LangMap, StateName, State};
-handle_sync_event(mail_box, _From, StateName, #player_state{
+}) ->
+    {keep_state_and_data, {reply, From, LangMap}};
+non_battle({call, From}, mail_box, #player_state{
     mail_box = Mailbox
-} = State) ->
-    {reply, Mailbox, StateName, State};
-handle_sync_event(player_id, _From, StateName, #player_state{
+}) ->
+    {keep_state_and_data, {reply, From, Mailbox}};
+non_battle({call, From}, player_id, #player_state{
     self = #player_profile{
         id = PlayerId
     }
-} = State) ->
-    {reply, PlayerId, StateName, State}.
+}) ->
+    {keep_state_and_data, {reply, From, PlayerId}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -986,12 +872,22 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%--------------------------------------------------------------------
 -spec format_status(Opt, StatusData) -> Status when
     Opt :: 'normal' | 'terminate',
-    StatusData :: [PDict | State],
-    PDict :: [{Key :: term(), Value :: term()}], % generic term
-    State :: #player_state{},
+    StatusData :: [term()],
     Status :: term(). % generic term
-format_status(Opt, StatusData) ->
-    gen_fsm:format_status(Opt, StatusData).
+format_status(_Opt, [_PDict, State, _Data]) ->
+    %gen_statem:format_status(Opt, StatusData).
+    State.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% This function returns the callback mode to gen_statem
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec callback_mode() -> gen_statem:callback_mode_result().
+callback_mode() ->
+    [state_functions].
 
 %%%===================================================================
 %%% Internal functions

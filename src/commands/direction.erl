@@ -40,7 +40,7 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec exec(DispatcherPid, Uid, Direction) -> ok when
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     DispatcherPid :: pid(),
     Direction :: directions().
 exec(DispatcherPid, Uid, Direction) ->
@@ -68,7 +68,7 @@ exec(DispatcherPid, Uid, Direction) ->
 -spec go_direction(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
     CommandContext :: #command_context{},
     State :: #player_state{},
-    StateName :: player_fsm:player_state_name(),
+    StateName :: player_statem:player_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
 go_direction(
@@ -87,9 +87,9 @@ go_direction(
     {TargetSceneName, UpdatedState} =
         case scene_fsm:go_direction(CurSceneName, Uid, Direction) of
             undefined ->
-                {CurSceneName, player_fsm:do_response_content(State, [{nls, invalid_exit}], DispatcherPid)};
+                {CurSceneName, player_statem:do_response_content(State, [{nls, invalid_exit}], DispatcherPid)};
             NewSceneName ->
-                ok = scene_fsm:enter(NewSceneName, DispatcherPid, player_fsm:simple_player(PlayerProfile), CurSceneName),
+                ok = scene_fsm:enter(NewSceneName, DispatcherPid, player_statem:simple_player(PlayerProfile), CurSceneName),
                 {NewSceneName, State}
         end,
     {

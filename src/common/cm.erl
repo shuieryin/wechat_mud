@@ -73,7 +73,7 @@ uuid() ->
 %% @end
 %%--------------------------------------------------------------------
 -spec general_target(Uid, CommandContext) -> ok when
-    Uid :: player_fsm:uid(),
+    Uid :: player_statem:uid(),
     CommandContext :: #command_context{}.
 general_target(Uid, CommandContext) ->
     gen_fsm:send_event(Uid, {general_target, CommandContext}).
@@ -85,7 +85,7 @@ general_target(Uid, CommandContext) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec execute_command(Uid, CommandContext) -> ok when
-    Uid :: player_fsm:uid() | npc_fsm:npc_uid() | scene_fsm:scene_name(),
+    Uid :: player_statem:uid() | npc_fsm:npc_uid() | scene_fsm:scene_name(),
     CommandContext :: #command_context{}.
 execute_command(Uid, CommandContext) ->
     gen_fsm:send_event(Uid, {execute_command, CommandContext}).
@@ -98,7 +98,7 @@ execute_command(Uid, CommandContext) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec execute_sync_command(ProcessName, CommandContext) -> Result when
-    ProcessName :: player_fsm:uid() | npc_fsm:npc_uid() | scene_fsm:scene_name(),
+    ProcessName :: player_statem:uid() | npc_fsm:npc_uid() | scene_fsm:scene_name(),
     CommandContext :: #command_context{},
     Result :: term(). % generic term
 execute_sync_command(ProcessName, CommandContext) ->

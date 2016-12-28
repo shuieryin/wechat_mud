@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 29. Nov 2015 8:09 PM
 %%%-------------------------------------------------------------------
--module(player_fsm_test).
+-module(player_statem_test).
 -author("shuieryin").
 
 %% API
@@ -14,7 +14,7 @@
     test/1
 ]).
 
--define(SERVER, player_fsm).
+-define(SERVER, player_statem).
 
 -include_lib("wechat_mud_test.hrl").
 -include_lib("wechat_mud/src/data_type/npc_profile.hrl").
@@ -52,7 +52,7 @@ test(_Config) ->
         fun attack/1
     ],
 
-    ?assert(proper:quickcheck(?FORALL(_L, integer(), run_test(RandomFuncs, ModelState)), 600)),
+    ?assert(proper:quickcheck(?FORALL(_L, integer(), run_test(RandomFuncs, ModelState)), 800)),
     logout:exec(Self, CurrentPlayerUid).
 
 run_test(RandomFuncs, ModelState) ->
@@ -66,7 +66,7 @@ look_scene(#state{pid = Self, player_uid = PlayerUid}) ->
     ?assertMatch(ok, look:exec(Self, PlayerUid)).
 
 look_target(#state{pid = Self, player_uid = PlayerUid}) ->
-    CurrentSceneName = player_fsm:current_scene_name(PlayerUid),
+    CurrentSceneName = player_statem:current_scene_name(PlayerUid),
     SceneObjectList = scene_fsm:scene_object_list(CurrentSceneName),
     SceneObject = ?ONE_OF(SceneObjectList),
     TargetName = case SceneObject of
@@ -78,7 +78,7 @@ look_target(#state{pid = Self, player_uid = PlayerUid}) ->
     ?assertMatch(ok, look:exec(Self, PlayerUid, list_to_binary([<<"look ">>, atom_to_binary(TargetName, utf8)]))).
 
 go_direction(#state{pid = Self, player_uid = PlayerUid}) ->
-    CurrentSceneName = player_fsm:current_scene_name(PlayerUid),
+    CurrentSceneName = player_statem:current_scene_name(PlayerUid),
     ExitsMap = scene_fsm:exits_map(CurrentSceneName),
     ExitNames = [invalid_direction_1, invalid_direction_2 | maps:keys(ExitsMap)],
     TargetDirection = ?ONE_OF(ExitNames),
@@ -86,9 +86,9 @@ go_direction(#state{pid = Self, player_uid = PlayerUid}) ->
     ?assertMatch(ok, direction:exec(Self, PlayerUid, TargetDirection)),
     case maps:get(TargetDirection, ExitsMap, undefined) of
         undefined ->
-            ?assertMatch(CurrentSceneName, player_fsm:current_scene_name(PlayerUid));
+            ?assertMatch(CurrentSceneName, player_statem:current_scene_name(PlayerUid));
         TargetSceneName ->
-            ?assertMatch(TargetSceneName, player_fsm:current_scene_name(PlayerUid))
+            ?assertMatch(TargetSceneName, player_statem:current_scene_name(PlayerUid))
     end.
 
 hp(#state{pid = Self, player_uid = PlayerUid}) ->
@@ -101,7 +101,7 @@ perform(#state{pid = Self, player_uid = PlayerUid}) ->
     IdList = scene_targets(PlayerUid),
 
     CommandContent = <<"perform ${skill} on ${target_id}">>,
-    Skills = elib:type_values(player_fsm, skills),
+    Skills = elib:type_values(player_statem, skills),
     SkillName = atom_to_binary(?ONE_OF(Skills), utf8),
     Command = nls_server:fill_in_content(CommandContent, [SkillName, ?ONE_OF(IdList)], <<>>),
     ?assertMatch(ok, perform:exec(Self, PlayerUid, Command)).
@@ -130,7 +130,7 @@ attack(#state{pid = Self, player_uid = PlayerUid}) ->
     ?assertMatch(ok, attack:exec(Self, PlayerUid, Command)).
 
 scene_targets(PlayerUid) ->
-    CurrentSceneName = player_fsm:current_scene_name(PlayerUid),
+    CurrentSceneName = player_statem:current_scene_name(PlayerUid),
     SceneObjectList = scene_fsm:scene_object_list(CurrentSceneName),
 
     [perform_convert(SceneObject) || SceneObject <- SceneObjectList, perform_filter(SceneObject)].
