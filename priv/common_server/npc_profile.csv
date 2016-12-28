@@ -2,3 +2,4 @@ npc_uid:atom,npc_id:binary,npc_name:term,character_desc:term,self_description:te
 dog,dog,"{nls, npc_dog}.","{nls, npc_dog_desc}.","{nls, self_npc_dog_desc}.",[].,30,50,200,7
 little_boy,little_boy,"{nls, npc_little_boy}.","{nls, npc_little_boy_desc}.","{nls, self_npc_little_boy_desc}.",[].,10,10,100,3
 sb_manager,sb_manager,"{nls, sb_manager}.","{nls, sb_manager_desc}.","{nls, self_npc_little_boy_desc}.","[{ask_n_answer, {nls, sb_register},sb_manager, register},{ask_n_answer, {nls, sb_status},sb_manager, status}].",30,10000,10000,10
+bilibili_manager,bilibili_manager,"{nls, bilibili_manager}.","{nls, bilibili_manager_desc}.","{nls, self_npc_little_boy_desc}.",[].,30,10000,10000,10

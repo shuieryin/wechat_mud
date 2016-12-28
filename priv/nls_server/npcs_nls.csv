@@ -10,3 +10,5 @@ sb_manager_desc,这位是SB管理员负责管理SB服务器日常事务~n输入 
 npc_little_girl,小女孩,Little girl
 npc_little_girl_desc,这是一个小女孩。,This is a little girl.
 self_npc_little_girl_desc,你是一个小女孩。,You are a little girl.
+bilibili_manager,BILIBILI管理员,BILIBILI manager
+bilibili_manager_desc,这位是BILIBILI管理员负责管理你的BILIBILI日常事务~n输入 `ask bilibili_manager about help` 查看帮助,This is BILIBILI manager for maintaining your BILIBILI affairs~nType `ask bilibili_manager about help` for help

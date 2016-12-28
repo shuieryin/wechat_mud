@@ -32,7 +32,8 @@
     morning/2,
     morning/3,
     player_quit/2,
-    update_scene_info/2
+    update_scene_info/2,
+    state/1
 ]).
 
 %% gen_fsm callbacks
@@ -248,6 +249,16 @@ player_quit(SceneName, Uid) ->
     SceneInfo :: #scene_info{}.
 update_scene_info(SceneName, SceneInfo) ->
     gen_fsm:sync_send_all_state_event(SceneName, {update_scene_info, SceneInfo}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Get scene state.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec state(scene_name()) -> #scene_state{}.
+state(SceneName) ->
+    gen_fsm:sync_send_all_state_event(SceneName, state).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -650,7 +661,8 @@ remove_scene_object(
     Event :: {go_direction, Uid, TargetDirection} |
     scene_object_list |
     exits_map |
-    {update_scene_info, SceneInfo},
+    {update_scene_info, SceneInfo} |
+    state,
 
     Reply :: SceneName | ok,
 
@@ -711,7 +723,9 @@ handle_sync_event({update_scene_info, NewSceneInfo}, _From, StateName, #scene_st
     scene_object_list = ExistingSceneObjectList
 }) ->
     UpdatedState = populate_scene_state(NewSceneInfo, ExistingSceneObjectList),
-    {reply, ok, StateName, UpdatedState}.
+    {reply, ok, StateName, UpdatedState};
+handle_sync_event(state, _From, StateName, State) ->
+    {reply, State, StateName, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -1008,14 +1022,9 @@ populate_scene_state(#scene_info{
                         undefined ->
                             npc_fsm_manager:new_npcs(NpcsSpec);
                         _Exist ->
-                            NpcSize = length(npcs(ExistingSceneObjectList)),
-                            if
-                                NpcSize > 0 ->
-                                    ExistingSceneObjectList;
-                                true ->
-                                    npc_fsm_manager:new_npcs(NpcsSpec) ++ ExistingSceneObjectList
-                            end
+                            new_npcs(NpcsSpec, ExistingSceneObjectList) ++ ExistingSceneObjectList
                     end,
+    error_logger:info_msg("SceneNpcsList:~p~n", [SceneNpcsList]),
 
     ExitsScenes = maps:fold(
         fun(CurExit, CurSceneName, AccExitsScenes) ->
@@ -1031,20 +1040,55 @@ populate_scene_state(#scene_info{
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Grab npcs of current scene.
+%% Create new npcs from spec.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec npcs(SceneObjectList) -> [#simple_npc{}] when
-    SceneObjectList :: [scene_object()].
-npcs(SceneObjectList) ->
+-spec new_npcs(NewNpcsSpec, ExistingSceneObjectList) -> [#simple_npc{}] when
+    NewNpcsSpec :: [npc_fsm_manager:npc_spec()],
+    ExistingSceneObjectList :: [scene_object()].
+new_npcs(NewNpcsSpec, ExistingSceneObjectList) ->
+    DiffNpcsSpec =
+        lists:foldr(
+            fun({NpcName, _NpcAmount} = NewNpcSpec, AccDiffNpcsSpec) ->
+                SceneNpcSize = length(scene_npcs_by_name([NpcName], ExistingSceneObjectList)),
+                error_logger:info_msg("NpcName:~p~nSceneNpcSize:~p~n", [NpcName, SceneNpcSize]),
+                if
+                    SceneNpcSize > 0 ->
+                        AccDiffNpcsSpec;
+                    true ->
+                        [NewNpcSpec | AccDiffNpcsSpec]
+                end
+            end, [], NewNpcsSpec),
+
+    error_logger:info_msg("DiffNpcsSpec:~p~n", [DiffNpcsSpec]),
+
+    case DiffNpcsSpec of
+        [] ->
+            [];
+        _HasNewNpc ->
+            npc_fsm_manager:new_npcs(DiffNpcsSpec)
+    end.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Grab npcs of current scene by name.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec scene_npcs_by_name(NpcNames, ExistingSceneObjectList) -> [#simple_npc{}] when
+    NpcNames :: [nls_server:key()],
+    ExistingSceneObjectList :: [scene_object()].
+scene_npcs_by_name(NpcNames, ExistingSceneObjectList) ->
     lists:filter(
         fun
-            (#simple_npc{}) ->
-                true;
+            (#simple_npc{
+                npc_id = NpcId
+            }) ->
+                lists:member(binary_to_atom(NpcId, utf8), NpcNames);
             (_OtherObject) ->
                 false
-        end, SceneObjectList).
+        end, ExistingSceneObjectList).
 
 %%--------------------------------------------------------------------
 %% @doc
