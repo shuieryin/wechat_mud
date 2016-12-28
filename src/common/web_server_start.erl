@@ -78,7 +78,8 @@ init(Req, Env) ->
             {cowboy_websocket, Req, Pid};
         ["/", "hapi", ModStr] ->
             Mod = list_to_atom(ModStr),
-            {ok, cowboy_req:reply(200, "", apply(Mod, start, [Req]), Req), Env};
+            {Reply, UpdatedReq} = apply(Mod, start, [Req]),
+            {ok, cowboy_req:reply(200, "", Reply, UpdatedReq), Env};
         _Resource ->
             {ok, cowboy_req:reply(200, "", "", Req), Env}
     end.

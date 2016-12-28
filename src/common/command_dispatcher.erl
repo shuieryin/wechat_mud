@@ -69,8 +69,10 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start(Req) -> iodata() when
-    Req :: cowboy_req:req().
+-spec start(Req) -> {Reply, UpdatedReq} when
+    Req :: cowboy_req:req(),
+    Reply :: iodata(),
+    UpdatedReq :: Req.
 start(Req) ->
     case cowboy_req:qs(Req) of
         <<>> ->
@@ -80,7 +82,7 @@ start(Req) ->
                     process_request(Req);
                 false ->
                     error_logger:error_msg("Validation params empty~n", []),
-                    ?EMPTY_CONTENT
+                    {?EMPTY_CONTENT, Req}
             end;
         HeaderParams ->
             #wechat_get_params{signature = Signature, timestamp = TimeStamp, nonce = Nonce, echostr = EchoStr} = gen_get_params(HeaderParams),
@@ -92,10 +94,10 @@ start(Req) ->
                             process_request(Req);
                         _EchoStr ->
                             error_logger:info_msg("Connectivity success~n", []),
-                            EchoStr
+                            {EchoStr, Req}
                     end;
                 false ->
-                    ?EMPTY_CONTENT
+                    {?EMPTY_CONTENT, Req}
             end
     end.
 
@@ -203,70 +205,74 @@ validate_signature([OriginalSignatureBin | ParamList] = OriginalParams) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec process_request(Req) -> FormattedResponseContent when
+-spec process_request(Req) -> {FormattedResponseContent, UpdatedReq} when
     Req :: cowboy_req:req(),
-    FormattedResponseContent :: binary().
+    FormattedResponseContent :: binary(),
+    UpdatedReq :: Req.
 process_request(Req) ->
-    case parse_xml_request(Req) of
-        parse_failed ->
-            error_logger:info_msg("Parse xml request failed:~tp~n", [Req]),
-            ?EMPTY_CONTENT;
-        #wechat_post_params{
-            'Content' = RawInputBin,
-            'ToUserName' = PlatformId,
-            'FromUserName' = UidBin
-        } = ReqParams ->
-            error_logger:info_msg("User input:~tp~n", [RawInputBin]),
+    {ReqParams, UpdatedReq} = parse_xml_request(Req),
+    FinalReply =
+        case ReqParams of
+            parse_failed ->
+                error_logger:info_msg("Parse xml request failed:~tp~n", [Req]),
+                ?EMPTY_CONTENT;
+            #wechat_post_params{
+                'Content' = RawInputBin,
+                'ToUserName' = PlatformId,
+                'FromUserName' = UidBin
+            } = ReqParams ->
+                error_logger:info_msg("User input:~tp~n", [RawInputBin]),
 
-            Uid = binary_to_atom(UidBin, utf8),
-            {RawInput, FuncExec} = gen_action_from_message_type(ReqParams),
-            ReturnContent =
-                case whereis(Uid) of % login_server:is_uid_logged_in(Uid)
-                    undefined ->
-                        case whereis(register_fsm:register_server_name(Uid)) of % login_server:is_in_registration(Uid)
-                            undefined ->
-                                case login_server:is_uid_registered(Uid) of
-                                    false ->
-                                        pending_content(login_server, register_uid, [Uid]);
-                                    true ->
-                                        if
-                                            <<"login">> == RawInput orelse <<"rereg">> == RawInput orelse subscribe == RawInput ->
-                                                FuncExec(Uid);
-                                            true ->
-                                                nls_server:get_nls_content([{nls, please_login}], zh)
-                                        end
-                                end;
-                            _RegisterPid ->
-                                if
-                                    unsubscribe == RawInput ->
-                                        register_fsm:stop(Uid),
-                                        no_response;
-                                    true ->
-                                        pending_content(register_fsm, input, [Uid, RawInput])
-                                end
-                        end;
-                    _PlayerPid ->
-                        FuncExec(Uid)
-                end,
+                Uid = binary_to_atom(UidBin, utf8),
+                {RawInput, FuncExec} = gen_action_from_message_type(ReqParams),
+                ReturnContent =
+                    case whereis(Uid) of % login_server:is_uid_logged_in(Uid)
+                        undefined ->
+                            case whereis(register_fsm:register_server_name(Uid)) of % login_server:is_in_registration(Uid)
+                                undefined ->
+                                    case login_server:is_uid_registered(Uid) of
+                                        false ->
+                                            pending_content(login_server, register_uid, [Uid]);
+                                        true ->
+                                            if
+                                                <<"login">> == RawInput orelse <<"rereg">> == RawInput orelse subscribe == RawInput ->
+                                                    FuncExec(Uid);
+                                                true ->
+                                                    nls_server:get_nls_content([{nls, please_login}], zh)
+                                            end
+                                    end;
+                                _RegisterPid ->
+                                    if
+                                        unsubscribe == RawInput ->
+                                            register_fsm:stop(Uid),
+                                            no_response;
+                                        true ->
+                                            pending_content(register_fsm, input, [Uid, RawInput])
+                                    end
+                            end;
+                        _PlayerPid ->
+                            FuncExec(Uid)
+                    end,
 
-            Response =
-                case ReturnContent of
-                    no_response ->
-                        <<>>;
-                    _ReturnContent ->
-                        try
-                            ReturnContentBinary = list_to_binary(lists:flatten(elib:remove_last_newline(ReturnContent))),
-                            spawn(elib, pp, [ReturnContentBinary]),
-                            compose_xml_response(UidBin, PlatformId, ReturnContentBinary)
-                        catch
-                            Type:Reason ->
-                                error_logger:error_msg("Invalid Content:~p~n", [ReturnContent]),
-                                error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
-                                <<>>
-                        end
-                end,
-            Response
-    end.
+                Response =
+                    case ReturnContent of
+                        no_response ->
+                            <<>>;
+                        _ReturnContent ->
+                            try
+                                ReturnContentBinary = list_to_binary(lists:flatten(elib:remove_last_newline(ReturnContent))),
+                                spawn(elib, pp, [ReturnContentBinary]),
+                                compose_xml_response(UidBin, PlatformId, ReturnContentBinary)
+                            catch
+                                Type:Reason ->
+                                    error_logger:error_msg("Invalid Content:~p~n", [ReturnContent]),
+                                    error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
+                                    <<>>
+                            end
+                    end,
+                Response
+        end,
+    {FinalReply, UpdatedReq}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -424,18 +430,21 @@ compose_xml_response(UidBin, PlatformIdBin, ContentBin) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec parse_xml_request(Req) -> ReqParams when
+-spec parse_xml_request(Req) -> {ReqParams, UpdatedReq} when
     Req :: cowboy_req:req(),
-    ReqParams :: #wechat_post_params{} | parse_failed.
+    ReqParams :: #wechat_post_params{} | parse_failed,
+    UpdatedReq :: Req.
 parse_xml_request(Req) ->
-    {ok, Message, _UpdatedReq} = cowboy_req:body(Req),
-    case Message of
-        <<>> ->
-            parse_failed;
-        _Message ->
-            {ok, {"xml", [], Params}, _UpdatedOptions} = erlsom:simple_form(Message),
-            unmarshall_params(Params, #wechat_post_params{})
-    end.
+    {ok, Message, UpdatedReq} = cowboy_req:body(Req),
+    ReqParams =
+        case Message of
+            <<>> ->
+                parse_failed;
+            _Message ->
+                {ok, {"xml", [], Params}, _UpdatedOptions} = erlsom:simple_form(Message),
+                unmarshall_params(Params, #wechat_post_params{})
+        end,
+    {ReqParams, UpdatedReq}.
 
 %%--------------------------------------------------------------------
 %% @doc
