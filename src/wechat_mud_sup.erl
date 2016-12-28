@@ -119,12 +119,12 @@ init([]) ->
                 [register_fsm_sup]
             },
 
-            {player_fsm_sup,
-                {player_fsm_sup, start_link, []},
+            {player_statem_sup,
+                {player_statem_sup, start_link, []},
                 permanent,
                 10000,
                 supervisor,
-                [player_fsm_sup]
+                [player_statem_sup]
             },
 
             {InfoServerName,
