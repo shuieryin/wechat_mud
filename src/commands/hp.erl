@@ -13,7 +13,7 @@
 
 %% API
 -export([
-    exec/2,
+    exec/3,
     show_hp/3
 ]).
 
@@ -30,12 +30,13 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispatcherPid, Uid) -> ok when
+-spec exec(DispatcherPid, Uid, RawInput) -> ok when
     Uid :: player_statem:uid(),
+    RawInput :: binary(),
     DispatcherPid :: pid().
-exec(DispatcherPid, Uid) ->
+exec(DispatcherPid, Uid, RawInput) ->
     CommandContext = #command_context{
-        raw_input = <<"hp">>,
+        raw_input = RawInput,
         command_func = show_hp,
         dispatcher_pid = DispatcherPid
     },

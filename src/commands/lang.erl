@@ -13,7 +13,7 @@
 
 %% API
 -export([
-    exec/3,
+    exec/4,
     switch_lang/3
 ]).
 
@@ -35,11 +35,12 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispatcherPid, Uid, RawTargetLang) -> ok when
+-spec exec(DispatcherPid, Uid, RawInput, RawTargetLang) -> ok when
     Uid :: player_statem:uid(),
+    RawInput :: binary(),
     RawTargetLang :: binary(),
     DispatcherPid :: pid().
-exec(DispatcherPid, Uid, RawTargetLang) ->
+exec(DispatcherPid, Uid, RawInput, RawTargetLang) ->
     CurLang = player_statem:get_lang(Uid),
     case RawTargetLang of
         <<"all">> ->
@@ -48,7 +49,7 @@ exec(DispatcherPid, Uid, RawTargetLang) ->
             case nls_server:is_valid_lang(RawTargetLang) of
                 true ->
                     CommandContext = #command_context{
-                        raw_input = RawTargetLang,
+                        raw_input = RawInput,
                         command_func = switch_lang,
                         command_args = binary_to_atom(RawTargetLang, utf8),
                         dispatcher_pid = DispatcherPid

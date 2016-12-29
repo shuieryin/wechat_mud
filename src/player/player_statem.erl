@@ -38,7 +38,7 @@
     player_id/1,
     upgrade_value_by_id/2,
     affair_menu/3,
-    handle_affair_input/2
+    handle_affair_input/3
 ]).
 
 %% gen_fsm callbacks
@@ -411,12 +411,12 @@ upgrade_value_by_id(PlayerId, Value) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec handle_affair_input(Uid, RawInput) -> ResponseContent when
+-spec handle_affair_input(DispatcherPid, Uid, RawInput) -> ok when
+    DispatcherPid :: pid(),
     Uid :: uid(),
-    RawInput :: binary(),
-    ResponseContent :: [nls_server:value()].
-handle_affair_input(Uid, RawInput) ->
-    gen_statem:call(Uid, {handle_affair_input, RawInput}).
+    RawInput :: binary().
+handle_affair_input(DispatcherPid, Uid, RawInput) ->
+    gen_statem:cast(Uid, {handle_affair_input, DispatcherPid, RawInput}).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -530,8 +530,7 @@ battle(
     EventType :: gen_statem:event_type(),
 
     EventContent ::
-    {general_target, CommandContext} |
-    {execute_command, CommandContext} |
+    {'$gen_event', {execute_command | general_target, CommandContext}} |
     logout |
     {response_content, NlsObjectList, DispatcherPid} |
     {append_message, Message, MailType} |
@@ -544,8 +543,7 @@ battle(
     player_state |
     lang_map |
     mail_box |
-    player_id |
-    {handle_affair_input, RawInput},
+    player_id,
 
     From :: gen_statem:from(),
 
@@ -560,7 +558,6 @@ battle(
     {keep_state_and_data, Action} |
     {next_state, State, Data, {reply, From, Reply}},
 
-    RawInput :: binary(),
     Action :: gen_statem:reply_action() | {reply, From, Reply},
     NlsObjectList :: [nls_server:nls_object()],
     DispatcherPid :: pid(),
@@ -582,60 +579,18 @@ battle(
 non_battle(cast, {response_content, NlsObjectList, DispatcherPid}, Data) ->
     UpdatedData = do_response_content(Data, NlsObjectList, DispatcherPid),
     {next_state, non_battle, UpdatedData};
-non_battle(
-    info,
-    {'$gen_event',
-        {
-            general_target,
-            #command_context{
-                target_name = TargetId,
-                self_targeted_message = SelfMessage,
-                dispatcher_pid = DispatcherPid
-            } = CommandContext
-        }},
-    #player_state{
-        self = #player_profile{
-            scene = CurSceneName,
-            id = SrcPlayerId
-        } = PlayerProfile
-    } = Data
-) ->
-    UpdatedData =
-        if
-            SrcPlayerId == TargetId ->
-                do_response_content(Data, SelfMessage, DispatcherPid);
-            true ->
-                scene_fsm:general_target(CommandContext#command_context{
-                    scene = CurSceneName,
-                    from = simple_player(PlayerProfile)
-                }),
-                Data
-        end,
-    {next_state, non_battle, UpdatedData};
-non_battle(
-    info,
-    {'$gen_event',
-        {
-            execute_command,
-            #command_context{
-                raw_input = RawInput,
-                command = CommandModule,
-                command_func = CommandFunc,
-                dispatcher_pid = DispatcherPid
-            } = CommandContext
-        }},
-    #player_state{
-        current_affair_name = CurrentAffairName
-    } = PlayerState
-) ->
-    io:format("execute_command CurrentAffairName:~p~n", [CurrentAffairName]),
-    case CurrentAffairName of
-        undefined ->
-            {ok, NextStateName, UpdatedData} = CommandModule:CommandFunc(CommandContext, PlayerState, non_battle),
-            {next_state, NextStateName, UpdatedData};
-        _InAffair ->
-            do_response_content(PlayerState, [{nls, invalid_command}, RawInput, <<"\n">>], DispatcherPid)
-    end;
+non_battle(info, {'$gen_event',
+    {
+        general_target,
+        CommandContext
+    }}, PlayerState) ->
+    general_target(CommandContext, PlayerState, non_battle);
+non_battle(info, {'$gen_event',
+    {
+        execute_command,
+        CommandContext
+    }}, PlayerState) ->
+    execute_command(CommandContext, PlayerState, non_battle);
 non_battle(
     {call, From},
     logout,
@@ -745,14 +700,7 @@ non_battle({call, From}, player_id, #player_state{
         id = PlayerId
     }
 }) ->
-    {keep_state_and_data, {reply, From, PlayerId}};
-non_battle({call, From}, {handle_affair_input, RawInput}, #player_state{
-    self = #player_profile{
-        lang = Lang
-    }
-}) ->
-    Reply = nls_server:get_nls_content([{nls, invalid_command}, RawInput], Lang),
-    {keep_state_and_data, {reply, From, Reply}}.
+    {keep_state_and_data, {reply, From, PlayerId}}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -763,25 +711,51 @@ non_battle({call, From}, {handle_affair_input, RawInput}, #player_state{
 -spec affair_menu(EventType, EventContent, Data) -> StateFunctionResult when
     EventType :: gen_statem:event_type(),
 
-    EventContent :: term(),
+    EventContent :: {response_content, NlsObjectList, DispatcherPid} |
+    {handle_affair_input, DispatcherPid, RawInput} |
+    get_lang |
+    {'$gen_event', {execute_command | general_target, CommandContext}},
 
     StateFunctionResult :: gen_statem:event_handler_result(Data) |
     {keep_state_and_data, Action} |
     {next_state, State, Data},
 
+    CommandContext :: #command_context{},
+    RawInput :: binary(),
+    DispatcherPid :: pid(),
+    NlsObjectList :: [nls_server:nls_object()],
     Action :: gen_statem:action(),
     Data :: #player_state{},
     State :: gen_statem:state().
 affair_menu(cast, {response_content, NlsObjectList, DispatcherPid}, Data) ->
     UpdatedData = do_response_content(Data, NlsObjectList, DispatcherPid),
     {next_state, affair_menu, UpdatedData};
-affair_menu({call, From}, {handle_affair_input, RawInput}, #player_state{
-    self = #player_profile{
-        lang = Lang
+affair_menu(cast, {handle_affair_input, DispatcherPid, RawInput}, #player_state{
+    current_affair_name = AffairModName
+} = PlayerState) ->
+    AffairModName:handle_affair_input(PlayerState, DispatcherPid, RawInput);
+affair_menu(info, {'$gen_event',
+    {
+        general_target,
+        CommandContext
+    }}, PlayerState) ->
+    general_target(CommandContext, PlayerState, affair_menu);
+affair_menu(info, {'$gen_event',
+    {
+        execute_command,
+        CommandContext
+    }}, PlayerState) ->
+    execute_command(CommandContext, PlayerState, affair_menu);
+affair_menu(
+    {call, From},
+    get_lang,
+    #player_state{
+        self = #player_profile{
+            lang = Lang
+        }
     }
-}) ->
-    Reply = nls_server:get_nls_content([{nls, invalid_command}, RawInput], Lang),
-    {keep_state_and_data, {reply, From, Reply}}.
+) ->
+    {keep_state_and_data, {reply, From, Lang}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -998,3 +972,88 @@ code_change_runtime_constraints(
     UpdatedState :: State.
 temp_player_data_update(State) ->
     State.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Common execute command
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec execute_command(#command_context{}, PlayerState, StateName) ->
+    {next_state, NextStateName, UpdatedPlayerState} when
+
+    StateName :: gen_statem:state_name(),
+    NextStateName :: StateName,
+    PlayerState :: #player_state{},
+    PlayerState :: UpdatedPlayerState.
+execute_command(
+    #command_context{
+        raw_input = RawInput,
+        command = CommandModule,
+        command_func = CommandFunc,
+        dispatcher_pid = DispatcherPid
+    } = CommandContext,
+    #player_state{
+        current_affair_name = CurrentAffairName
+    } = PlayerState, StateName
+) ->
+    {FinalStateName, FinalPlayerState}
+        = case CurrentAffairName of
+              undefined ->
+                  {ok, NextStateName, UpdatedPlayerState} = CommandModule:CommandFunc(CommandContext, PlayerState, StateName),
+                  {NextStateName, UpdatedPlayerState};
+              _InAffair ->
+                  UpdatedPlayerState = do_response_content(PlayerState, [{nls, invalid_command}, RawInput, <<"\n">>], DispatcherPid),
+                  {StateName, UpdatedPlayerState}
+          end,
+
+    {next_state, FinalStateName, FinalPlayerState}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Common call general target
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec general_target(#command_context{}, PlayerState, StateName) ->
+    {next_state, NextStateName, UpdatedPlayerState} when
+
+    StateName :: gen_statem:state_name(),
+    NextStateName :: StateName,
+    PlayerState :: #player_state{},
+    PlayerState :: UpdatedPlayerState.
+general_target(
+    #command_context{
+        raw_input = RawInput,
+        target_name = TargetId,
+        self_targeted_message = SelfMessage,
+        dispatcher_pid = DispatcherPid
+    } = CommandContext,
+    #player_state{
+        self = #player_profile{
+            scene = CurSceneName,
+            id = SrcPlayerId
+        } = PlayerProfile,
+        current_affair_name = CurrentAffairName
+    } = PlayerState, StateName
+) ->
+    {FinalStateName, FinalPlayerState}
+        = case CurrentAffairName of
+              undefined ->
+                  UpdatedPlayerState =
+                      if
+                          SrcPlayerId == TargetId ->
+                              do_response_content(PlayerState, SelfMessage, DispatcherPid);
+                          true ->
+                              scene_fsm:general_target(CommandContext#command_context{
+                                  scene = CurSceneName,
+                                  from = simple_player(PlayerProfile)
+                              }),
+                              PlayerState
+                      end,
+                  {StateName, UpdatedPlayerState};
+              _InAffair ->
+                  UpdatedPlayerState = do_response_content(PlayerState, [{nls, invalid_command}, RawInput, <<"\n">>], DispatcherPid),
+                  {StateName, UpdatedPlayerState}
+          end,
+    {next_state, FinalStateName, FinalPlayerState}.

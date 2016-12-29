@@ -13,7 +13,7 @@
 
 %% API
 -export([
-    exec/3,
+    exec/4,
     from_init/3,
     to_settle/3,
     feedback/3
@@ -48,15 +48,16 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispatcherPid, Uid, RestArgsBin) -> ok when
+-spec exec(DispatcherPid, Uid, RawInput, RestArgsBin) -> ok when
     Uid :: player_statem:uid(),
+    RawInput :: binary(),
     DispatcherPid :: pid(),
     RestArgsBin :: binary().
-exec(DispatcherPid, Uid, Args) ->
+exec(DispatcherPid, Uid, RawInput, Args) ->
     [SkillId, TargetArgs] = re:split(Args, <<"\s+on\s+">>),
     {ok, TargetId, Sequence} = elib:parse_target_id(TargetArgs),
     CommandContext = #command_context{
-        raw_input = Args,
+        raw_input = RawInput,
         command_func = from_init,
         command_args = SkillId,
         dispatcher_pid = DispatcherPid,

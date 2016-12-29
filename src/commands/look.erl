@@ -15,8 +15,8 @@
 
 %% API
 -export([
-    exec/2,
     exec/3,
+    exec/4,
     being_look/3,
     feedback/3,
     look_scene/3
@@ -42,12 +42,13 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispatcherPid, Uid) -> ok when
+-spec exec(DispatcherPid, Uid, RawInput) -> ok when
     Uid :: player_statem:uid(),
+    RawInput :: binary(),
     DispatcherPid :: pid().
-exec(DispatcherPid, Uid) ->
+exec(DispatcherPid, Uid, RawInput) ->
     CommandContext = #command_context{
-        raw_input = <<"lang">>,
+        raw_input = RawInput,
         command_func = look_scene,
         dispatcher_pid = DispatcherPid
     },
@@ -59,14 +60,15 @@ exec(DispatcherPid, Uid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispatcherPid, Uid, TargetArgs) -> ok when
+-spec exec(DispatcherPid, Uid, RawInput, TargetArgs) -> ok when
     Uid :: player_statem:uid(),
+    RawInput :: binary(),
     DispatcherPid :: pid(),
     TargetArgs :: binary().
-exec(DispatcherPid, Uid, TargetArgs) ->
+exec(DispatcherPid, Uid, RawInput, TargetArgs) ->
     {ok, TargetId, Sequence} = elib:parse_target_id(TargetArgs),
     CommandContext = #command_context{
-        raw_input = TargetArgs,
+        raw_input = RawInput,
         command_func = being_look,
         dispatcher_pid = DispatcherPid,
         target_name = TargetId,

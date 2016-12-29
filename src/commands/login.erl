@@ -12,7 +12,9 @@
 -author("Shuieryin").
 
 %% API
--export([exec/2]).
+-export([
+    exec/3
+]).
 
 %%%===================================================================
 %%% API
@@ -28,10 +30,11 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispatcherPid, Uid) -> ok when
+-spec exec(DispatcherPid, Uid, RawInput) -> ok when
     Uid :: player_statem:uid(),
+    RawInput :: binary(),
     DispatcherPid :: pid().
-exec(DispatcherPid, Uid) ->
+exec(DispatcherPid, Uid, _RawInput) ->
     login_server:login(DispatcherPid, Uid).
 
 %%%===================================================================

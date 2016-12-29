@@ -20,15 +20,14 @@
 %% gen_fsm callbacks
 -export([
     init/1,
-    state_name/2,
-    state_name/3,
     handle_event/3,
     handle_sync_event/4,
     handle_info/3,
     terminate/3,
     code_change/4,
     format_status/2,
-    simple_npc/1
+    simple_npc/1,
+    npc_state/1
 ]).
 
 -define(SERVER, ?MODULE).
@@ -41,7 +40,7 @@
 -type npc_id() :: binary(). % generic binary
 -type npc_name() :: nls_server:nls_object().
 
--type npc_state_name() :: battle | non_battle | state_name.
+-type npc_state_name() :: non_battle.
 
 -export_type([
     npc_uid/0,
@@ -92,6 +91,16 @@ simple_npc(
         npc_id = NpcId,
         npc_name = NpcName
     }.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Returns full npc state.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec npc_state(npc_uid()) -> #npc_state{}.
+npc_state(NpcUid) ->
+    gen_fsm:sync_send_all_state_event(NpcUid, npc_state).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -185,63 +194,6 @@ non_battle(
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% There should be one instance of this function for each possible
-%% state name. Whenever a gen_fsm receives an event sent using
-%% gen_fsm:send_event/2, the instance of this function with the same
-%% name as the current state name StateName is called to handle
-%% the event. It is also called if a timeout occurs.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec state_name(Event, State) ->
-    {next_state, NextStateName, NextState} |
-    {next_state, NextStateName, NextState, timeout() | hibernate} |
-    {stop, Reason, NewState} when
-
-    Event :: term(), % generic term
-    State :: #npc_state{},
-    NextStateName :: npc_state_name(),
-    NextState :: State,
-    NewState :: State,
-    Reason :: term(). % generic term
-state_name(_Event, State) ->
-    {next_state, state_name, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% There should be one instance of this function for each possible
-%% state name. Whenever a gen_fsm receives an event sent using
-%% gen_fsm:sync_send_event/[2,3], the instance of this function with
-%% the same name as the current state name StateName is called to
-%% handle the event.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec state_name(Event, From, State) ->
-    {next_state, NextStateName, NextState} |
-    {next_state, NextStateName, NextState, timeout() | hibernate} |
-    {reply, Reply, NextStateName, NextState} |
-    {reply, Reply, NextStateName, NextState, timeout() | hibernate} |
-    {stop, Reason, NewState} |
-    {stop, Reason, Reply, NewState} when
-
-    Event :: term(), % generic term
-    Reply :: ok,
-
-    From :: {pid(), term()}, % generic term
-    State :: #npc_state{},
-    NextStateName :: npc_state_name(),
-    NextState :: State,
-    Reason :: normal | term(), % generic term
-    NewState :: State.
-state_name(_Event, _From, State) ->
-    Reply = ok,
-    {reply, Reply, state_name, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
 %% Whenever a gen_fsm receives an event sent using
 %% gen_fsm:send_all_state_event/2, this function is called to handle
 %% the event.
@@ -279,18 +231,17 @@ handle_event(_Event, StateName, State) ->
     {stop, Reason, Reply, NewStateData} |
     {stop, Reason, NewStateData} when
 
-    Event :: term(), % generic term
-    Reply :: ok,
+    Event :: npc_state, % generic term
+    Reply :: #npc_state{},
 
     From :: {pid(), Tag :: term()}, % generic term
     StateName :: npc_state_name(),
-    StateData :: term(),
+    StateData :: #npc_state{},
     NextStateName :: StateName,
     NewStateData :: StateData,
     Reason :: term(). % generic term
-handle_sync_event(_Event, _From, StateName, State) ->
-    Reply = ok,
-    {reply, Reply, StateName, State}.
+handle_sync_event(npc_state, _From, StateName, NpcState) ->
+    {reply, NpcState, StateName, NpcState}.
 
 %%--------------------------------------------------------------------
 %% @private

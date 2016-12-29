@@ -368,7 +368,8 @@ gen_action_from_message_type(
     RawInput :: binary(),
     ReturnContent :: [nls_server:value()].
 handle_input(Uid, RawInput) ->
-    case re:run(RawInput, <<"^[0-9]{1,", ?AFFAIR_INPUT_DIGIT_SIZE/binary, "}$">>) of
+    MatchStatus = re:run(RawInput, <<"^[0-9]{1,", ?AFFAIR_INPUT_DIGIT_SIZE/binary, "}$">>),
+    case MatchStatus of
         nomatch ->
             [ModuleNameBin | RawCommandArgs] = binary:split(RawInput, <<" ">>),
 
@@ -391,10 +392,10 @@ handle_input(Uid, RawInput) ->
             case CommandInfo of
                 {ModuleName, CommandArgs} ->
                     Arity = length(CommandArgs),
-                    Args = [Uid | CommandArgs],
+                    Args = [Uid, RawInput | CommandArgs],
 
                     ModuleName:module_info(), % call module_info in order to make function_exported works
-                    case erlang:function_exported(ModuleName, exec, Arity + 2) of
+                    case erlang:function_exported(ModuleName, exec, Arity + 3) of
                         true ->
                             pending_content(ModuleName, exec, Args);
                         false ->
@@ -405,7 +406,7 @@ handle_input(Uid, RawInput) ->
                     nls_server:get_nls_content([{nls, invalid_command}, ModuleNameBin], ?Get_lang(Uid))
             end;
         {match, _Match} ->
-            player_statem:handle_affair_input(Uid, RawInput)
+            pending_content(player_statem, handle_affair_input, [Uid, RawInput])
     end.
 
 %%--------------------------------------------------------------------

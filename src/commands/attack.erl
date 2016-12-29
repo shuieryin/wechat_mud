@@ -14,7 +14,7 @@
 
 %% API
 -export([
-    exec/3,
+    exec/4,
     to_settle/3,
     feedback/3
 ]).
@@ -34,14 +34,15 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispatcherPid, Uid, TargetArgs) -> ok when
+-spec exec(DispatcherPid, Uid, RawInput, TargetArgs) -> ok when
     DispatcherPid :: pid(),
     Uid :: player_statem:uid(),
+    RawInput :: binary(),
     TargetArgs :: binary().
-exec(DispatcherPid, Uid, TargetArgs) ->
+exec(DispatcherPid, Uid, RawInput, TargetArgs) ->
     {ok, TargetId, Sequence} = elib:parse_target_id(TargetArgs),
     CommandContext = #command_context{
-        raw_input = TargetArgs,
+        raw_input = RawInput,
         command_func = to_settle,
         dispatcher_pid = DispatcherPid,
         target_name = TargetId,

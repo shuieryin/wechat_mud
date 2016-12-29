@@ -2,7 +2,6 @@
 %%% @author shuieryin
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
-%%% TODO: implement state machine test mechanism since PropEr has fatal issues on fsm test.
 %%%
 %%% @end
 %%% Created : 29. Nov 2015 8:09 PM

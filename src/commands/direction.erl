@@ -13,7 +13,7 @@
 
 %% API
 -export([
-    exec/3,
+    exec/4,
     parse_direction/1,
     go_direction/3
 ]).
@@ -39,13 +39,14 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispatcherPid, Uid, Direction) -> ok when
+-spec exec(DispatcherPid, Uid, RawInput, Direction) -> ok when
     Uid :: player_statem:uid(),
+    RawInput :: binary(),
     DispatcherPid :: pid(),
     Direction :: directions().
-exec(DispatcherPid, Uid, Direction) ->
+exec(DispatcherPid, Uid, RawInput, Direction) ->
     CommandContext = #command_context{
-        raw_input = atom_to_binary(Direction, utf8),
+        raw_input = RawInput,
         command_func = go_direction,
         command_args = Direction,
         dispatcher_pid = DispatcherPid

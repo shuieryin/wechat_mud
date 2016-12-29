@@ -17,7 +17,7 @@
     manage/3,
     help/3,
     feedback/3,
-    handle_affair_input/2
+    handle_affair_input/3
 ]).
 
 -include("../data_type/scene_info.hrl").
@@ -70,24 +70,18 @@ init(_NpcProfile, NpcContext) ->
     UpdatedStateName :: StateName.
 manage(#npc_state{
     npc_context = #{
-        affair_action_data := AffairActionData,
-        wizard_uids := WizardUis,
         affair_action_name := AffairActionName
     }
 } = NpcState, #command_context{
-    command_args = AffairContext,
-    from = #simple_player{
-        uid = PlayerUid
-    }
-} = CommandContext, _StateName) ->
-    error_logger:info_msg("AffairActionData:~p~nWizardUis:~p~nPlayerUid:~p~nAffairActionName:~p~n", [AffairActionData, WizardUis, PlayerUid, AffairActionName]),
+    command_args = AffairContext
+} = CommandContext, StateName) ->
     {
         NpcState,
         CommandContext#command_context{
             command_args = AffairContext#affair_context{
                 response_message = [{nls, AffairActionName}, <<"\n">>, {nls, affair_menu}, <<"\n0: ">>, {nls, affiar_menu_exit}]
             }
-        }, affair_menu
+        }, StateName
     }.
 
 %%--------------------------------------------------------------------
@@ -132,21 +126,28 @@ help(#npc_state{
     StateName :: gen_statem:state_name(),
     UpdatedStateName :: StateName.
 feedback(State, #command_context{
-    command_func = CurrentCommandFuncName
-}, StateName) ->
-    CurrentAffairName =
-        case CurrentCommandFuncName of
-            manage ->
-                ?MODULE;
-            _Other ->
-                undefined
-        end,
-    io:format("execute_command CurrentAffairName:~p~n", [CurrentAffairName]),
+    command_args = AffairContext
+}, _StateName) ->
+    CurrentAffairName
+        = case AffairContext of
+              #affair_context{
+                  affair_name = AffairName
+              } ->
+                  case AffairName of
+                      <<"manage">> ->
+                          ?MODULE;
+                      _Other ->
+                          undefined
+                  end;
+              _Other ->
+                  undefined
+          end,
+
     {
         State#player_state{
             current_affair_name = CurrentAffairName
         },
-        StateName
+        affair_menu
     }.
 
 %%--------------------------------------------------------------------
@@ -155,8 +156,9 @@ feedback(State, #command_context{
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec handle_affair_input(PlayerState, RawInput) -> StateFunctionResult when
+-spec handle_affair_input(PlayerState, DispatcherPid, RawInput) -> StateFunctionResult when
     PlayerState :: #player_state{},
+    DispatcherPid :: pid(),
     UpdatePlayerState :: PlayerState,
 
     Action :: gen_statem:action(),
@@ -165,9 +167,10 @@ feedback(State, #command_context{
     StateFunctionResult :: gen_statem:event_handler_result(Data) |
     {keep_state_and_data, Action} |
     {next_state, UpdatePlayerState, Data}.
-handle_affair_input(PlayerState, RawInput) ->
-    error_logger:info_msg("RawInput:~p~n", [RawInput]),
-    {next_state, affair_menu, PlayerState}.
+handle_affair_input(PlayerState, DispatcherPid, RawInput) ->
+    error_logger:info_msg("RawInput:~p~n", [RawInput]), % TODO implement handle affair input
+    player_statem:do_response_content(PlayerState, [RawInput], DispatcherPid),
+    keep_state_and_data.
 
 %%%===================================================================
 %%% Internal functions (N/A)

@@ -47,21 +47,38 @@ suite() ->
 
 all() ->
     [
-        {group, servers}
+        {group, servers},
+        {group, players}
     ].
 
 groups() ->
-    [{
-        servers,
-        [{repeat, 2}], % parallel
-        [
-            redis_server_test,
-            common_server_test,
-            nls_server_test,
-            register_fsm_test,
-            player_statem_test
-        ]
-    }].
+    [
+        {
+            servers,
+            [{repeat, 1}],
+            [
+                redis_server_test,
+                common_server_test,
+                nls_server_test,
+                register_fsm_test,
+                player_statem_test
+            ]
+        },
+        {
+            players,
+            [{repeat, 1}, parallel],
+            [
+                register_fsm_test,
+                player_statem_test,
+                register_fsm_test,
+                player_statem_test,
+                register_fsm_test,
+                player_statem_test,
+                register_fsm_test,
+                player_statem_test
+            ]
+        }
+    ].
 
 redis_server_test(Cfg) -> redis_server_test:test(Cfg).
 common_server_test(Cfg) -> common_server_test:test(Cfg).

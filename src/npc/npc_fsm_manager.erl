@@ -90,9 +90,6 @@ new_npcs(NpcsSpec) ->
     gen_server:cast(?MODULE, {new_npcs, NpcsMap}),
     SceneNpcsList.
 
-%%update_npc_profile(UpdatedNpcProfileMap) ->
-%%    gen_server:cast(?MODULE, {update_npc_profile, UpdatedNpcProfileMap}).
-
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================

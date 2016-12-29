@@ -13,7 +13,7 @@
 
 %% API
 -export([
-    exec/3,
+    exec/4,
     ask_init/3,
     answer/3,
     feedback/3
@@ -32,15 +32,16 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec exec(DispatcherPid, Uid, RestArgsBin) -> ok when
+-spec exec(DispatcherPid, Uid, RawInput, RestArgsBin) -> ok when
     Uid :: player_statem:uid(),
+    RawInput :: binary(),
     DispatcherPid :: pid(),
     RestArgsBin :: binary().
-exec(DispatcherPid, Uid, Args) ->
+exec(DispatcherPid, Uid, RawInput, Args) ->
     [TargetArgs, AffairName] = re:split(Args, <<"\s+about\s+">>),
     {ok, TargetId, Sequence} = elib:parse_target_id(TargetArgs),
     CommandContext = #command_context{
-        raw_input = Args,
+        raw_input = RawInput,
         command_func = ask_init,
         command_args = #affair_context{
             affair_name = AffairName
@@ -173,7 +174,7 @@ answer(
                           response_message = [{nls, dunno, [NpcName]}, <<"\n">>]
                       }
                   },
-                  ok = cm:execute_command(SrcUid, UpdatedCommandContext), % TODO process state name while executing command
+                  ok = cm:execute_command(SrcUid, UpdatedCommandContext),
                   {State, StateName};
               #ask_n_answer{
                   affair_mod = AffairMod,
@@ -236,9 +237,9 @@ feedback(
                                            _HasAffair ->
                                                AffairMod:feedback(State, CommandContext, StateName)
                                        end,
-    FinalState = player_statem:do_response_content(UpdatedState, FinalMessage, DispatcherPid),
+    FinalPlayerState = player_statem:do_response_content(UpdatedState, FinalMessage, DispatcherPid),
 
-    {ok, UpdatedStateName, FinalState}.
+    {ok, UpdatedStateName, FinalPlayerState}.
 
 
 %%%===================================================================
