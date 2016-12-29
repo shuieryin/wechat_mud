@@ -64,5 +64,6 @@
     runtime_data :: csv_to_object:csv_object(),
     battle_status_ri = record_info(fields, battle_status) :: [atom()], % generic atom % battle status record info
     pending_update_runtime_data :: {[csv_to_object:csv_data_struct()], [csv_to_object:csv_data_struct()]} | undefined,
-    runtime_data_constraints :: [csv_to_object:csv_data_struct()]
+    runtime_data_constraints :: [csv_to_object:csv_data_struct()],
+    current_affair_name :: module()
 }).

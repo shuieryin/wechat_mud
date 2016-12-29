@@ -17,6 +17,7 @@
 }).
 
 -record(command_context, {
+    raw_input :: binary(),
     command = ?MODULE :: module() | undefined,
     command_func :: player_statem:command_func() | undefined,
     command_args :: player_statem:command_args() | undefined,
@@ -27,5 +28,6 @@
     target_name :: player_statem:id() | npc_fsm:npc_id() | undefined,
     sequence :: non_neg_integer() | undefined,
     target_name_bin :: binary() | undefined,
-    self_targeted_message :: [nls_server:nls_object()] | undefined
+    self_targeted_message :: [nls_server:nls_object()] | undefined,
+    affair_mod_name :: module()
 }).

@@ -35,6 +35,7 @@
     DispatcherPid :: pid().
 exec(DispatcherPid, Uid) ->
     CommandContext = #command_context{
+        raw_input = <<"hp">>,
         command_func = show_hp,
         dispatcher_pid = DispatcherPid
     },

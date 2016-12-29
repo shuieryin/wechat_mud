@@ -45,6 +45,7 @@
     Direction :: directions().
 exec(DispatcherPid, Uid, Direction) ->
     CommandContext = #command_context{
+        raw_input = atom_to_binary(Direction, utf8),
         command_func = go_direction,
         command_args = Direction,
         dispatcher_pid = DispatcherPid

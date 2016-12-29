@@ -40,6 +40,7 @@ exec(DispatcherPid, Uid, Args) ->
     [TargetArgs, AffairName] = re:split(Args, <<"\s+about\s+">>),
     {ok, TargetId, Sequence} = elib:parse_target_id(TargetArgs),
     CommandContext = #command_context{
+        raw_input = Args,
         command_func = ask_init,
         command_args = #affair_context{
             affair_name = AffairName
@@ -182,7 +183,8 @@ answer(
                       command_func = feedback,
                       command_args = AffairContext#affair_context{
                           answer = TargetAskNAnswer
-                      }
+                      },
+                      affair_mod_name = AffairMod
                   },
                   {UpdatedStateFromAffair, FinalCommandContext, UpdatedStateName} = AffairMod:AffairFunc(State, UpdatedCommandContext, StateName),
                   ok = cm:execute_command(SrcUid, FinalCommandContext),
@@ -209,9 +211,10 @@ feedback(
             affair_name = AffairName,
             response_message = Message
         },
+        affair_mod_name = AffairMod,
         dispatcher_pid = DispatcherPid,
         to = Target
-    },
+    } = CommandContext,
     State,
     StateName
 ) ->
@@ -227,9 +230,15 @@ feedback(
                  end,
 
     FinalMessage = [{nls, ask_someone, [{nls, you}, TargetName, AffairName]}, <<"\n">> | Message],
+    {UpdatedState, UpdatedStateName} = case AffairMod of
+                                           undefined ->
+                                               {State, StateName};
+                                           _HasAffair ->
+                                               AffairMod:feedback(State, CommandContext, StateName)
+                                       end,
+    FinalState = player_statem:do_response_content(UpdatedState, FinalMessage, DispatcherPid),
 
-    UpdatedState = player_statem:do_response_content(State, FinalMessage, DispatcherPid),
-    {ok, StateName, UpdatedState}.
+    {ok, UpdatedStateName, FinalState}.
 
 
 %%%===================================================================

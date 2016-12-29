@@ -15,7 +15,9 @@
 -export([
     init/2,
     manage/3,
-    help/3
+    help/3,
+    feedback/3,
+    handle_affair_input/2
 ]).
 
 -include("../data_type/scene_info.hrl").
@@ -39,7 +41,19 @@
     NpcContext :: map(),
     UpdatedNpcContext :: NpcContext.
 init(_NpcProfile, NpcContext) ->
-    NpcContext.
+    ModuleNameBin = list_to_binary(?MODULE_STRING),
+    AffairActionName = binary_to_atom(<<"affair_action_", ModuleNameBin/binary>>, utf8),
+
+    #{
+        AffairActionName := AffairActionData,
+        wizard_uids := WizardUis
+    } = common_server:runtime_datas([AffairActionName, wizard_uids]),
+
+    NpcContext#{
+        affair_action_data => AffairActionData,
+        wizard_uids => WizardUis,
+        affair_action_name => AffairActionName
+    }.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -55,19 +69,25 @@ init(_NpcProfile, NpcContext) ->
     StateName :: gen_statem:state_name(),
     UpdatedStateName :: StateName.
 manage(#npc_state{
-    self = #npc_profile{
-        npc_id = NpcId
+    npc_context = #{
+        affair_action_data := AffairActionData,
+        wizard_uids := WizardUis,
+        affair_action_name := AffairActionName
     }
 } = NpcState, #command_context{
-    command_args = AffairContext
-} = CommandContext, StateName) ->
+    command_args = AffairContext,
+    from = #simple_player{
+        uid = PlayerUid
+    }
+} = CommandContext, _StateName) ->
+    error_logger:info_msg("AffairActionData:~p~nWizardUis:~p~nPlayerUid:~p~nAffairActionName:~p~n", [AffairActionData, WizardUis, PlayerUid, AffairActionName]),
     {
         NpcState,
         CommandContext#command_context{
             command_args = AffairContext#affair_context{
-                response_message = [{nls, binary_to_atom(<<NpcId/binary, "_help">>, utf8)}, <<"\n">>]
+                response_message = [{nls, AffairActionName}, <<"\n">>, {nls, affair_menu}, <<"\n0: ">>, {nls, affiar_menu_exit}]
             }
-        }, StateName
+        }, affair_menu
     }.
 
 %%--------------------------------------------------------------------
@@ -98,6 +118,56 @@ help(#npc_state{
             }
         }, StateName
     }.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Handle feedback for from target.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec feedback(State, CommandContext, StateName) -> {UpdatedState, UpdatedStateName} when
+    State :: #player_state{},
+    UpdatedState :: State,
+    CommandContext :: #command_context{},
+    StateName :: gen_statem:state_name(),
+    UpdatedStateName :: StateName.
+feedback(State, #command_context{
+    command_func = CurrentCommandFuncName
+}, StateName) ->
+    CurrentAffairName =
+        case CurrentCommandFuncName of
+            manage ->
+                ?MODULE;
+            _Other ->
+                undefined
+        end,
+    io:format("execute_command CurrentAffairName:~p~n", [CurrentAffairName]),
+    {
+        State#player_state{
+            current_affair_name = CurrentAffairName
+        },
+        StateName
+    }.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Handle affair state machine inputs from player.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec handle_affair_input(PlayerState, RawInput) -> StateFunctionResult when
+    PlayerState :: #player_state{},
+    UpdatePlayerState :: PlayerState,
+
+    Action :: gen_statem:action(),
+    RawInput :: term(),
+
+    StateFunctionResult :: gen_statem:event_handler_result(Data) |
+    {keep_state_and_data, Action} |
+    {next_state, UpdatePlayerState, Data}.
+handle_affair_input(PlayerState, RawInput) ->
+    error_logger:info_msg("RawInput:~p~n", [RawInput]),
+    {next_state, affair_menu, PlayerState}.
 
 %%%===================================================================
 %%% Internal functions (N/A)

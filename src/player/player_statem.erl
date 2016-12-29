@@ -36,8 +36,9 @@
     mail_box/1,
     pending_update_runtime_data/2,
     player_id/1,
-    upgrade_value_by_id/2
-%%    affair_fsm/3
+    upgrade_value_by_id/2,
+    affair_menu/3,
+    handle_affair_input/2
 ]).
 
 %% gen_fsm callbacks
@@ -68,7 +69,7 @@
 -type skills() :: punch | kick.
 
 -type command_args() :: #perform_args{} | term(). % generic term
--type player_state_name() :: non_battle | affair_fsm.
+-type player_state_name() :: non_battle | affair_menu.
 
 -export_type([
     born_month/0,
@@ -404,6 +405,19 @@ upgrade_value_by_id(PlayerId, Value) ->
     PlayerUid = login_server:uid_by_id(PlayerId),
     gen_statem:cast(PlayerUid, {upgrade_value_by_id, Value}).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Handle affair menu input.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec handle_affair_input(Uid, RawInput) -> ResponseContent when
+    Uid :: uid(),
+    RawInput :: binary(),
+    ResponseContent :: [nls_server:value()].
+handle_affair_input(Uid, RawInput) ->
+    gen_statem:call(Uid, {handle_affair_input, RawInput}).
+
 %%%===================================================================
 %%% gen_fsm callbacks
 %%%===================================================================
@@ -530,7 +544,8 @@ battle(
     player_state |
     lang_map |
     mail_box |
-    player_id,
+    player_id |
+    {handle_affair_input, RawInput},
 
     From :: gen_statem:from(),
 
@@ -545,6 +560,7 @@ battle(
     {keep_state_and_data, Action} |
     {next_state, State, Data, {reply, From, Reply}},
 
+    RawInput :: binary(),
     Action :: gen_statem:reply_action() | {reply, From, Reply},
     NlsObjectList :: [nls_server:nls_object()],
     DispatcherPid :: pid(),
@@ -563,6 +579,9 @@ battle(
 
     Data :: #player_state{},
     State :: gen_statem:state().
+non_battle(cast, {response_content, NlsObjectList, DispatcherPid}, Data) ->
+    UpdatedData = do_response_content(Data, NlsObjectList, DispatcherPid),
+    {next_state, non_battle, UpdatedData};
 non_battle(
     info,
     {'$gen_event',
@@ -599,14 +618,24 @@ non_battle(
         {
             execute_command,
             #command_context{
+                raw_input = RawInput,
                 command = CommandModule,
-                command_func = CommandFunc
+                command_func = CommandFunc,
+                dispatcher_pid = DispatcherPid
             } = CommandContext
         }},
-    Data
+    #player_state{
+        current_affair_name = CurrentAffairName
+    } = PlayerState
 ) ->
-    {ok, NextStateName, UpdatedData} = CommandModule:CommandFunc(CommandContext, Data, non_battle),
-    {next_state, NextStateName, UpdatedData};
+    io:format("execute_command CurrentAffairName:~p~n", [CurrentAffairName]),
+    case CurrentAffairName of
+        undefined ->
+            {ok, NextStateName, UpdatedData} = CommandModule:CommandFunc(CommandContext, PlayerState, non_battle),
+            {next_state, NextStateName, UpdatedData};
+        _InAffair ->
+            do_response_content(PlayerState, [{nls, invalid_command}, RawInput, <<"\n">>], DispatcherPid)
+    end;
 non_battle(
     {call, From},
     logout,
@@ -623,10 +652,6 @@ non_battle(
     gen_statem:reply(From, ok),
     {stop, normal, Data};
 
-non_battle(cast, {response_content, NlsObjectList, DispatcherPid}, Data) ->
-    io:format("NlsObjectList:~p~n", [NlsObjectList]),
-    UpdatedData = do_response_content(Data, NlsObjectList, DispatcherPid),
-    {next_state, non_battle, UpdatedData};
 non_battle(cast, {append_message, Message, MailType}, Data) ->
     {next_state, non_battle, append_message_local(Message, MailType, Data)};
 non_battle(cast, {upgrade_value_by_id, Value}, #player_state{
@@ -670,7 +695,6 @@ non_battle(
         }
     }
 ) ->
-
     {keep_state_and_data, {reply, From, CurrentSceneName}};
 non_battle(
     {call, From},
@@ -721,7 +745,14 @@ non_battle({call, From}, player_id, #player_state{
         id = PlayerId
     }
 }) ->
-    {keep_state_and_data, {reply, From, PlayerId}}.
+    {keep_state_and_data, {reply, From, PlayerId}};
+non_battle({call, From}, {handle_affair_input, RawInput}, #player_state{
+    self = #player_profile{
+        lang = Lang
+    }
+}) ->
+    Reply = nls_server:get_nls_content([{nls, invalid_command}, RawInput], Lang),
+    {keep_state_and_data, {reply, From, Reply}}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -729,21 +760,28 @@ non_battle({call, From}, player_id, #player_state{
 %%
 %% @end
 %%--------------------------------------------------------------------
-%%-spec affair_fsm(EventType, EventContent, Data) -> StateFunctionResult when
-%%    EventType :: gen_statem:event_type(),
-%%
-%%    EventContent :: term(),
-%%
-%%    StateFunctionResult :: gen_statem:event_handler_result(Data) |
-%%    {keep_state_and_data, Action} |
-%%    {next_state, State, Data, {reply, From, Reply}},
-%%
-%%    From :: gen_statem:from(),
-%%    Reply :: term(),
-%%    Data :: #player_state{},
-%%    State :: gen_statem:state().
-%%affair_fsm(EventType, EventContent, Data) ->
-%%    StateFunctionResult.
+-spec affair_menu(EventType, EventContent, Data) -> StateFunctionResult when
+    EventType :: gen_statem:event_type(),
+
+    EventContent :: term(),
+
+    StateFunctionResult :: gen_statem:event_handler_result(Data) |
+    {keep_state_and_data, Action} |
+    {next_state, State, Data},
+
+    Action :: gen_statem:action(),
+    Data :: #player_state{},
+    State :: gen_statem:state().
+affair_menu(cast, {response_content, NlsObjectList, DispatcherPid}, Data) ->
+    UpdatedData = do_response_content(Data, NlsObjectList, DispatcherPid),
+    {next_state, affair_menu, UpdatedData};
+affair_menu({call, From}, {handle_affair_input, RawInput}, #player_state{
+    self = #player_profile{
+        lang = Lang
+    }
+}) ->
+    Reply = nls_server:get_nls_content([{nls, invalid_command}, RawInput], Lang),
+    {keep_state_and_data, {reply, From, Reply}}.
 
 %%--------------------------------------------------------------------
 %% @private

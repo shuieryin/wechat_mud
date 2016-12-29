@@ -47,6 +47,7 @@
     DispatcherPid :: pid().
 exec(DispatcherPid, Uid) ->
     CommandContext = #command_context{
+        raw_input = <<"lang">>,
         command_func = look_scene,
         dispatcher_pid = DispatcherPid
     },
@@ -65,6 +66,7 @@ exec(DispatcherPid, Uid) ->
 exec(DispatcherPid, Uid, TargetArgs) ->
     {ok, TargetId, Sequence} = elib:parse_target_id(TargetArgs),
     CommandContext = #command_context{
+        raw_input = TargetArgs,
         command_func = being_look,
         dispatcher_pid = DispatcherPid,
         target_name = TargetId,

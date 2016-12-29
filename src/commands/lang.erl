@@ -48,6 +48,7 @@ exec(DispatcherPid, Uid, RawTargetLang) ->
             case nls_server:is_valid_lang(RawTargetLang) of
                 true ->
                     CommandContext = #command_context{
+                        raw_input = RawTargetLang,
                         command_func = switch_lang,
                         command_args = binary_to_atom(RawTargetLang, utf8),
                         dispatcher_pid = DispatcherPid

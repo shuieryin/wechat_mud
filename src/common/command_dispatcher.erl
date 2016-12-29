@@ -23,6 +23,8 @@
 -define(MAX_CONTENT_SIZE, 2048).
 -define(EMPTY_CONTENT, <<>>).
 -define(WECHAT_TOKEN, <<"wechat_mud">>).
+-define(AFFAIR_INPUT_DIGIT_SIZE, <<"2">>).
+-define(Get_lang(Uid), player_statem:get_lang(Uid)).
 
 -type get_param() :: string() | binary(). % generic string % generic binary
 -type post_param() :: binary(). % generic binary
@@ -319,7 +321,7 @@ gen_action_from_message_type(
                 <<"unsubscribe">> ->
                     {unsubscribe,
                         fun(Uid) ->
-                            handle_input(Uid, <<"logout">>, []),
+                            handle_input(Uid, <<"logout">>),
                             no_response
                         end};
                 _Event ->
@@ -330,15 +332,16 @@ gen_action_from_message_type(
             end;
         <<"text">> ->
             RawInput = ReqParams#wechat_post_params.'Content',
-            [ModuleNameBin | RawCommandArgs] = binary:split(RawInput, <<" ">>),
-            {RawInput,
+            {
+                RawInput,
                 fun(Uid) ->
-                    handle_input(Uid, ModuleNameBin, RawCommandArgs)
-                end};
+                    handle_input(Uid, RawInput)
+                end
+            };
         _MsgType ->
             {<<>>,
                 fun(Uid) ->
-                    nls_server:get_nls_content([{nls, message_type_not_support}], player_statem:get_lang(Uid))
+                    nls_server:get_nls_content([{nls, message_type_not_support}], ?Get_lang(Uid))
                 end}
     end.
 
@@ -360,43 +363,49 @@ gen_action_from_message_type(
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec handle_input(Uid, ModuleNameBin, RawCommandArgs) -> ReturnContent when
+-spec handle_input(Uid, RawInput) -> ReturnContent when
     Uid :: player_statem:uid(),
-    ModuleNameBin :: binary(),
-    RawCommandArgs :: [binary()],
+    RawInput :: binary(),
     ReturnContent :: [nls_server:value()].
-handle_input(Uid, ModuleNameBin, RawCommandArgs) ->
-    RawModuleName = parse_raw_command(ModuleNameBin),
+handle_input(Uid, RawInput) ->
+    case re:run(RawInput, <<"^[0-9]{1,", ?AFFAIR_INPUT_DIGIT_SIZE/binary, "}$">>) of
+        nomatch ->
+            [ModuleNameBin | RawCommandArgs] = binary:split(RawInput, <<" ">>),
 
-    CommandInfo =
-        case is_command_exist(RawModuleName) of
-            true ->
-                {binary_to_atom(RawModuleName, utf8), RawCommandArgs};
-            false ->
-                case direction:parse_direction(RawModuleName) of
-                    undefined ->
-                        invalid_command;
-                    Direction ->
-                        direction:module_info(),
-                        {direction, [Direction]}
-                end
-        end,
+            RawModuleName = parse_raw_command(ModuleNameBin),
 
-    case CommandInfo of
-        {ModuleName, CommandArgs} ->
-            Arity = length(CommandArgs),
-            Args = [Uid | CommandArgs],
+            CommandInfo =
+                case is_command_exist(RawModuleName) of
+                    true ->
+                        {binary_to_atom(RawModuleName, utf8), RawCommandArgs};
+                    false ->
+                        case direction:parse_direction(RawModuleName) of
+                            undefined ->
+                                invalid_command;
+                            Direction ->
+                                direction:module_info(),
+                                {direction, [Direction]}
+                        end
+                end,
 
-            ModuleName:module_info(), % call module_info in order to make function_exported works
-            case erlang:function_exported(ModuleName, exec, Arity + 2) of
-                true ->
-                    pending_content(ModuleName, exec, Args);
-                false ->
-                    nls_server:get_nls_content([{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(binary_to_list(RawModuleName) ++ "_help")}], player_statem:get_lang(Uid))
+            case CommandInfo of
+                {ModuleName, CommandArgs} ->
+                    Arity = length(CommandArgs),
+                    Args = [Uid | CommandArgs],
+
+                    ModuleName:module_info(), % call module_info in order to make function_exported works
+                    case erlang:function_exported(ModuleName, exec, Arity + 2) of
+                        true ->
+                            pending_content(ModuleName, exec, Args);
+                        false ->
+                            nls_server:get_nls_content([{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(binary_to_list(RawModuleName) ++ "_help")}], ?Get_lang(Uid))
+                    end;
+
+                invalid_command ->
+                    nls_server:get_nls_content([{nls, invalid_command}, ModuleNameBin], ?Get_lang(Uid))
             end;
-
-        invalid_command ->
-            nls_server:get_nls_content([{nls, invalid_command}, ModuleNameBin], player_statem:get_lang(Uid))
+        {match, _Match} ->
+            player_statem:handle_affair_input(Uid, RawInput)
     end.
 
 %%--------------------------------------------------------------------

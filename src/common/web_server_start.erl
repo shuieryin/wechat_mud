@@ -22,8 +22,6 @@
     websocket_terminate/3
 ]).
 
--import(ezwebframe_mochijson2, [encode/1, decode/1]).
-
 -type port_int() :: 1024 .. 65535.
 
 %%%===================================================================
@@ -96,7 +94,7 @@ init(Req, Env) ->
     Pid :: pid().
 websocket_handle({text, Msg}, Req, Pid) ->
     %% This is a Json message from the browser
-    case catch decode(Msg) of
+    case catch ezwebframe_mochijson2:decode(Msg) of
         {'EXIT', _Why} ->
             Pid ! {invalidMessageNotJSON, Msg};
         {struct, _Props} = Z ->
@@ -121,7 +119,7 @@ websocket_handle({text, Msg}, Req, Pid) ->
 websocket_info({send, Str}, Req, Pid) ->
     {reply, {text, Str}, Req, Pid, hibernate};
 websocket_info([{cmd, _Cmd} | _RestCmd] = L, Req, Pid) ->
-    Bin = list_to_binary(encode([{struct, L}])),
+    Bin = list_to_binary(ezwebframe_mochijson2:encode([{struct, L}])),
     {reply, {text, Bin}, Req, Pid, hibernate};
 websocket_info(Info, Req, Pid) ->
     io:format("Handle_info Info:~p Pid:~p~n", [Info, Pid]),

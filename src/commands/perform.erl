@@ -56,6 +56,7 @@ exec(DispatcherPid, Uid, Args) ->
     [SkillId, TargetArgs] = re:split(Args, <<"\s+on\s+">>),
     {ok, TargetId, Sequence} = elib:parse_target_id(TargetArgs),
     CommandContext = #command_context{
+        raw_input = Args,
         command_func = from_init,
         command_args = SkillId,
         dispatcher_pid = DispatcherPid,

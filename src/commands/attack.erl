@@ -41,6 +41,7 @@
 exec(DispatcherPid, Uid, TargetArgs) ->
     {ok, TargetId, Sequence} = elib:parse_target_id(TargetArgs),
     CommandContext = #command_context{
+        raw_input = TargetArgs,
         command_func = to_settle,
         dispatcher_pid = DispatcherPid,
         target_name = TargetId,

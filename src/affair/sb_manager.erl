@@ -15,7 +15,8 @@
 -export([
     init/2,
     register/3,
-    status/3
+    status/3,
+    feedback/3
 ]).
 
 -include("../data_type/scene_info.hrl").
@@ -182,6 +183,21 @@ status(NpcState, #command_context{
             }
         }, StateName
     }.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Handle feedback for from target.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec feedback(State, CommandContext, StateName) -> {UpdatedState, UpdatedStateName} when
+    State :: #player_state{},
+    UpdatedState :: State,
+    CommandContext :: #command_context{},
+    StateName :: gen_statem:state_name(),
+    UpdatedStateName :: StateName.
+feedback(State, _CommandContext, StateName) ->
+    {State, StateName}.
 
 %%%===================================================================
 %%% Internal functions (N/A)
