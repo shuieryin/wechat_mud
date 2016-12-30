@@ -10,16 +10,10 @@ env:
 services:
   - redis-server
 
-#addons:
-#  apt:
-#    packages:
-#      - lynx
-
-#before_install:
-#  - ./rebar3 dialyzer
-
+#skip automated regression tests
 script:
-  - make build #skip automated regression tests
+  - make install_rebar3
+  - make build
   - make ck
 
 notifications:
