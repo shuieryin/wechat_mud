@@ -6,7 +6,7 @@ language:
 env:
   global:
     - TRAVIS_CI=true
-    
+
 services:
   - redis-server
 
