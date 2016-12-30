@@ -32,7 +32,6 @@
     logout_all_players/0,
     logged_in_player_uids/0,
     not_logged_in_player_uids/0,
-    uid_by_id/1,
     uids_by_ids/1,
     show_state/0
 ]).
@@ -243,17 +242,6 @@ not_logged_in_player_uids() ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Retrieve uid by id.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec uid_by_id(player_statem:id()) -> player_statem:uid().
-uid_by_id(PlayerId) ->
-    [PlayerUid] = uids_by_ids([PlayerId]),
-    PlayerUid.
-
-%%--------------------------------------------------------------------
-%% @doc
 %% Retrieve uids by ids.
 %%
 %% @end
@@ -314,7 +302,7 @@ init([]) ->
         uids_cross_ids = UidsCrossIds
     },
 
-    io:format("started~n"),
+    io:format("started~n~n"),
     {ok, State}.
 
 %%--------------------------------------------------------------------

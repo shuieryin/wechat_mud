@@ -13,10 +13,14 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([
+    start_link/1
+]).
 
 %% Supervisor callbacks
--export([init/1]).
+-export([
+    init/1
+]).
 
 %% ===================================================================
 %% API functions
@@ -28,9 +32,10 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_link() -> supervisor:startlink_ret().
-start_link() ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+-spec start_link(StartArgs) -> supervisor:startlink_ret() when
+    StartArgs :: [term()].
+start_link(StartArgs) ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, StartArgs).
 
 %% ===================================================================
 %% Supervisor callbacks
@@ -46,10 +51,10 @@ start_link() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec init([]) ->
-    {ok, {SupFlags :: supervisor:sup_flags(), [ChildSpec :: supervisor:child_spec()]}} | ignore.
-init([]) ->
-    [{AppName, _AppVersion, _Applications, _ReleaseStatus}] = release_handler:which_releases(permanent),
+-spec init(StartArgs) ->
+    {ok, {SupFlags :: supervisor:sup_flags(), [ChildSpec :: supervisor:child_spec()]}} | ignore when
+    StartArgs :: [term()].
+init([AppName]) ->
     erlang:set_cookie(node(), list_to_atom(AppName)),
 
     InfoServerName = list_to_atom(AppName ++ "_information_server"),

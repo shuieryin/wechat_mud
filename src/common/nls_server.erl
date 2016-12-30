@@ -343,7 +343,7 @@ init([]) ->
     FilePathList = [filename:join(NlsPath, NlsFileName) || NlsFileName <- FileNameList],
     {NlsMap, _DiffNlsMap, NlsFileNameMap} = lists:foldl(fun read_nls_file/2, {#{}, #{}, #{}}, [CommonNlsFilePath | FilePathList]),
 
-    io:format("started~n"),
+    io:format("started~n~n"),
     {
         ok,
         #state{

@@ -16,10 +16,10 @@
 %% API
 -export([
     start_link/1,
-    init/2,
-    websocket_handle/3,
-    websocket_info/3,
-    websocket_terminate/3
+    init/2
+%%    websocket_handle/3,
+%%    websocket_info/3,
+%%    websocket_terminate/3
 ]).
 
 -type port_int() :: 1024 .. 65535.
@@ -83,62 +83,62 @@ init(Req, Env) ->
     end.
 
 %%--------------------------------------------------------------------
-%% @doc
+%% doc
 %% Websockets handlings.
 %%
-%% @end
+%% end
 %%--------------------------------------------------------------------
--spec websocket_handle({text, Msg}, Req, Pid) -> {ok, Req, Pid} when
-    Msg :: iolist(),
-    Req :: cowboy_req:req(),
-    Pid :: pid().
-websocket_handle({text, Msg}, Req, Pid) ->
-    %% This is a Json message from the browser
-    case catch ezwebframe_mochijson2:decode(Msg) of
-        {'EXIT', _Why} ->
-            Pid ! {invalidMessageNotJSON, Msg};
-        {struct, _Props} = Z ->
-            X1 = atomize(Z),
-            Pid ! {self(), X1};
-        Other ->
-            Pid ! {invalidMessageNotStruct, Other}
-    end,
-    {ok, Req, Pid}.
+%%-spec websocket_handle({text, Msg}, Req, Pid) -> {ok, Req, Pid} when
+%%    Msg :: iolist(),
+%%    Req :: cowboy_req:req(),
+%%    Pid :: pid().
+%%websocket_handle({text, Msg}, Req, Pid) ->
+%%    %% This is a Json message from the browser
+%%    case catch ezwebframe_mochijson2:decode(Msg) of
+%%        {'EXIT', _Why} ->
+%%            Pid ! {invalidMessageNotJSON, Msg};
+%%        {struct, _Props} = Z ->
+%%            X1 = atomize(Z),
+%%            Pid ! {self(), X1};
+%%        Other ->
+%%            Pid ! {invalidMessageNotStruct, Other}
+%%    end,
+%%    {ok, Req, Pid}.
 
 %%--------------------------------------------------------------------
-%% @doc
+%% doc
 %% Websockets info.
 %%
-%% @end
+%% end
 %%--------------------------------------------------------------------
--spec websocket_info(Action, Req, Pid) -> Result when
-    Action :: {send, string()} | [{cmd, _Cmd} | _RestCmd] | term(), % generic term
-    Req :: cowboy_req:req(),
-    Pid :: pid(),
-    Result :: {reply, {text, string() | binary()}, Req, Pid, hibernate} | {ok, Req, Pid, hibernate}.
-websocket_info({send, Str}, Req, Pid) ->
-    {reply, {text, Str}, Req, Pid, hibernate};
-websocket_info([{cmd, _Cmd} | _RestCmd] = L, Req, Pid) ->
-    Bin = list_to_binary(ezwebframe_mochijson2:encode([{struct, L}])),
-    {reply, {text, Bin}, Req, Pid, hibernate};
-websocket_info(Info, Req, Pid) ->
-    io:format("Handle_info Info:~p Pid:~p~n", [Info, Pid]),
-    {ok, Req, Pid, hibernate}.
+%%-spec websocket_info(Action, Req, Pid) -> Result when
+%%    Action :: {send, string()} | [{cmd, _Cmd} | _RestCmd] | term(), % generic term
+%%    Req :: cowboy_req:req(),
+%%    Pid :: pid(),
+%%    Result :: {reply, {text, string() | binary()}, Req, Pid, hibernate} | {ok, Req, Pid, hibernate}.
+%%websocket_info({send, Str}, Req, Pid) ->
+%%    {reply, {text, Str}, Req, Pid, hibernate};
+%%websocket_info([{cmd, _Cmd} | _RestCmd] = L, Req, Pid) ->
+%%    Bin = list_to_binary(ezwebframe_mochijson2:encode([{struct, L}])),
+%%    {reply, {text, Bin}, Req, Pid, hibernate};
+%%websocket_info(Info, Req, Pid) ->
+%%    io:format("Handle_info Info:~p Pid:~p~n", [Info, Pid]),
+%%    {ok, Req, Pid, hibernate}.
 
 %%--------------------------------------------------------------------
-%% @doc
+%% doc
 %% Terminate function for websockets.
 %%
-%% @end
+%% end
 %%--------------------------------------------------------------------
--spec websocket_terminate(_Reason, _Req, Pid) -> ok when
-    _Reason :: term(), % generic term
-    _Req :: cowboy_req:req(),
-    Pid :: pid().
-websocket_terminate(_Reason, _Req, Pid) ->
-    io:format("websocket.erl terminate:~n"),
-    exit(Pid, socketClosed),
-    ok.
+%%-spec websocket_terminate(_Reason, _Req, Pid) -> ok when
+%%    _Reason :: term(), % generic term
+%%    _Req :: cowboy_req:req(),
+%%    Pid :: pid().
+%%websocket_terminate(_Reason, _Req, Pid) ->
+%%    io:format("websocket.erl terminate:~n"),
+%%    exit(Pid, socketClosed),
+%%    ok.
 
 %%%===================================================================
 %%% Internal functions
@@ -159,29 +159,29 @@ path(Req) ->
     filename:split(binary_to_list(Path)).
 
 %%--------------------------------------------------------------------
-%% @doc
+%% doc
 %% Special binary_to_atom
 %%
-%% @end
+%% end
 %%--------------------------------------------------------------------
--spec binary_to_atom(Bin) -> Result when
-    Bin :: binary(),
-    Result :: atom(). % generic atom
-binary_to_atom(B) ->
-    list_to_atom(binary_to_list(B)).
+%%-spec binary_to_atom(Bin) -> Result when
+%%    Bin :: binary(),
+%%    Result :: atom(). % generic atom
+%%binary_to_atom(B) ->
+%%    list_to_atom(binary_to_list(B)).
 
 %%--------------------------------------------------------------------
-%% @doc
+%% doc
 %% Atomize turns all the keys in a struct to atoms
 %%
-%% @end
+%% end
 %%--------------------------------------------------------------------
--spec atomize(Source) -> Result when
-    Source :: {struct, [{binary(), list() | term()}]} | list() | term(), % generic term % generic list
-    Result :: {struct, [{atom(), list() | term()}]} | list() | term(). % generic term % generic atom % generic list
-atomize({struct, L}) ->
-    {struct, [{binary_to_atom(I), atomize(J)} || {I, J} <- L]};
-atomize(L) when is_list(L) ->
-    [atomize(I) || I <- L];
-atomize(X) ->
-    X.
+%%-spec atomize(Source) -> Result when
+%%    Source :: {struct, [{binary(), list() | term()}]} | list() | term(), % generic term % generic list
+%%    Result :: {struct, [{atom(), list() | term()}]} | list() | term(). % generic term % generic atom % generic list
+%%atomize({struct, L}) ->
+%%    {struct, [{binary_to_atom(I), atomize(J)} || {I, J} <- L]};
+%%atomize(L) when is_list(L) ->
+%%    [atomize(I) || I <- L];
+%%atomize(X) ->
+%%    X.

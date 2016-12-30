@@ -48,7 +48,7 @@
 }).
 
 -record(state, {
-    common_config :: #common_config{},
+    common_config :: #common_config{} | undefined,
     runtime_datas :: csv_to_object:csv_object()
 }).
 
@@ -240,7 +240,7 @@ init([]) ->
         runtime_datas = RuntimeDatas
     },
 
-    io:format("started~n"),
+    io:format("started~n~n"),
     {ok, State}.
 
 %%--------------------------------------------------------------------
@@ -283,12 +283,18 @@ handle_call(
     is_wechat_debug,
     _From,
     #state{
-        common_config = #common_config{
-            is_wechat_debug = IsWechatDebug
-        }
+        common_config = CommonConfig
     } = State
 ) ->
-    {reply, IsWechatDebug, State};
+    Reply = case CommonConfig of
+                undefined ->
+                    false;
+                #common_config{
+                    is_wechat_debug = IsWechatDebug
+                } ->
+                    IsWechatDebug
+            end,
+    {reply, Reply, State};
 handle_call(
     {set_wechat_debug, IsWechatDebug},
     _From,

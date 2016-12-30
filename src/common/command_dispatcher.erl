@@ -446,6 +446,7 @@ compose_xml_response(UidBin, PlatformIdBin, ContentBin) ->
     UpdatedReq :: Req.
 parse_xml_request(Req) ->
     {ok, Message, UpdatedReq} = cowboy_req:body(Req),
+    % io:format("Message:~p~n", [Message]),
     ReqParams =
         case Message of
             <<>> ->

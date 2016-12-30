@@ -18,7 +18,6 @@
 %% API
 -export([
     start_link/2,
-    start/2,
     logout/1,
     get_lang/1,
     response_content/3,
@@ -28,7 +27,6 @@
     append_message_local/3,
     simple_player/1,
     non_battle/3,
-    battle/2,
     update_nls/3,
     player_state/1,
     player_state_by_id/1,
@@ -44,7 +42,6 @@
 %% gen_fsm callbacks
 -export([
     init/1,
-    handle_info/3,
     terminate/3,
     code_change/4,
     format_status/2,
@@ -105,19 +102,6 @@
     DispatcherPid :: pid().
 start_link(Uid, DispatcherPid) ->
     gen_statem:start_link({local, Uid}, ?MODULE, {Uid, DispatcherPid}, []).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Same as start_link/1 but without link.
-%% @see start_link/0.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec start(Uid, DispatcherPid) -> gen:start_ret() when
-    Uid :: uid(),
-    DispatcherPid :: pid().
-start(Uid, DispatcherPid) ->
-    gen_statem:start({local, Uid}, ?MODULE, {Uid, DispatcherPid}, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -227,22 +211,22 @@ append_message_local(
         mail_box = MailBox#mailbox{
             scene = UpdatedSceneMessages
         }
-    };
-append_message_local(
-    Message,
-    other,
-    #player_state{
-        mail_box = #mailbox{
-            scene = SceneMessages
-        } = MailBox
-    } = State
-) ->
-    UpdatedSceneMessages = [Message | SceneMessages],
-    State#player_state{
-        mail_box = MailBox#mailbox{
-            scene = UpdatedSceneMessages
-        }
     }.
+%%append_message_local(
+%%    Message,
+%%    other,
+%%    #player_state{
+%%        mail_box = #mailbox{
+%%            scene = SceneMessages
+%%        } = MailBox
+%%    } = State
+%%) ->
+%%    UpdatedSceneMessages = [Message | SceneMessages],
+%%    State#player_state{
+%%        mail_box = MailBox#mailbox{
+%%            scene = UpdatedSceneMessages
+%%        }
+%%    }.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -355,10 +339,14 @@ player_state(PlayerUid) ->
 %%--------------------------------------------------------------------
 -spec player_state_by_id(PlayerId) -> PlayerState when
     PlayerId :: id(),
-    PlayerState :: #player_state{}.
+    PlayerState :: #player_state{} | undefined.
 player_state_by_id(PlayerId) ->
-    PlayerUid = login_server:uid_by_id(PlayerId),
-    player_state(PlayerUid).
+    case login_server:uids_by_ids([PlayerId]) of
+        [PlayerUid] ->
+            player_state(PlayerUid);
+        _NotFound ->
+            undefined
+    end.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -402,8 +390,12 @@ mail_box(PlayerUid) ->
 %%--------------------------------------------------------------------
 -spec upgrade_value_by_id(id(), integer()) -> ok.
 upgrade_value_by_id(PlayerId, Value) ->
-    PlayerUid = login_server:uid_by_id(PlayerId),
-    gen_statem:cast(PlayerUid, {upgrade_value_by_id, Value}).
+    case login_server:uids_by_ids([PlayerId]) of
+        [PlayerUid] ->
+            gen_statem:cast(PlayerUid, {upgrade_value_by_id, Value});
+        _NotFound ->
+            ok
+    end.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -483,41 +475,6 @@ init({Uid, DispatcherPid}) ->
 %%--------------------------------------------------------------------
 %% @doc
 %% Refer to below functions for details.
-%% @see perform/4.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec battle(Event, State) ->
-    {next_state, NextStateName, NextState} |
-    {next_state, NextStateName, NextState, timeout() | hibernate} |
-    {stop, Reason, NewState} when
-
-    Event ::
-    {execute_command, CommandContext},
-
-    CommandContext :: #command_context{},
-
-    State :: #player_state{},
-    NextStateName :: player_state_name(),
-    NextState :: State,
-    NewState :: State,
-    Reason :: term(). % generic term
-battle(
-    {
-        execute_command,
-        #command_context{
-            command = CommandModule,
-            command_func = CommandFunc
-        } = CommandContext
-    },
-    State
-) ->
-    {ok, NextStateName, UpdatedState} = CommandModule:CommandFunc(CommandContext, State, battle),
-    {next_state, NextStateName, UpdatedState}.
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Refer to below functions for details.
 %%
 %% @see general_target/3.
 %% @see execute_command/2.
@@ -535,8 +492,8 @@ battle(
     {response_content, NlsObjectList, DispatcherPid} |
     {append_message, Message, MailType} |
     {upgrade_value_by_id, Value} |
-    stop |
     get_lang |
+    player_state |
     current_scene_name |
     {update_nls, ChangedLangMap, RemovedNlsSet} |
     {pending_update_runtime_data, {ChangedFilesStruct, DeletedFilesStruct}} |
@@ -606,31 +563,10 @@ non_battle(
     error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
     gen_statem:reply(From, ok),
     {stop, normal, Data};
-
 non_battle(cast, {append_message, Message, MailType}, Data) ->
     {next_state, non_battle, append_message_local(Message, MailType, Data)};
-non_battle(cast, {upgrade_value_by_id, Value}, #player_state{
-    self = #player_profile{
-        battle_status = #battle_status{
-            'Strength' = Strength,
-            'Defense' = Defense,
-            'Hp' = Hp,
-            'Dexterity' = Dexterity
-        } = BattleStatus
-    } = PlayerProfile
-} = Data) ->
-    {next_state, Data#player_state{
-        self = PlayerProfile#player_profile{
-            battle_status = BattleStatus#battle_status{
-                'Strength' = Strength + Value,
-                'Defense' = Defense + Value,
-                'Hp' = Hp + Value,
-                'Dexterity' = Dexterity + Value
-            }
-        }
-    }};
-non_battle(cast, stop, Data) ->
-    {stop, normal, Data};
+non_battle(cast, {upgrade_value_by_id, Value}, PlayerState) ->
+    upgrade_value_by_id(Value, non_battle, PlayerState);
 non_battle(
     {call, From},
     get_lang,
@@ -713,13 +649,15 @@ non_battle({call, From}, player_id, #player_state{
 
     EventContent :: {response_content, NlsObjectList, DispatcherPid} |
     {handle_affair_input, DispatcherPid, RawInput} |
-    get_lang |
+    {upgrade_value_by_id, Value} |
+    get_lang | lang_map | player_id | current_scene_name | player_state | mail_box |
     {'$gen_event', {execute_command | general_target, CommandContext}},
 
     StateFunctionResult :: gen_statem:event_handler_result(Data) |
     {keep_state_and_data, Action} |
     {next_state, State, Data},
 
+    Value :: integer(),
     CommandContext :: #command_context{},
     RawInput :: binary(),
     DispatcherPid :: pid(),
@@ -755,30 +693,35 @@ affair_menu(
         }
     }
 ) ->
-    {keep_state_and_data, {reply, From, Lang}}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% This function is called by a gen_fsm when it receives any
-%% message other than a synchronous or asynchronous event
-%% (or a system message).
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec handle_info(Info, StateName, StateData) ->
-    {next_state, NextStateName, NewStateData} |
-    {next_state, NextStateName, NewStateData, timeout() | hibernate} |
-    {stop, Reason, NewStateData} when
-
-    Info :: term(), % generic term
-    StateName :: player_state_name(),
-    StateData :: #player_state{},
-    NextStateName :: StateName,
-    NewStateData :: StateData,
-    Reason :: normal | term(). % generic term
-handle_info(_Info, StateName, State) ->
-    {next_state, StateName, State}.
+    {keep_state_and_data, {reply, From, Lang}};
+affair_menu(
+    {call, From},
+    current_scene_name,
+    #player_state{
+        self = #player_profile{
+            scene = CurrentSceneName
+        }
+    }
+) ->
+    {keep_state_and_data, {reply, From, CurrentSceneName}};
+affair_menu({call, From}, lang_map, #player_state{
+    lang_map = LangMap
+}) ->
+    {keep_state_and_data, {reply, From, LangMap}};
+affair_menu({call, From}, player_id, #player_state{
+    self = #player_profile{
+        id = PlayerId
+    }
+}) ->
+    {keep_state_and_data, {reply, From, PlayerId}};
+affair_menu({call, From}, player_state, Data) ->
+    {keep_state_and_data, {reply, From, Data}};
+affair_menu({call, From}, mail_box, #player_state{
+    mail_box = Mailbox
+}) ->
+    {keep_state_and_data, {reply, From, Mailbox}};
+affair_menu(cast, {upgrade_value_by_id, Value}, PlayerState) ->
+    upgrade_value_by_id(Value, affair_menu, PlayerState).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -1057,3 +1000,33 @@ general_target(
                   {StateName, UpdatedPlayerState}
           end,
     {next_state, FinalStateName, FinalPlayerState}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Upgrade value by player id
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec upgrade_value_by_id(Value :: integer(), StateName, PlayerState) -> {next_state, StateName, PlayerState} when
+    StateName :: gen_statem:state(),
+    PlayerState :: #player_state{}.
+upgrade_value_by_id(Value, StateName, #player_state{
+    self = #player_profile{
+        battle_status = #battle_status{
+            'Strength' = Strength,
+            'Defense' = Defense,
+            'Hp' = Hp,
+            'Dexterity' = Dexterity
+        } = BattleStatus
+    } = PlayerProfile
+} = PlayerState) ->
+    {next_state, StateName, PlayerState#player_state{
+        self = PlayerProfile#player_profile{
+            battle_status = BattleStatus#battle_status{
+                'Strength' = Strength + Value,
+                'Defense' = Defense + Value,
+                'Hp' = Hp + Value,
+                'Dexterity' = Dexterity + Value
+            }
+        }
+    }}.

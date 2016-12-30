@@ -15,8 +15,7 @@
 %% Application callbacks
 -export([
     start/2,
-    stop/1,
-    start_redis/0
+    stop/1
 ]).
 
 -record(state, {}).
@@ -35,11 +34,10 @@
     StartType :: application:start_type(),
     StartArgs :: term(), % generic term
     Return :: {ok, pid(), State :: #state{}}.
-start(normal, _StartArgs) ->
-    % ok = start_redis(),
+start(normal, StartArgs) ->
     ok = start_web(),
-    {ok, Pid} = wechat_mud_sup:start_link(),
-    ok = elib:show_errors(20),
+    {ok, Pid} = wechat_mud_sup:start_link(StartArgs),
+    % ok = elib:show_errors(20),
     {ok, Pid, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -59,24 +57,8 @@ stop(_State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec start_redis() -> ok.
-start_redis() ->
-    spawn(
-        fun() ->
-            io:format("~p~n", [file:get_cwd()]),
-            elib:cmd("redis-server")
-        end),
-    ok.
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Launch web service
-%%
-%% @end
-%%--------------------------------------------------------------------
 -spec start_web() -> ok.
 start_web() ->
-    io:format("a web test....~n"),
     Port = 13579,
     io:format("Load the page http://localhost:~p/ in your browser~n", [Port]),
     web_server_start:start_link(Port).

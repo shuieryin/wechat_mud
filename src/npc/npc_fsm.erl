@@ -127,12 +127,15 @@ npc_state(NpcUid) ->
     NpcProfile :: #npc_profile{}.
 init(NpcProfile) ->
     #npc_profile{
+        npc_id = NpcId,
+        npc_uid = NpcUid,
         strength = M_strength,
         defense = M_defense,
         hp = M_hp,
         dexterity = M_dexterity,
         ask_n_answers = AskNAnswers
     } = NpcProfile,
+    io:format("~ninitializing npc [~p] with uid [~p]...", [NpcId, NpcUid]),
 
     NpcContext = lists:foldl(
         fun(#ask_n_answer{affair_mod = AffairMod}, AccNpcContext) ->
@@ -154,6 +157,8 @@ init(NpcProfile) ->
         },
         npc_context = NpcContext
     },
+
+    io:format("initialized~n"),
     {ok, non_battle, State}.
 
 %%--------------------------------------------------------------------

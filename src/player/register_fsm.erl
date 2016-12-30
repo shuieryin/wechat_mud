@@ -32,8 +32,6 @@
 
 %% gen_fsm callbacks
 -export([init/1,
-    state_name/2,
-    state_name/3,
     handle_event/3,
     handle_sync_event/4,
     handle_info/3,
@@ -481,72 +479,8 @@ input_confirmation(
         summary_content = SummaryContent
     } = State
 ) ->
-    ErrorMessageNlsContent
-        = case Other of
-              <<>> ->
-                  [SummaryContent];
-              _InvalidCommand ->
-                  lists:flatten([{nls, invalid_command}, Other, <<"\n\n">>, SummaryContent])
-          end,
-    nls_server:response_content(ErrorMessageNlsContent, Lang, DispatcherPid),
+    nls_server:response_content(lists:flatten([{nls, invalid_command}, Other, <<"\n\n">>, SummaryContent]), Lang, DispatcherPid),
     {next_state, input_confirmation, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% There should be one instance of this function for each possible
-%% state name. Whenever a gen_fsm receives an event sent using
-%% gen_fsm:send_event/2, the instance of this function with the same
-%% name as the current state name StateName is called to handle
-%% the event. It is also called if a timeout occurs.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec state_name(Event, State) ->
-    {next_state, NextStateName, NextState} |
-    {next_state, NextStateName, NextState, timeout() | hibernate} |
-    {stop, Reason, NewState} when
-
-    Event :: term(), % generic term
-    State :: #state{},
-    NextStateName :: state_name(),
-    NextState :: State,
-    NewState :: State,
-    Reason :: term(). % generic term
-state_name(_Event, State) ->
-    {next_state, state_name, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% There should be one instance of this function for each possible
-%% state name. Whenever a gen_fsm receives an event sent using
-%% gen_fsm:sync_send_event/[2,3], the instance of this function with
-%% the same name as the current state name StateName is called to
-%% handle the event.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec state_name(Event, From, State) ->
-    {next_state, NextStateName, NextState} |
-    {next_state, NextStateName, NextState, timeout() | hibernate} |
-    {reply, Reply, NextStateName, NextState} |
-    {reply, Reply, NextStateName, NextState, timeout() | hibernate} |
-    {stop, Reason, NewState} |
-    {stop, Reason, Reply, NewState} when
-
-    Event :: term(), % generic term
-    Reply :: ok,
-
-    From :: {pid(), term()}, % generic term
-    State :: #state{},
-    NextStateName :: state_name(),
-    NextState :: State,
-    Reason :: normal | term(), % generic term
-    NewState :: State.
-state_name(_Event, _From, State) ->
-    Reply = ok,
-    {reply, Reply, state_name, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -765,6 +699,6 @@ gen_summary_convert_value(id, Value) ->
 gen_summary_convert_value(_Key, Value) when is_integer(Value) ->
     integer_to_binary(Value);
 gen_summary_convert_value(_Key, Value) when is_atom(Value) ->
-    {nls, Value};
-gen_summary_convert_value(_Key, Value) ->
-    Value.
+    {nls, Value}.
+%%gen_summary_convert_value(_Key, Value) ->
+%%    Value.

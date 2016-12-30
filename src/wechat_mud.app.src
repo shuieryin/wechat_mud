@@ -3,5 +3,5 @@
               {description,"This project aims to provide mud games funny stuffs."},
               {registered,[]},
               {applications,[kernel,stdlib,cowboy,erlsom,eredis,ecsv,uuid,recon]},
-              {mod,{wechat_mud_app,[]}},
+              {mod,{wechat_mud_app,["wechat_mud"]}},
               {env,[]}]}.

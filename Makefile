@@ -30,4 +30,7 @@ queue_fun:
 	@awk -v threshold=${TS} -f _build/default/lib/recon/script/queue_fun.awk erl_crash.dump
 
 ct:
-	@./config/rebar3 ct
+	@./config/rebar3 do ct -c, cover -v
+
+ck:
+	@./config/rebar3 ck

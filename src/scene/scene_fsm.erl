@@ -31,7 +31,6 @@
     general_target/1,
     morning/2,
     morning/3,
-    player_quit/2,
     update_scene_info/2,
     state/1
 ]).
@@ -227,19 +226,6 @@ exits_map(CurSceneName) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Notification from player process that is terminated and remove the
-%% player from current scene.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec player_quit(SceneName, Uid) -> ok when
-    SceneName :: scene_name(),
-    Uid :: player_statem:uid().
-player_quit(SceneName, Uid) ->
-    gen_fsm:send_all_state_event(SceneName, {player_quit, Uid}).
-
-%%--------------------------------------------------------------------
-%% @doc
 %% Scene info hot code upgrade.
 %%
 %% @end
@@ -290,11 +276,11 @@ init(
         id = SceneName
     } = SceneInfo
 ) ->
-    io:format("scene server ~p starting...", [SceneName]),
+    io:format("scene server ~p starting...~n", [SceneName]),
 
     State = populate_scene_state(SceneInfo, undefined),
 
-    io:format("started~n"),
+    io:format("~n~p started~n~n", [SceneName]),
     {ok, morning, State}.
 
 %%--------------------------------------------------------------------
@@ -442,8 +428,7 @@ state_name(_Event, _From, State) ->
     {enter, DispatcherPid, SimplePlayer, FromSceneName} |
     {leave, Uid} |
     {look_scene, Uid, DispatcherPid} |
-    {general_target, CommandContext} |
-    {player_quit, Uid},
+    {general_target, CommandContext},
 
     SimplePlayer :: #simple_player{},
     FromSceneName :: scene_name(),
@@ -541,9 +526,7 @@ handle_event(
                 end,
             ok = cm:execute_command(TargetUid, UpdatedCommandContext)
     end,
-    {next_state, StateName, State};
-handle_event({player_quit, Uid}, StateName, State) ->
-    {next_state, StateName, remove_scene_object(Uid, State)}.
+    {next_state, StateName, State}.
 
 
 %%--------------------------------------------------------------------
