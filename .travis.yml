@@ -19,7 +19,8 @@ services:
 #  - ./rebar3 dialyzer
 
 script:
-  - make
+  - make build #skip automated regression tests
+  - make ck
 
 notifications:
   email:

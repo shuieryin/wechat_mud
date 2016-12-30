@@ -92,7 +92,7 @@ init_per_suite(Config) ->
     error_logger:tty(false),
     register(?MODULE, Self),
 
-    net_kernel:start(['wechat_mud@wechatmud.local', longnames]),
+    net_kernel:start(['wechat_mud_test', shortnames]),
 
     spawn(
         fun() ->
