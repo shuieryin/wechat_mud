@@ -24,7 +24,8 @@
     player_uid,
     player_id,
     pid,
-    valid_langs
+    valid_langs,
+    func_total_weighing
 }).
 
 %%%===================================================================
@@ -41,52 +42,48 @@ test(_Config) ->
         _Exist ->
             ValidLangs = elib:type_values(nls_server, support_lang),
 
+            RandomFuncs = [
+                {100, fun look_scene/1},
+                {100, fun look_target/1},
+                {50, fun look_target_invalid/1},
+                {250, fun go_direction/1},
+                {100, fun hp/1},
+                {100, fun lang/1},
+                {50, fun lang_invalid/1},
+                {50, fun lang_invalid_1/1},
+                {300, fun perform/1},
+                {50, fun perform_invalid/1},
+                {50, fun perform_invalid_1/1},
+                {50, fun attack/1},
+                {50, fun attack_invalid/1},
+                {300, fun ask/1},
+                {50, fun ask_invalid/1},
+                {50, fun rereg/1},
+                {50, fun invalid_input/1},
+                {30, fun player_id/1},
+                {30, fun player_state/1},
+                {30, fun player_state_by_id/1},
+                {30, fun mail_box/1},
+                {30, fun lang_map/1},
+                {50, fun upgrade_value_by_id/1},
+                {50, fun lang_all/1},
+                {50, fun exits_map/1}
+            ],
+
             ModelState = #state{
                 player_uid = CurrentPlayerUid,
                 player_id = register_test:test_id(atom_to_binary(CurrentPlayerUid, utf8)),
                 pid = Self,
-                valid_langs = ValidLangs
+                valid_langs = ValidLangs,
+                func_total_weighing = elib:total_weighing(RandomFuncs)
             },
-
-            RandomFuncs = [
-                {fun look_scene/1, 1},
-                {fun look_target/1, 2},
-                {fun look_target_invalid/1, 1},
-                {fun go_direction/1, 1},
-                {fun hp/1, 1},
-                {fun lang/1, 1},
-                {fun lang_invalid/1, 1},
-                {fun lang_invalid_1/1, 1},
-                {fun perform/1, 2},
-                {fun perform_invalid/1, 1},
-                {fun perform_invalid_1/1, 1},
-                {fun attack/1, 1},
-                {fun attack_invalid/1, 1},
-                {fun ask/1, 1},
-                {fun ask_invalid/1, 1},
-                {fun rereg/1, 1},
-                {fun invalid_input/1, 1},
-                {fun player_id/1, 1},
-                {fun player_state/1, 1},
-                {fun player_state_by_id/1, 1},
-                {fun mail_box/1, 1},
-                {fun lang_map/1, 1},
-                {fun upgrade_value_by_id/1, 1},
-                {fun lang_all/1, 1},
-                {fun exits_map/1, 1}
-            ],
 
             run_test(RandomFuncs, ModelState)
     end.
 
-run_test(RandomFuncs, ModelState) ->
-    {Func, Times} = ?ONE_OF(RandomFuncs),
-    lists:foreach(
-        fun(_Index) ->
-            apply(Func, [ModelState])
-        end,
-        lists:seq(1, Times)
-    ),
+run_test(RandomFuncs, #state{func_total_weighing = TotalWeighing} = ModelState) ->
+    {_LeftWeighing, TargetFunc} = elib:rand_by_weigh(TotalWeighing, RandomFuncs),
+    apply(TargetFunc, [ModelState]),
     true.
 
 %%%===================================================================

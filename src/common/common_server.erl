@@ -22,9 +22,7 @@
     runtime_data/1,
     runtime_data/2,
     runtime_datas/1,
-    random_npc/0,
-    start/0,
-    stop/0
+    random_npc/0
 ]).
 
 %% gen_server callbacks
@@ -65,26 +63,6 @@
 -spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Starts server by setting module name as server name without link.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec start() -> gen:start_ret().
-start() ->
-    gen_server:start({local, ?SERVER}, ?MODULE, [], []).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Stop server.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec stop() -> ok.
-stop() ->
-    gen_server:cast(?SERVER, stop).
 
 %%--------------------------------------------------------------------
 %% @doc

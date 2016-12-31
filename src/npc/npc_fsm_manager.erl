@@ -17,8 +17,7 @@
 %% API
 -export([
     start_link/0,
-    new_npcs/1,
-    stop/0
+    new_npcs/1
 ]).
 
 %% gen_server callbacks
@@ -62,16 +61,6 @@
 -spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Stop server.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec stop() -> ok.
-stop() ->
-    gen_server:cast(?SERVER, stop).
 
 %%--------------------------------------------------------------------
 %% @doc

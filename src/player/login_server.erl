@@ -26,8 +26,6 @@
     is_uid_logged_in/1,
     logout/2,
     is_id_registered/1,
-    start/0,
-    stop/0,
     registered_player_uids/0,
     logout_all_players/0,
     logged_in_player_uids/0,
@@ -73,26 +71,6 @@
 -spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Starts server by setting module name as server name without link.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec start() -> gen:start_ret().
-start() ->
-    gen_server:start({local, ?SERVER}, ?MODULE, [], []).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Stop server.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec stop() -> ok.
-stop() ->
-    gen_server:cast(?SERVER, stop).
 
 %%--------------------------------------------------------------------
 %% @doc

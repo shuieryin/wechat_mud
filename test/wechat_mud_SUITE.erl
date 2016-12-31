@@ -2,6 +2,7 @@
 %%% @author shuieryin
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
+%%% TODO enable rb to print all error messages in the end
 %%%
 %%% @end
 %%% Created : 24. Nov 2015 7:42 PM
@@ -28,7 +29,8 @@
     register_test/1,
     player_action_test/1,
     login_test/1,
-    logout_test/1
+    logout_test/1,
+    hot_code_upgrade_test/1
 ]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -48,34 +50,42 @@ suite() ->
 
 all() ->
     [
+        {group, hot_code_upgrade_regression},
         {group, register_regression},
         {group, player_action_regression},
         {group, login_logout_regression}
     ].
 
 groups() ->
-    SpawnAmount = 30,
+    SpawnAmount = 32, % 32
     PlayerActionRegression = {
         player_action_regression,
-        [parallel, {repeat, SpawnAmount - SpawnAmount div 2}],
-        [player_action_test || _X <- lists:seq(1, SpawnAmount * 2)]
+        [parallel, {repeat, SpawnAmount div 2}],
+        inner_repeat(player_action_test, SpawnAmount * 2)
     },
 
     [
         {
+            hot_code_upgrade_regression,
+            [shuffle],
+            [hot_code_upgrade_test]
+        },
+
+        {
             register_regression,
             [parallel, {repeat, 1}],
-            [register_test || _X <- lists:seq(1, SpawnAmount)]
+            inner_repeat(register_test, SpawnAmount)
         }
     ]
 
-    ++ [PlayerActionRegression || _X <- lists:seq(1, 2)] ++
+    ++ inner_repeat(PlayerActionRegression, 2) ++
 
         [
+
             {
                 login_logout_regression,
                 [parallel, shuffle],
-                    [login_test || _X <- lists:seq(1, SpawnAmount div 2)] ++ [logout_test || _X <- lists:seq(1, SpawnAmount div 2)]
+                    inner_repeat(login_test, SpawnAmount div 2) ++ inner_repeat(logout_test, SpawnAmount div 2)
             }
         ].
 
@@ -83,6 +93,7 @@ register_test(Cfg) -> run_test(register_test, 1, Cfg).
 player_action_test(Cfg) -> run_test(player_action_test, 1, Cfg).
 login_test(Cfg) -> run_test(login_test, 1, Cfg).
 logout_test(Cfg) -> run_test(logout_test, 1, Cfg).
+hot_code_upgrade_test(Cfg) -> run_test(hot_code_upgrade_test, 1, Cfg).
 
 %%%===================================================================
 %%% Init states
@@ -92,7 +103,7 @@ init_per_suite(Config) ->
     error_logger:tty(false),
     register(?MODULE, Self),
 
-    net_kernel:start(['wechat_mud_test', shortnames]),
+    net_kernel:start(['wechat_mud_test@test.local', longnames]),
 
     spawn(
         fun() ->
@@ -258,3 +269,6 @@ run_test(Module, Times, Cfg) ->
         end,
         lists:seq(1, Times)
     ).
+
+inner_repeat(TestName, Times) ->
+    [TestName || _X <- lists:seq(1, Times)].

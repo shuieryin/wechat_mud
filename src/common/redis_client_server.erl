@@ -26,9 +26,7 @@
     async_save/0,
     del/2,
     async_del/2,
-    clear_all/0,
-    start/0,
-    stop/0
+    clear_all/0
 ]).
 
 %% gen_server callbacks
@@ -67,16 +65,6 @@
 -spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Starts server by setting module name as server name without link.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec start() -> gen:start_ret().
-start() ->
-    gen_server:start({local, ?SERVER}, ?MODULE, [], []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -184,16 +172,6 @@ clear_all() ->
     {ok, RedisClientPid} = eredis:start_link(),
     eredis:q(RedisClientPid, ["FLUSHDB"]),
     eredis:q(RedisClientPid, ["SAVE"]).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Stop server.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec stop() -> ok.
-stop() ->
-    gen_server:cast(?SERVER, stop).
 
 %%%===================================================================
 %%% gen_server callbacks

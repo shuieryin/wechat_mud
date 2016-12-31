@@ -27,8 +27,6 @@
     show_langs/2,
     do_response_content/3,
     lang_map/1,
-    start/0,
-    stop/0,
     fill_in_content/3,
     convert_target_nls/4,
     nls_file_name_map/0,
@@ -92,26 +90,6 @@
 -spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Starts server by setting module name as server name without link.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec start() -> gen:start_ret().
-start() ->
-    gen_server:start({local, ?SERVER}, ?MODULE, [], []).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Stop server.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec stop() -> ok.
-stop() ->
-    gen_server:cast(?SERVER, stop).
 
 %%--------------------------------------------------------------------
 %% @doc
