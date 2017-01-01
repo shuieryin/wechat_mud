@@ -30,7 +30,8 @@
     player_action_test/1,
     login_test/1,
     logout_test/1,
-    hot_code_upgrade_test/1
+    hot_code_upgrade_test/1,
+    print_error_report/1
 ]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -53,7 +54,8 @@ all() ->
         {group, hot_code_upgrade_regression},
         {group, register_regression},
         {group, player_action_regression},
-        {group, login_logout_regression}
+        {group, login_logout_regression},
+        {group, print_error_report}
     ].
 
 groups() ->
@@ -86,6 +88,12 @@ groups() ->
                 login_logout_regression,
                 [parallel, shuffle],
                     inner_repeat(login_test, SpawnAmount div 2) ++ inner_repeat(logout_test, SpawnAmount div 2)
+            },
+
+            {
+                print_error_report,
+                [],
+                [print_error_report]
             }
         ].
 
@@ -94,21 +102,16 @@ player_action_test(Cfg) -> run_test(player_action_test, 1, Cfg).
 login_test(Cfg) -> run_test(login_test, 1, Cfg).
 logout_test(Cfg) -> run_test(logout_test, 1, Cfg).
 hot_code_upgrade_test(Cfg) -> run_test(hot_code_upgrade_test, 1, Cfg).
+print_error_report(Cfg) -> print_error_report:do(Cfg).
 
 %%%===================================================================
 %%% Init states
 %%%===================================================================
 init_per_suite(Config) ->
+    net_kernel:start(['wechat_mud_test@test.local', longnames]),
     Self = self(),
     error_logger:tty(false),
     register(?MODULE, Self),
-
-    net_kernel:start(['wechat_mud_test@test.local', longnames]),
-
-    spawn(
-        fun() ->
-            ct:pal("~p~n", [os:cmd("redis-server")])
-        end),
 
     ct:pal("
         InetsStart:~p~n
@@ -117,6 +120,21 @@ init_per_suite(Config) ->
         PublickeyStart:~p~n
         SslStart:~p~n
         SaslStart:~p~n
+    ", [
+        application:start(inets),
+        application:start(crypto),
+        application:start(asn1),
+        application:start(public_key),
+        application:start(ssl),
+        application:start(sasl)
+    ]),
+
+    spawn(
+        fun() ->
+            ct:pal("~p~n", [os:cmd("redis-server")])
+        end),
+
+    ct:pal("
         CowlibStart:~p~n
         RanchStart:~p~n
         CowboyStart:~p~n
@@ -128,12 +146,6 @@ init_per_suite(Config) ->
         ReconStart:~p~n
         WechatmudStart:~p~n
     ", [
-        application:start(inets),
-        application:start(crypto),
-        application:start(asn1),
-        application:start(public_key),
-        application:start(ssl),
-        application:start(sasl),
         application:start(cowlib),
         application:start(ranch),
         application:start(cowboy),
@@ -151,6 +163,15 @@ init_per_suite(Config) ->
             ct:pal("wechat_started~n"),
             ok
     end,
+
+%%    PrivDir = code:priv_dir(wechat_mud),
+%%    {ok, SysConfig} = file:consult(filename:join([PrivDir, "..", "config", "sys.config"])),
+%%    ct:pal("SysConfig:~p~n", [SysConfig]),
+%%    [application:set_env(sasl, K, V) || {K, V} <- SysConfig],
+
+%%    ct:pal("~p~n", [rb:start([{type, [error_report, error]}, {max, 20}])]),
+
+%%    ok = elib:show_errors(20),
 
     Config.
 

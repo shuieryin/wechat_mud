@@ -52,9 +52,14 @@ test(_Config) ->
 
     file:write_file(TargetNlsFilePath, <<PrefixContent/binary, LinePrefix/binary, ",233333", EndingChar/binary, "\n", SuffixContent/binary>>),
 
-    error_logger:info_msg("start hcu"),
+    error_logger:info_msg("start hcu"), % TODO try to implement black box hot code upgrade
 
-    os:cmd("cd " ++ filename:join([PrivDir, ".."]) ++ "; make hcu"), % TODO try to implement black box hot code upgrade
+%%    os:cmd("cd " ++ filename:join([PrivDir, ".."]) ++ "; make hcu"),
+
+%%    elib:cmd("cd " ++ filename:join([PrivDir, ".."]) ++ "; make hcu",
+%%        fun(Str) ->
+%%            error_logger:info_msg("~p", [Str])
+%%        end),
 
     file:write_file(TargetNlsFilePath, <<PrefixContent/binary, LinePrefix/binary, ",", OriginLineSuffix/binary, "\n", SuffixContent/binary>>),
     true.

@@ -37,7 +37,7 @@
 start(normal, StartArgs) ->
     ok = start_web(),
     {ok, Pid} = wechat_mud_sup:start_link(StartArgs),
-    % ok = elib:show_errors(20),
+    ok = elib:show_errors(20),
     {ok, Pid, #state{}}.
 
 %%--------------------------------------------------------------------
