@@ -13,8 +13,9 @@
 
 -record(affair_context, {
     from_player :: #player_profile{} | undefined,
-    affair_name :: binary() | undefined,
+    affair_name :: player_statem:affair_name() | undefined,
     answer :: #ask_n_answer{} | undefined,
     dispatcher_pid :: pid() | undefined,
-    response_message :: [nls_server:nls_object()] | undefined
+    response_message :: [nls_server:nls_object()] | undefined,
+    affair_data :: player_statem:affair_data()
 }).

@@ -56,7 +56,8 @@
 -type name() :: nls_server:nls_object().
 -type mail_object() :: [nls_server:nls_object()].
 -type command_func() :: atom(). % generic atom
--type affair_name() :: module() | atom().
+-type affair_name() :: module() | atom() | binary().
+-type affair_data() :: term().
 
 -include("../data_type/player_profile.hrl").
 -include("../data_type/npc_profile.hrl").
@@ -83,7 +84,8 @@
     player_state_name/0,
     command_func/0,
     skills/0,
-    affair_name/0
+    affair_name/0,
+    affair_data/0
 ]).
 
 %%%===================================================================
@@ -632,7 +634,7 @@ non_battle({call, From}, player_id, #player_state{
     }
 }) ->
     {keep_state_and_data, {reply, From, PlayerId}};
-non_battle({call, From}, affair_name, #player_state{current_affair_name = AffairName}) ->
+non_battle({call, From}, affair_name, #player_state{current_affair = {AffairName, _AffairData}}) ->
     {keep_state_and_data, {reply, From, AffairName}}.
 
 %%--------------------------------------------------------------------
@@ -667,7 +669,7 @@ affair_menu(cast, {response_content, NlsObjectList, DispatcherPid}, Data) ->
     UpdatedData = do_response_content(Data, NlsObjectList, DispatcherPid),
     {next_state, affair_menu, UpdatedData};
 affair_menu(cast, {handle_affair_input, DispatcherPid, RawInput}, #player_state{
-    current_affair_name = AffairModName
+    current_affair = {AffairModName, _AffairData}
 } = PlayerState) ->
     AffairModName:handle_affair_input(PlayerState, DispatcherPid, RawInput);
 affair_menu(info, {'$gen_event',
@@ -722,7 +724,7 @@ affair_menu(cast, {upgrade_value_by_id, Value}, PlayerState) ->
     upgrade_value_by_id(Value, affair_menu, PlayerState);
 affair_menu({call, From}, logout, PlayerState) ->
     logout(PlayerState, From);
-affair_menu({call, From}, affair_name, #player_state{current_affair_name = AffairName}) ->
+affair_menu({call, From}, affair_name, #player_state{current_affair = {AffairName, _AffairData}}) ->
     {keep_state_and_data, {reply, From, AffairName}}.
 
 %%--------------------------------------------------------------------
@@ -939,7 +941,7 @@ execute_command(
         dispatcher_pid = DispatcherPid
     } = CommandContext,
     #player_state{
-        current_affair_name = CurrentAffairName
+        current_affair = {CurrentAffairName, _AffairData}
     } = PlayerState, StateName
 ) ->
     {FinalStateName, FinalPlayerState}
@@ -979,7 +981,7 @@ general_target(
             scene = CurSceneName,
             id = SrcPlayerId
         } = PlayerProfile,
-        current_affair_name = CurrentAffairName
+        current_affair = {CurrentAffairName, _AffairData}
     } = PlayerState, StateName
 ) ->
     {FinalStateName, FinalPlayerState}

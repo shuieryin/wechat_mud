@@ -34,3 +34,5 @@ ct:
 
 ck:
 	@./config/rebar3 ck
+
+bc: build ck

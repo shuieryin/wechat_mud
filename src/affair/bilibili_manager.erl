@@ -26,6 +26,11 @@
 -define(BILIBILI_NODE, 'bilibili@affair.local').
 -define(BILIBILI_GEN_SERVER, bilibili_common_server).
 
+-record(affair_action_bilibili_manager, {
+    action_id :: atom(),
+    action_desc :: nls_server:nls_object()
+}).
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -71,15 +76,19 @@ init(_NpcProfile, NpcContext) ->
 manage(#npc_state{
     npc_context = #{
         affair_action_name := AffairActionName
-    }
+    } = NpcContext
 } = NpcState, #command_context{
-    command_args = AffairContext
+    command_args = AffairContext,
+    from = #simple_player{
+        uid = Uid
+    }
 } = CommandContext, StateName) ->
     {
         NpcState,
         CommandContext#command_context{
             command_args = AffairContext#affair_context{
-                response_message = [{nls, AffairActionName}, <<"\n">>] ++ menu_display()
+                response_message = [{nls, AffairActionName}, <<"\n">>] ++ menu_display(NpcContext, Uid),
+                affair_data = NpcContext
             }
         }, StateName
     }.
@@ -128,24 +137,25 @@ help(#npc_state{
 feedback(State, #command_context{
     command_args = AffairContext
 }, _StateName) ->
-    CurrentAffairName
+    {CurrentAffairName, CurrentAffairData}
         = case AffairContext of
               #affair_context{
-                  affair_name = AffairName
+                  affair_name = AffairName,
+                  affair_data = AffairData
               } ->
                   case AffairName of
                       <<"manage">> ->
-                          ?MODULE;
+                          {?MODULE, AffairData};
                       _Other ->
-                          undefined
+                          {undefined, undefined}
                   end;
               _Other ->
-                  undefined
+                  {undefined, undefined}
           end,
 
     {
         State#player_state{
-            current_affair_name = CurrentAffairName
+            current_affair = {CurrentAffairName, CurrentAffairData}
         },
         affair_menu
     }.
@@ -171,16 +181,21 @@ handle_affair_input(#player_state{
     self = #player_profile{
         uid = Uid,
         scene = SceneName
-    }
+    },
+    current_affair = {_AffairName, NpcContext}
 } = PlayerState, DispatcherPid, RawInput) ->
     case RawInput of
         <<"0">> ->
             scene_fsm:show_scene(SceneName, Uid, DispatcherPid),
             {next_state, non_battle, PlayerState#player_state{
-                current_affair_name = undefined
+                current_affair = {undefined, undefined}
             }};
-        Select ->
-            player_statem:do_response_content(PlayerState, [{nls, invalid_command}, Select, <<"\n">>] ++ menu_display(), DispatcherPid),
+        <<"1">> ->
+            % TODO connect bilibili upload process
+            player_statem:do_response_content(PlayerState, [<<"Working on it.\n">>] ++ menu_display(NpcContext, Uid), DispatcherPid),
+            keep_state_and_data;
+        InvalidCommand ->
+            player_statem:do_response_content(PlayerState, [{nls, invalid_command}, InvalidCommand, <<"\n">>] ++ menu_display(NpcContext, Uid), DispatcherPid),
             keep_state_and_data
     end.
 
@@ -194,6 +209,32 @@ handle_affair_input(#player_state{
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec menu_display() -> [nls_server:nls_object()].
-menu_display() ->
-    [{nls, affair_menu}, <<"\n0: ">>, {nls, affiar_menu_exit}].
+-spec menu_display(NpcContext, PlayerUid) -> ReturnContent when
+    NpcContext :: map(),
+    PlayerUid :: player_statem:uid(),
+    ReturnContent :: [nls_server:nls_object()].
+menu_display(#{
+    affair_action_data := AffairData,
+    wizard_uids := WizardUis
+}, PlayerUid) ->
+    io:format("AffairData:~p~n", [AffairData]),
+    InitReturn = {0, []},
+    {_MenuItemCount, MenuList}
+        = case maps:is_key(PlayerUid, WizardUis) of
+              false ->
+                  InitReturn;
+              true ->
+                  maps:fold(
+                      fun(_CurActionId, AffairValue, {AccMenuItemCount, AccMenuList}) ->
+                          io:format("AffairValue:~p~n", [AffairValue]),
+                          #affair_action_bilibili_manager{
+                              action_desc = ActionDescNls
+                          } = AffairValue,
+                          UpdatedAccMenuItemCount = AccMenuItemCount + 1,
+                          UpdatedAccMenuItemCountBin = integer_to_binary(UpdatedAccMenuItemCount),
+                          {UpdatedAccMenuItemCount, [<<"\n", UpdatedAccMenuItemCountBin/binary, ": ">>, ActionDescNls | AccMenuList]}
+                      end, InitReturn, AffairData
+                  )
+          end,
+
+    [{nls, affair_menu}] ++ MenuList ++ [<<"\n0: ">>, {nls, affiar_menu_exit}].
