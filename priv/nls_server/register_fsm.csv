@@ -1,7 +1,7 @@
 id,zh,en
 select_lang,SB服务器欢迎您~nSB Server welcomes you!~n请选择语言:~nPlease select language:~n中文 - zh~nEnglish - en,SB服务器欢迎您~nSB Server welcomes you!~n请选择语言:~nPlease select language:~n中文 - zh~nEnglish - en
 gender_label,性别: ,Gender: 
-born_month_label,出生月份: ,Born month: 
+born_month_label,幸运数字: ,Lucky number: 
 please_input_gender,请输入角色的性别:~n(男-m / 女-f),Please input gender:~n(Male-m / Female-f)
 invalid_gender,无效性别: ,Invalid gender: 
 please_input_born_month,请选择1至12任意一个数字:~n(1 - 12),Please input arbitrary number from 1 to 12:~n(1 - 12)

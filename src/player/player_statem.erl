@@ -36,7 +36,8 @@
     player_id/1,
     upgrade_value_by_id/2,
     affair_menu/3,
-    handle_affair_input/3
+    handle_affair_input/3,
+    affair_name/1
 ]).
 
 %% gen_fsm callbacks
@@ -55,6 +56,7 @@
 -type name() :: nls_server:nls_object().
 -type mail_object() :: [nls_server:nls_object()].
 -type command_func() :: atom(). % generic atom
+-type affair_name() :: module() | atom().
 
 -include("../data_type/player_profile.hrl").
 -include("../data_type/npc_profile.hrl").
@@ -80,7 +82,8 @@
     mail_object/0,
     player_state_name/0,
     command_func/0,
-    skills/0
+    skills/0,
+    affair_name/0
 ]).
 
 %%%===================================================================
@@ -410,6 +413,10 @@ upgrade_value_by_id(PlayerId, Value) ->
 handle_affair_input(DispatcherPid, Uid, RawInput) ->
     gen_statem:cast(Uid, {handle_affair_input, DispatcherPid, RawInput}).
 
+-spec affair_name(uid()) -> affair_name().
+affair_name(Uid) ->
+    gen_statem:call(Uid, affair_name).
+
 %%%===================================================================
 %%% gen_fsm callbacks
 %%%===================================================================
@@ -500,7 +507,8 @@ init({Uid, DispatcherPid}) ->
     player_state |
     lang_map |
     mail_box |
-    player_id,
+    player_id |
+    affair_name,
 
     From :: gen_statem:from(),
 
@@ -548,21 +556,8 @@ non_battle(info, {'$gen_event',
         CommandContext
     }}, PlayerState) ->
     execute_command(CommandContext, PlayerState, non_battle);
-non_battle(
-    {call, From},
-    logout,
-    #player_state{
-        self = #player_profile{
-            scene = CurSceneName,
-            uid = Uid
-        } = PlayerProfile
-    } = Data
-) ->
-    scene_fsm:leave(CurSceneName, Uid),
-    true = redis_client_server:set(Uid, PlayerProfile, true),
-    error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
-    gen_statem:reply(From, ok),
-    {stop, normal, Data};
+non_battle({call, From}, logout, PlayerState) ->
+    logout(PlayerState, From);
 non_battle(cast, {append_message, Message, MailType}, Data) ->
     {next_state, non_battle, append_message_local(Message, MailType, Data)};
 non_battle(cast, {upgrade_value_by_id, Value}, PlayerState) ->
@@ -636,7 +631,9 @@ non_battle({call, From}, player_id, #player_state{
         id = PlayerId
     }
 }) ->
-    {keep_state_and_data, {reply, From, PlayerId}}.
+    {keep_state_and_data, {reply, From, PlayerId}};
+non_battle({call, From}, affair_name, #player_state{current_affair_name = AffairName}) ->
+    {keep_state_and_data, {reply, From, AffairName}}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -651,6 +648,7 @@ non_battle({call, From}, player_id, #player_state{
     {handle_affair_input, DispatcherPid, RawInput} |
     {upgrade_value_by_id, Value} |
     get_lang | lang_map | player_id | current_scene_name | player_state | mail_box |
+    logout | affair_name |
     {'$gen_event', {execute_command | general_target, CommandContext}},
 
     StateFunctionResult :: gen_statem:event_handler_result(Data) |
@@ -721,7 +719,11 @@ affair_menu({call, From}, mail_box, #player_state{
 }) ->
     {keep_state_and_data, {reply, From, Mailbox}};
 affair_menu(cast, {upgrade_value_by_id, Value}, PlayerState) ->
-    upgrade_value_by_id(Value, affair_menu, PlayerState).
+    upgrade_value_by_id(Value, affair_menu, PlayerState);
+affair_menu({call, From}, logout, PlayerState) ->
+    logout(PlayerState, From);
+affair_menu({call, From}, affair_name, #player_state{current_affair_name = AffairName}) ->
+    {keep_state_and_data, {reply, From, AffairName}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -1030,3 +1032,24 @@ upgrade_value_by_id(Value, StateName, #player_state{
             }
         }
     }}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Logout player
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec logout(PlayerState, From) -> {stop, normal, PlayerState} when
+    PlayerState :: #player_state{},
+    From :: gen_statem:from().
+logout(#player_state{
+    self = #player_profile{
+        uid = Uid,
+        scene = CurSceneName
+    } = PlayerProfile
+} = PlayerState, From) ->
+    scene_fsm:leave(CurSceneName, Uid),
+    true = redis_client_server:set(Uid, PlayerProfile, true),
+    error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
+    gen_statem:reply(From, ok),
+    {stop, normal, PlayerState}.

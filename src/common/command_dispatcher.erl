@@ -371,42 +371,16 @@ handle_input(Uid, RawInput) ->
     MatchStatus = re:run(RawInput, <<"^[0-9]{1,", ?AFFAIR_INPUT_DIGIT_SIZE/binary, "}$">>),
     case MatchStatus of
         nomatch ->
-            [ModuleNameBin | RawCommandArgs] = binary:split(RawInput, <<" ">>),
-
-            RawModuleName = parse_raw_command(ModuleNameBin),
-
-            CommandInfo =
-                case is_command_exist(RawModuleName) of
-                    true ->
-                        {binary_to_atom(RawModuleName, utf8), RawCommandArgs};
-                    false ->
-                        case direction:parse_direction(RawModuleName) of
-                            undefined ->
-                                invalid_command;
-                            Direction ->
-                                direction:module_info(),
-                                {direction, [Direction]}
-                        end
-                end,
-
-            case CommandInfo of
-                {ModuleName, CommandArgs} ->
-                    Arity = length(CommandArgs),
-                    Args = [Uid, RawInput | CommandArgs],
-
-                    ModuleName:module_info(), % call module_info in order to make function_exported works
-                    case erlang:function_exported(ModuleName, exec, Arity + 3) of
-                        true ->
-                            pending_content(ModuleName, exec, Args);
-                        false ->
-                            nls_server:get_nls_content([{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(binary_to_list(RawModuleName) ++ "_help")}], ?Get_lang(Uid))
-                    end;
-
-                invalid_command ->
-                    nls_server:get_nls_content([{nls, invalid_command}, ModuleNameBin], ?Get_lang(Uid))
-            end;
+            handle_normal_input(Uid, RawInput);
         {match, _Match} ->
-            pending_content(player_statem, handle_affair_input, [Uid, RawInput])
+            AffairName = player_statem:affair_name(Uid),
+            % error_logger:info_msg("AffairName:~p~n", [AffairName]),
+            case AffairName of
+                undefined ->
+                    handle_normal_input(Uid, RawInput);
+                _InAffair ->
+                    pending_content(player_statem, handle_affair_input, [Uid, RawInput])
+            end
     end.
 
 %%--------------------------------------------------------------------
@@ -630,4 +604,49 @@ is_command_exist(SpecialHandling) ->
             true;
         true ->
             false
+    end.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Handle normal input.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec handle_normal_input(Uid, RawInput) -> ReturnContent :: [nls_server:value()] when
+    Uid :: player_statem:uid(),
+    RawInput :: binary().
+handle_normal_input(Uid, RawInput) ->
+    [ModuleNameBin | RawCommandArgs] = binary:split(RawInput, <<" ">>),
+
+    RawModuleName = parse_raw_command(ModuleNameBin),
+
+    CommandInfo =
+        case is_command_exist(RawModuleName) of
+            true ->
+                {binary_to_atom(RawModuleName, utf8), RawCommandArgs};
+            false ->
+                case direction:parse_direction(RawModuleName) of
+                    undefined ->
+                        invalid_command;
+                    Direction ->
+                        direction:module_info(),
+                        {direction, [Direction]}
+                end
+        end,
+
+    case CommandInfo of
+        {ModuleName, CommandArgs} ->
+            Arity = length(CommandArgs),
+            Args = [Uid, RawInput | CommandArgs],
+
+            ModuleName:module_info(), % call module_info in order to make function_exported works
+            case erlang:function_exported(ModuleName, exec, Arity + 3) of
+                true ->
+                    pending_content(ModuleName, exec, Args);
+                false ->
+                    nls_server:get_nls_content([{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(binary_to_list(RawModuleName) ++ "_help")}], ?Get_lang(Uid))
+            end;
+
+        invalid_command ->
+            nls_server:get_nls_content([{nls, invalid_command}, ModuleNameBin], ?Get_lang(Uid))
     end.

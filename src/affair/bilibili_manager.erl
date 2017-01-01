@@ -79,7 +79,7 @@ manage(#npc_state{
         NpcState,
         CommandContext#command_context{
             command_args = AffairContext#affair_context{
-                response_message = [{nls, AffairActionName}, <<"\n">>, {nls, affair_menu}, <<"\n0: ">>, {nls, affiar_menu_exit}]
+                response_message = [{nls, AffairActionName}, <<"\n">>] ++ menu_display()
             }
         }, StateName
     }.
@@ -167,11 +167,33 @@ feedback(State, #command_context{
     StateFunctionResult :: gen_statem:event_handler_result(Data) |
     {keep_state_and_data, Action} |
     {next_state, UpdatePlayerState, Data}.
-handle_affair_input(PlayerState, DispatcherPid, RawInput) ->
-    error_logger:info_msg("RawInput:~p~n", [RawInput]), % TODO implement handle affair input
-    player_statem:do_response_content(PlayerState, [RawInput], DispatcherPid),
-    keep_state_and_data.
+handle_affair_input(#player_state{
+    self = #player_profile{
+        uid = Uid,
+        scene = SceneName
+    }
+} = PlayerState, DispatcherPid, RawInput) ->
+    case RawInput of
+        <<"0">> ->
+            scene_fsm:show_scene(SceneName, Uid, DispatcherPid),
+            {next_state, non_battle, PlayerState#player_state{
+                current_affair_name = undefined
+            }};
+        Select ->
+            player_statem:do_response_content(PlayerState, [{nls, invalid_command}, Select, <<"\n">>] ++ menu_display(), DispatcherPid),
+            keep_state_and_data
+    end.
 
 %%%===================================================================
-%%% Internal functions (N/A)
+%%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Return menu display content.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec menu_display() -> [nls_server:nls_object()].
+menu_display() ->
+    [{nls, affair_menu}, <<"\n0: ">>, {nls, affiar_menu_exit}].
