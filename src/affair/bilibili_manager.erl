@@ -189,7 +189,6 @@ handle_affair_input(#player_state{
         menu_desc_nls := MenuDescNls
     }}
 } = PlayerState, DispatcherPid, RawInput) ->
-    Self = self(),
     case RawInput of
         <<"0">> ->
             scene_fsm:show_scene(SceneName, PlayerUid, DispatcherPid),
@@ -200,10 +199,10 @@ handle_affair_input(#player_state{
             ResponseMessage =
                 case elib:connect_node(?BILIBILI_NODE) of
                     true ->
-                        case gen_server:call({global, ?BILIBILI_GEN_SERVER}, {Self, PlayerUid}) of
+                        case gen_server:call({global, ?BILIBILI_GEN_SERVER}, {login, PlayerUid}) of
                             undefined ->
                                 [{nls, bilibili_manager_offline}, <<"\n">>];
-                            {Self, ReturnContent} ->
+                            ReturnContent ->
                                 ReturnContent
                         end;
                     _NoConnection ->
