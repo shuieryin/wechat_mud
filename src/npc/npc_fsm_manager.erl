@@ -298,7 +298,7 @@ traverse_npcspec([{NpcId, Amount} | Tail], AccNpcsList, AccNpcsMap) ->
 new_npc(0, _NpcBornProfile, AccNpcsList, AccOverallNpcsMap) ->
     {AccNpcsList, AccOverallNpcsMap};
 new_npc(Amount, #npc_profile{ask_n_answers = RawAskNAnswers} = NpcBornProfile, AccNpcsList, AccOverallNpcsMap) ->
-    NpcUid = cm:uuid(),
+    NpcUid = elib:uuid(),
 
     %% =========Convert AskNAnswers from "nls_server:nls_object()" to "nls_server:value()" - START=========
     AskNAnswers = case RawAskNAnswers of

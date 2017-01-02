@@ -15,7 +15,6 @@
 -export([
     q/0,
     observer/0,
-    uuid/0,
     general_target/2,
     execute_command/2,
     execute_sync_command/2
@@ -53,17 +52,6 @@ q() ->
 -spec observer() -> pong | pang.
 observer() ->
     net_adm:ping(?OBSERVER_NODE).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Generate uuid in atom.
-%% Caution! Be careful of this function. Improper use may lead to memory leak.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec uuid() -> atom(). % generic atom
-uuid() ->
-    list_to_atom(uuid:uuid_to_string(uuid:get_v4())).
 
 %%--------------------------------------------------------------------
 %% @doc

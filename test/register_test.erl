@@ -28,7 +28,7 @@
 %%%===================================================================
 
 test(_Config) ->
-    RawTestUid = cm:uuid(),
+    RawTestUid = elib:uuid(),
     TestUid = atom_to_binary(RawTestUid, utf8),
     TestId = test_id(TestUid),
     FsmId = register_fsm:register_server_name(RawTestUid),
