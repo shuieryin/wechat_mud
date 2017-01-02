@@ -83,12 +83,15 @@ manage(#npc_state{
         uid = Uid
     }
 } = CommandContext, StateName) ->
+    MenuDescNls = menu_display(NpcContext, Uid),
     {
         NpcState,
         CommandContext#command_context{
             command_args = AffairContext#affair_context{
-                response_message = [{nls, AffairActionName}, <<"\n">>] ++ menu_display(NpcContext, Uid),
-                affair_data = NpcContext
+                response_message = [{nls, AffairActionName}, <<"\n">>] ++ MenuDescNls,
+                affair_data = NpcContext#{
+                    menu_desc_nls => MenuDescNls
+                }
             }
         }, StateName
     }.
@@ -179,29 +182,55 @@ feedback(State, #command_context{
     {next_state, UpdatePlayerState, Data}.
 handle_affair_input(#player_state{
     self = #player_profile{
-        uid = Uid,
+        uid = PlayerUid,
         scene = SceneName
     },
-    current_affair = {_AffairName, NpcContext}
+    current_affair = {_AffairName, #{
+        menu_desc_nls := MenuDescNls
+    }}
 } = PlayerState, DispatcherPid, RawInput) ->
+    Self = self(),
     case RawInput of
         <<"0">> ->
-            scene_fsm:show_scene(SceneName, Uid, DispatcherPid),
+            scene_fsm:show_scene(SceneName, PlayerUid, DispatcherPid),
             {next_state, non_battle, PlayerState#player_state{
                 current_affair = {undefined, undefined}
             }};
         <<"1">> ->
-            % TODO connect bilibili upload process
-            player_statem:do_response_content(PlayerState, [<<"Working on it.\n">>] ++ menu_display(NpcContext, Uid), DispatcherPid),
+            ResponseMessage =
+                case elib:connect_node(?BILIBILI_NODE) of
+                    true ->
+                        case gen_server:call({global, ?BILIBILI_GEN_SERVER}, {Self, PlayerUid}) of
+                            undefined ->
+                                [{nls, bilibili_manager_offline}, <<"\n">>];
+                            {Self, ReturnContent} ->
+                                ReturnContent
+                        end;
+                    _NoConnection ->
+                        [{nls, bilibili_manager_offline}, <<"\n">>]
+                end,
+            player_statem:do_response_content(PlayerState, ResponseMessage ++ MenuDescNls, DispatcherPid),
             keep_state_and_data;
         InvalidCommand ->
-            player_statem:do_response_content(PlayerState, [{nls, invalid_command}, InvalidCommand, <<"\n">>] ++ menu_display(NpcContext, Uid), DispatcherPid),
+            player_statem:do_response_content(PlayerState, [{nls, invalid_command}, InvalidCommand, <<"\n">>] ++ MenuDescNls, DispatcherPid),
             keep_state_and_data
     end.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Check whether player uid is registered for bilibili management.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec is_registered(player_statem:uid(), map()) -> boolean().
+is_registered(PlayerUid, #{
+    wizard_uids := WizardUis
+}) ->
+    maps:is_key(PlayerUid, WizardUis).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -214,19 +243,16 @@ handle_affair_input(#player_state{
     PlayerUid :: player_statem:uid(),
     ReturnContent :: [nls_server:nls_object()].
 menu_display(#{
-    affair_action_data := AffairData,
-    wizard_uids := WizardUis
-}, PlayerUid) ->
-    io:format("AffairData:~p~n", [AffairData]),
+    affair_action_data := AffairData
+} = NpcContext, PlayerUid) ->
     InitReturn = {0, []},
     {_MenuItemCount, MenuList}
-        = case maps:is_key(PlayerUid, WizardUis) of
+        = case is_registered(PlayerUid, NpcContext) of
               false ->
                   InitReturn;
               true ->
                   maps:fold(
                       fun(_CurActionId, AffairValue, {AccMenuItemCount, AccMenuList}) ->
-                          io:format("AffairValue:~p~n", [AffairValue]),
                           #affair_action_bilibili_manager{
                               action_desc = ActionDescNls
                           } = AffairValue,
