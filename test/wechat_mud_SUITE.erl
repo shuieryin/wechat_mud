@@ -159,8 +159,8 @@ init_per_suite(Config) ->
     ]),
 
     receive
-        {Self, wechat_started} ->
-            ct:pal("wechat_started~n"),
+        {Self, wechat_mud_started} ->
+            ct:pal("wechat_mud_started~n"),
             ok
     end,
 
