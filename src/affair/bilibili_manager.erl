@@ -24,7 +24,7 @@
 -include("../data_type/ask.hrl").
 
 -define(BILIBILI_NODE, 'bilibili_manager@192.168.1.123').
--define(BILIBILI_GEN_SERVER, bilibili_common_server).
+-define(BILIBILI_GEN_SERVER, bilibili_manager_common_server).
 
 -record(affair_action_bilibili_manager, {
     action_id :: atom(),
