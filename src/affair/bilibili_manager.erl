@@ -28,7 +28,15 @@
 -define(INIT_MENU_DATA, #{0 => exit_menu}).
 -define(SERVER_DOMAIN, server_domain).
 
--type event_type() :: input_credentials | init_browser_session | close_browser_session | input_captcha.
+-define(RESPONSE_CONTENT(NlsList), player_statem:do_response_content(PlayerState, NlsList, DispatcherPid)).
+
+-type event_type() ::
+input_credentials |
+init_browser_session |
+close_browser_session |
+input_captcha |
+pending_process_vids.
+
 -type menu_name() :: atom().
 -type menu_data() :: #{integer() => menu_name()}.
 
@@ -241,7 +249,7 @@ handle_affair_input(#player_state{
         menu ->
             case maps:get(binary_to_integer(RawInput), MenuData, undefined) of
                 exit_menu ->
-                    request(PlayerUid, {close_browser_session, []}),
+                    % request(PlayerUid, {close_browser_session, []}), % browser session will be closed in 30 mins in Bilibili node
                     UpdatedPlayerState = PlayerState#player_state{
                         current_affair = {undefined, undefined}
                     },
@@ -249,7 +257,7 @@ handle_affair_input(#player_state{
                     scene_fsm:show_scene(SceneName, PlayerUid, DispatcherPid),
                     {next_state, non_battle, UpdatedPlayerState};
                 update_bilibili_profile ->
-                    player_statem:do_response_content(PlayerState, [{nls, input_username_password_format}], DispatcherPid),
+                    ?RESPONSE_CONTENT([{nls, input_username_password_format}]),
                     {next_state, affair_menu, PlayerState#player_state{
                         current_affair = {AffairName, AffairData#{
                             bilibili_manager_context := BilibiliManagerContext#bilibili_manager_context{
@@ -259,14 +267,32 @@ handle_affair_input(#player_state{
                     }};
                 login_bilibili ->
                     login_bilibili(PlayerState, DispatcherPid);
+                pending_process_vids ->
+                    case request(PlayerUid, {pending_process_vids, []}) of
+                        undefined ->
+                            ?RESPONSE_CONTENT([{nls, bilibili_manager_offline}, <<"\n">>] ++ MenuDescNls);
+                        {struct, JsonObjectList} ->
+                            {<<"vids_list">>, VidsList} = lists:keyfind(<<"vids_list">>, 1, JsonObjectList),
+
+                            VidsListNls = lists:foldl(
+                                fun(PathBin, AccVidsList) ->
+                                    VidFilename = filename:basename(PathBin),
+                                    [<<"[", VidFilename/binary, "]\n">> | AccVidsList]
+                                end,
+                                [<<":\n">>, {nls, pending_upload_vids_desc}],
+                                VidsList
+                            ),
+                            ?RESPONSE_CONTENT(lists:reverse(VidsListNls))
+                    end,
+                    keep_state_and_data;
                 _InvalidCommand ->
-                    player_statem:do_response_content(PlayerState, [{nls, invalid_command}, RawInput, <<"\n">>] ++ MenuDescNls, DispatcherPid),
+                    ?RESPONSE_CONTENT([{nls, invalid_command}, RawInput, <<"\n">>] ++ MenuDescNls),
                     keep_state_and_data
             end;
         input_username_password ->
             case re:run(RawInput, <<"99\\s+(\\S+)\\s+(\\S+)">>, [{capture, all, binary}]) of
                 nomatch ->
-                    player_statem:do_response_content(PlayerState, [{nls, input_username_password_format}], DispatcherPid),
+                    ?RESPONSE_CONTENT([{nls, input_username_password_format}]),
                     keep_state_and_data;
                 {match, [_TrimedInput, Username, Password]} ->
                     UpdatedAccountProfilesMap = AccountProfilesMap#{
@@ -287,7 +313,7 @@ handle_affair_input(#player_state{
                         },
 
                     true = redis_client_server:set(?BILIBILI_ACCOUNT_PROFILES, UpdatedAccountProfilesMap, true),
-                    player_statem:do_response_content(PlayerState, [{nls, bilibili_profile_updated}, <<"\n">>] ++ MenuDescNls, DispatcherPid),
+                    ?RESPONSE_CONTENT([{nls, bilibili_profile_updated}, <<"\n">>] ++ MenuDescNls),
                     {next_state, affair_menu, UpdatedPlayerState}
             end;
         input_captcha ->
@@ -302,7 +328,7 @@ handle_affair_input(#player_state{
 
             case re:run(RawInput, <<"98\\s+(\\S+)">>, [{capture, all, binary}]) of
                 nomatch ->
-                    player_statem:do_response_content(PlayerState, [{nls, please_input_captcha}, <<"\n">>, CaptchaUrl], DispatcherPid),
+                    ?RESPONSE_CONTENT([{nls, please_input_captcha}, <<"\n">>, CaptchaUrl]),
                     {next_state, affair_menu, UpdatedPlayerState};
                 {match, [_TrimedInput, CaptchaInputFromUser]} ->
                     error_logger:info_msg("RawCaptchaInputFromUser:~p~n", [CaptchaInputFromUser]),
@@ -310,13 +336,13 @@ handle_affair_input(#player_state{
                     error_logger:info_msg("ServerResponse:~p~n", [ServerResponse]),
                     case ServerResponse of
                         undefined ->
-                            player_statem:do_response_content(PlayerState, [{nls, bilibili_manager_offline}, <<"\n">>] ++ MenuDescNls, DispatcherPid),
+                            ?RESPONSE_CONTENT([{nls, bilibili_manager_offline}, <<"\n">>] ++ MenuDescNls),
                             keep_state_and_data;
                         {struct, JsonObjectList} ->
                             {<<"status">>, InputCaptchaStatus} = lists:keyfind(<<"status">>, 1, JsonObjectList),
                             case InputCaptchaStatus of
                                 true ->
-                                    player_statem:do_response_content(PlayerState, [{nls, login_sucess}, <<"\n">>] ++ MenuDescNls, DispatcherPid),
+                                    ?RESPONSE_CONTENT([{nls, login_sucess}, <<"\n">>] ++ MenuDescNls),
                                     {next_state, affair_menu, UpdatedPlayerState};
                                 _LoginFailed ->
                                     login_bilibili(UpdatedPlayerState, DispatcherPid)
@@ -474,6 +500,7 @@ request(Uid, {Event, EventParams}) ->
     StateFunctionResult :: gen_statem:event_handler_result(PlayerState) |
     {keep_state_and_data, Action} |
     {next_state, gen_statem:state_name(), UpdatedPlayerState}.
+%%noinspection ErlangUnusedVariable
 login_bilibili(#player_state{
     self = #player_profile{
         uid = PlayerUid
@@ -488,7 +515,7 @@ login_bilibili(#player_state{
 } = PlayerState, DispatcherPid) ->
     case maps:get(PlayerUid, AccountProfilesMap, undefined) of
         undefined ->
-            player_statem:do_response_content(PlayerState, [{nls, please_update_bilibili_profile}, <<"\n">>] ++ MenuDescNls, DispatcherPid),
+            ?RESPONSE_CONTENT([{nls, please_update_bilibili_profile}, <<"\n">>] ++ MenuDescNls),
             keep_state_and_data;
         #account_profile{
             account_name = Username,
@@ -504,13 +531,13 @@ login_bilibili(#player_state{
 
             case RawResponse of
                 undefined ->
-                    player_statem:do_response_content(PlayerState, [{nls, bilibili_manager_offline}, <<"\n">>] ++ MenuDescNls, DispatcherPid),
+                    ?RESPONSE_CONTENT([{nls, bilibili_manager_offline}, <<"\n">>] ++ MenuDescNls),
                     keep_state_and_data;
                 {struct, JsonObjectList} ->
                     {<<"is_logged_on">>, IsLoggedOn} = lists:keyfind(<<"is_logged_on">>, 1, JsonObjectList),
                     case IsLoggedOn of
                         true ->
-                            player_statem:do_response_content(PlayerState, [{nls, already_login}, <<"\n">>] ++ MenuDescNls, DispatcherPid),
+                            ?RESPONSE_CONTENT([{nls, already_login}, <<"\n">>] ++ MenuDescNls),
                             keep_state_and_data;
                         _LoggedOn ->
                             {<<"captcha_image_bytes">>, CaptchaImageBytes} = lists:keyfind(<<"captcha_image_bytes">>, 1, JsonObjectList),
@@ -533,7 +560,7 @@ login_bilibili(#player_state{
                                 }}
                             },
 
-                            player_statem:do_response_content(PlayerState, [{nls, please_input_captcha}, <<"\n">>, ImageUrl], DispatcherPid),
+                            ?RESPONSE_CONTENT([{nls, please_input_captcha}, <<"\n">>, ImageUrl]),
                             {next_state, affair_menu, UpdatedPlayerState}
                     end
             end
