@@ -1,4 +1,5 @@
 action_id:atom,action_desc:term
+update_bilibili_profile,"{nls, update_bilibili_profile_desc}."
 login_bilibili,"{nls, login_bilibili_desc}."
 pending_process_vids,"{nls, pending_process_vids_desc}."
 pending_upload_vids,"{nls, pending_upload_vids_desc}."

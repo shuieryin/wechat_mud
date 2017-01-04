@@ -29,6 +29,7 @@
 -type get_param() :: string() | binary(). % generic string % generic binary
 -type post_param() :: binary(). % generic binary
 -type command() :: binary(). % generic binary
+-type return_content() :: nls_server:value() | {image, binary()} | [nls_server:value()] | no_response.
 
 -record(wechat_get_params, {
     signature :: get_param(),
@@ -116,7 +117,7 @@ start(Req) ->
     Module :: module(),
     Function :: atom(), % generic atom
     Args :: [term()], % generic term
-    ReturnContent :: [nls_server:value()] | no_response.
+    ReturnContent :: return_content().
 pending_content(Module, Function, Args) ->
     Self = self(),
     FunctionArgs = [Self | Args],
@@ -129,7 +130,7 @@ pending_content(Module, Function, Args) ->
         {execed, Self, ReturnContent} ->
             ReturnContent
     after
-        1000 ->
+        5000 ->
             no_response
     end.
 
@@ -141,7 +142,7 @@ pending_content(Module, Function, Args) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec return_content(DispatcherPid, ReturnContent) -> ok when
-    ReturnContent :: binary() | [binary()],
+    ReturnContent :: return_content(),
     DispatcherPid :: pid().
 return_content(DispatcherPid, ReturnContent) ->
     DispatcherPid ! {execed, DispatcherPid, ReturnContent},
@@ -222,6 +223,7 @@ process_request(Req) ->
                 'Content' = RawInputBin,
                 'ToUserName' = PlatformId,
                 'FromUserName' = UidBin
+                %'MsgId' = MsgId
             } = ReqParams ->
                 error_logger:info_msg("User input:~tp~n", [RawInputBin]),
 
@@ -257,20 +259,22 @@ process_request(Req) ->
                     end,
 
                 Response =
-                    case ReturnContent of
-                        no_response ->
-                            <<>>;
-                        _ReturnContent ->
-                            try
+                    try
+                        case ReturnContent of
+                            no_response ->
+                                <<>>;
+                            {image, ImageUrl} ->
+                                compose_image_response(UidBin, PlatformId, ImageUrl);
+                            _ReturnContent ->
                                 ReturnContentBinary = list_to_binary(lists:flatten(elib:remove_last_newline(ReturnContent))),
                                 spawn(elib, pp, [ReturnContentBinary]),
-                                compose_xml_response(UidBin, PlatformId, ReturnContentBinary)
-                            catch
-                                Type:Reason ->
-                                    error_logger:error_msg("Invalid Content:~p~n", [ReturnContent]),
-                                    error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
-                                    <<>>
-                            end
+                                compose_text_response(UidBin, PlatformId, ReturnContentBinary)
+                        end
+                    catch
+                        Type:Reason ->
+                            error_logger:error_msg("Invalid Content:~p~n", [ReturnContent]),
+                            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
+                            <<>>
                     end,
                 Response
         end,
@@ -368,7 +372,7 @@ gen_action_from_message_type(
     RawInput :: binary(),
     ReturnContent :: [nls_server:value()].
 handle_input(Uid, RawInput) ->
-    MatchStatus = re:run(RawInput, <<"^[0-9]{1,", ?AFFAIR_INPUT_DIGIT_SIZE/binary, "}$">>),
+    MatchStatus = re:run(RawInput, <<"^[0-9]{1,", ?AFFAIR_INPUT_DIGIT_SIZE/binary, "}">>),
     case MatchStatus of
         nomatch ->
             handle_normal_input(Uid, RawInput);
@@ -386,27 +390,51 @@ handle_input(Uid, RawInput) ->
 %%--------------------------------------------------------------------
 %% @doc
 %% This function is called after content is returned from pending_content/3,
-%% it construct xml response only when the return content is not empty.
+%% it construct IMAGE response only when the return content is not empty.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec compose_xml_response(UidBin, PlatformIdBin, ContentBin) -> XmlContent when
+-spec compose_image_response(UidBin, PlatformIdBin, ImageId) -> XmlContent when
+    UidBin :: binary(),
+    PlatformIdBin :: binary(),
+    ImageId :: binary(),
+    XmlContent :: binary().
+compose_image_response(UidBin, PlatformIdBin, ImageId) ->
+    TimestampBin = integer_to_binary(elib:timestamp()),
+    Xml = <<"<xml>
+        <ToUserName><![CDATA[", UidBin/binary, "]]></ToUserName>
+        <FromUserName><![CDATA[", PlatformIdBin/binary, "]]></FromUserName>
+        <CreateTime>", TimestampBin/binary, "</CreateTime>
+        <MsgType><![CDATA[image]]></MsgType>
+        <Image>
+            <MediaId><![CDATA[", ImageId/binary, "]]></MediaId>
+        </Image>
+    </xml>">>,
+
+    error_logger:info_msg("ImageXmlResponse:~p~n", [Xml]),
+    Xml.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% This function is called after content is returned from pending_content/3,
+%% it construct TEXT response only when the return content is not empty.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec compose_text_response(UidBin, PlatformIdBin, ContentBin) -> XmlContent when
     UidBin :: binary(),
     PlatformIdBin :: binary(),
     ContentBin :: binary(),
     XmlContent :: binary().
-compose_xml_response(UidBin, PlatformIdBin, ContentBin) ->
-    XmlContentList = [<<"<xml><Content><![CDATA[">>,
-        ContentBin,
-        <<"]]></Content><ToUserName><![CDATA[">>,
-        UidBin,
-        <<"]]></ToUserName><FromUserName><![CDATA[">>,
-        PlatformIdBin,
-        <<"]]></FromUserName><CreateTime>">>,
-        integer_to_binary(elib:timestamp()),
-        <<"</CreateTime><MsgType><![CDATA[text]]></MsgType></xml>">>],
-
-    list_to_binary(XmlContentList).
+compose_text_response(UidBin, PlatformIdBin, ContentBin) ->
+    TimestampBin = integer_to_binary(elib:timestamp()),
+    <<"<xml>
+        <Content><![CDATA[", ContentBin/binary, "]]></Content>
+        <ToUserName><![CDATA[", UidBin/binary, "]]></ToUserName>
+        <FromUserName><![CDATA[", PlatformIdBin/binary, "]]></FromUserName>
+        <CreateTime>", TimestampBin/binary, "</CreateTime>
+        <MsgType><![CDATA[text]]></MsgType>
+    </xml>">>.
 
 %%--------------------------------------------------------------------
 %% @doc

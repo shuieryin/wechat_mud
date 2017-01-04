@@ -22,6 +22,7 @@
     get_lang/1,
     response_content/3,
     do_response_content/3,
+    do_response_image/3,
     current_scene_name/1,
     append_message/3,
     append_message_local/3,
@@ -291,6 +292,25 @@ do_response_content(
             scene = []
         }
     }.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Response image to user
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec do_response_image(State, ImageUrl, DispatcherPid) -> UpdatedState when
+    State :: #player_state{},
+    ImageUrl :: binary(),
+    DispatcherPid :: pid(),
+    UpdatedState :: #player_state{}.
+do_response_image(
+    State,
+    ImageUrl,
+    DispatcherPid
+) ->
+    ok = command_dispatcher:return_content(DispatcherPid, {image, ImageUrl}),
+    State.
 
 %%--------------------------------------------------------------------
 %% @doc
