@@ -35,7 +35,8 @@ input_credentials |
 init_browser_session |
 close_browser_session |
 input_captcha |
-pending_process_vids.
+pending_process_vids |
+get_latest_captcha.
 
 -type menu_name() :: atom().
 -type menu_data() :: #{integer() => menu_name()}.
@@ -232,8 +233,7 @@ feedback(State, #command_context{
     {next_state, UpdatePlayerState, Data}.
 handle_affair_input(#player_state{
     self = #player_profile{
-        uid = PlayerUid,
-        scene = SceneName
+        uid = PlayerUid
     },
     current_affair = {AffairName, #{
         bilibili_manager_context := #bilibili_manager_context{
@@ -249,13 +249,7 @@ handle_affair_input(#player_state{
         menu ->
             case maps:get(binary_to_integer(RawInput), MenuData, undefined) of
                 exit_menu ->
-                    % request(PlayerUid, {close_browser_session, []}), % browser session will be closed in 30 mins in Bilibili node
-                    UpdatedPlayerState = PlayerState#player_state{
-                        current_affair = {undefined, undefined}
-                    },
-
-                    scene_fsm:show_scene(SceneName, PlayerUid, DispatcherPid),
-                    {next_state, non_battle, UpdatedPlayerState};
+                    exit_menu(PlayerState, DispatcherPid);
                 update_bilibili_profile ->
                     ?RESPONSE_CONTENT([{nls, input_username_password_format}]),
                     {next_state, affair_menu, PlayerState#player_state{
@@ -266,7 +260,7 @@ handle_affair_input(#player_state{
                         }}
                     }};
                 login_bilibili ->
-                    login_bilibili(PlayerState, DispatcherPid);
+                    login_bilibili(PlayerState, DispatcherPid, true);
                 pending_process_vids ->
                     case request(PlayerUid, {pending_process_vids, []}) of
                         undefined ->
@@ -317,24 +311,12 @@ handle_affair_input(#player_state{
                     {next_state, affair_menu, UpdatedPlayerState}
             end;
         input_captcha ->
-            UpdatedPlayerState =
-                PlayerState#player_state{
-                    current_affair = {AffairName, AffairData#{
-                        bilibili_manager_context := BilibiliManagerContext#bilibili_manager_context{
-                            bilibili_state_name = menu
-                        }
-                    }}
-                },
-
             case re:run(RawInput, <<"98\\s+(\\S+)">>, [{capture, all, binary}]) of
                 nomatch ->
                     ?RESPONSE_CONTENT([{nls, please_input_captcha}, <<"\n">>, CaptchaUrl]),
-                    {next_state, affair_menu, UpdatedPlayerState};
+                    keep_state_and_data;
                 {match, [_TrimedInput, CaptchaInputFromUser]} ->
-                    error_logger:info_msg("RawCaptchaInputFromUser:~p~n", [CaptchaInputFromUser]),
-                    ServerResponse = request(PlayerUid, {input_captcha, [{<<"input_captcha">>, CaptchaInputFromUser}]}),
-                    error_logger:info_msg("ServerResponse:~p~n", [ServerResponse]),
-                    case ServerResponse of
+                    case request(PlayerUid, {input_captcha, [{<<"input_captcha">>, CaptchaInputFromUser}]}) of
                         undefined ->
                             ?RESPONSE_CONTENT([{nls, bilibili_manager_offline}, <<"\n">>] ++ MenuDescNls),
                             keep_state_and_data;
@@ -343,9 +325,22 @@ handle_affair_input(#player_state{
                             case InputCaptchaStatus of
                                 true ->
                                     ?RESPONSE_CONTENT([{nls, login_sucess}, <<"\n">>] ++ MenuDescNls),
-                                    {next_state, affair_menu, UpdatedPlayerState};
-                                _LoginFailed ->
-                                    login_bilibili(UpdatedPlayerState, DispatcherPid)
+                                    {next_state, affair_menu, PlayerState#player_state{
+                                        current_affair = {AffairName, AffairData#{
+                                            bilibili_manager_context := BilibiliManagerContext#bilibili_manager_context{
+                                                bilibili_state_name = menu
+                                            }
+                                        }}
+                                    }};
+                                _InvalidCaptcha ->
+                                    login_bilibili(PlayerState, DispatcherPid, false)
+%%                                    case request(PlayerUid, {get_latest_captcha, []}) of
+%%                                        undefined ->
+%%                                            exit_menu(PlayerState, DispatcherPid);
+%%                                        {struct, _JsonObjList} ->
+%%                                            ?RESPONSE_CONTENT([{nls, please_input_captcha}, <<"\n">>, CaptchaUrl]),
+%%                                            keep_state_and_data
+%%                                    end
                             end
                     end
             end
@@ -492,10 +487,12 @@ request(Uid, {Event, EventParams}) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec login_bilibili(PlayerState, DispatcherPid :: pid()) -> StateFunctionResult when
+-spec login_bilibili(PlayerState, DispatcherPid, IsReopenUrl) -> StateFunctionResult when
     PlayerState :: #player_state{},
     UpdatedPlayerState :: PlayerState,
     Action :: gen_statem:action(),
+    DispatcherPid :: pid(),
+    IsReopenUrl :: boolean(),
 
     StateFunctionResult :: gen_statem:event_handler_result(PlayerState) |
     {keep_state_and_data, Action} |
@@ -512,7 +509,7 @@ login_bilibili(#player_state{
             server_domain = ServerDomain
         } = BilibiliManagerContext
     } = AffairData}
-} = PlayerState, DispatcherPid) ->
+} = PlayerState, DispatcherPid, IsReopenUrl) ->
     case maps:get(PlayerUid, AccountProfilesMap, undefined) of
         undefined ->
             ?RESPONSE_CONTENT([{nls, please_update_bilibili_profile}, <<"\n">>] ++ MenuDescNls),
@@ -525,7 +522,8 @@ login_bilibili(#player_state{
                 input_credentials,
                 [
                     {<<"username">>, Username},
-                    {<<"password">>, Password}
+                    {<<"password">>, Password},
+                    {<<"is_reopen_url">>, atom_to_binary(IsReopenUrl, utf8)}
                 ]
             }),
 
@@ -565,3 +563,27 @@ login_bilibili(#player_state{
                     end
             end
     end.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Exit Bilibili management menu.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec exit_menu(PlayerState, DispatcherPid) -> {next_state, non_battle, UpdatedPlayerState} when
+    PlayerState :: #player_state{},
+    DispatcherPid :: pid(),
+    UpdatedPlayerState :: PlayerState.
+exit_menu(#player_state{
+    self = #player_profile{
+        uid = PlayerUid,
+        scene = SceneName
+    }
+} = PlayerState, DispatcherPid) ->
+    % request(PlayerUid, {close_browser_session, []}), % browser session will be closed in 30 mins in Bilibili node
+    UpdatedPlayerState = PlayerState#player_state{
+        current_affair = {undefined, undefined}
+    },
+
+    scene_fsm:show_scene(SceneName, PlayerUid, DispatcherPid),
+    {next_state, non_battle, UpdatedPlayerState}.
