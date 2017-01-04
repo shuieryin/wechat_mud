@@ -362,28 +362,27 @@ init_menu(#bilibili_manager_context{
               false ->
                   InitReturn;
               true ->
-                  case request(PlayerUid, {init_browser_session, []}) of
-                      undefined ->
-                          {0, [{nls, bilibili_manager_offline}, <<"\n">>], ?INIT_MENU_DATA};
-                      RawResponse ->
-                          io:format("RawResponse:~p~n", [RawResponse]),
-                          maps:fold(
-                              fun(CurActionId, AffairValue, {AccMenuItemCount, AccMenuList, AccMenuData}) ->
-                                  #affair_action_bilibili_manager{
-                                      action_desc = ActionDescNls
-                                  } = AffairValue,
-                                  UpdatedAccMenuItemCount = AccMenuItemCount + 1,
-                                  UpdatedAccMenuItemCountBin = integer_to_binary(UpdatedAccMenuItemCount),
-                                  {
-                                      UpdatedAccMenuItemCount, [
-                                      <<"\n", UpdatedAccMenuItemCountBin/binary, ": ">>, ActionDescNls | AccMenuList],
-                                      AccMenuData#{
-                                          UpdatedAccMenuItemCount => CurActionId
-                                      }
-                                  }
-                              end, InitReturn, AffairData
-                          )
-                  end
+                  spawn(
+                      fun() ->
+                          request(PlayerUid, {init_browser_session, []})
+                      end
+                  ),
+                  maps:fold(
+                      fun(CurActionId, AffairValue, {AccMenuItemCount, AccMenuList, AccMenuData}) ->
+                          #affair_action_bilibili_manager{
+                              action_desc = ActionDescNls
+                          } = AffairValue,
+                          UpdatedAccMenuItemCount = AccMenuItemCount + 1,
+                          UpdatedAccMenuItemCountBin = integer_to_binary(UpdatedAccMenuItemCount),
+                          {
+                              UpdatedAccMenuItemCount, [
+                              <<"\n", UpdatedAccMenuItemCountBin/binary, ": ">>, ActionDescNls | AccMenuList],
+                              AccMenuData#{
+                                  UpdatedAccMenuItemCount => CurActionId
+                              }
+                          }
+                      end, InitReturn, AffairData
+                  )
           end,
 
     FinalMenuNls = [{nls, affair_menu}] ++ MenuNlsObjectList ++ [<<"\n0: ">>, {nls, affiar_menu_exit}],
@@ -449,7 +448,7 @@ request(Uid, {Event, EventParams}) ->
 
     case Response of
         {ok, {{_HttpVersion, _HttpStatusCode, _OK}, _ResponseHeaders, BodyStr}} ->
-            error_logger:info_msg("Response:~p~n", [Response]),
+            error_logger:info_msg("HttpResponse:~p~n", [Response]),
             case BodyStr of
                 [] ->
                     undefined;
