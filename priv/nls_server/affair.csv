@@ -31,3 +31,6 @@ please_update_bilibili_profile,请更新BILIBILI账号,Please update BILIBILI pr
 bilibili_profile_updated,BILIBILI账号已更新,BILIBILI profile updated
 login_sucess,登录成功,Login success
 please_input_captcha,请输入(98 + 空格 + 图片验证码),Please input (98 + space + captcha from below image)
+please_login_bilibili,请登录BILIBILI,Please login BILIBILI
+bilibili_upload_started,已开始上传视频至BILIBILI,Upload videos to BILIBILI has been started
+upload_vids_to_bilibili,上传视频至BILIBILI,Upload videos to BILIBILI

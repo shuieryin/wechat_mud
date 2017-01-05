@@ -36,7 +36,9 @@ init_browser_session |
 close_browser_session |
 input_captcha |
 pending_process_vids |
-get_latest_captcha.
+get_latest_captcha |
+pending_upload_vids |
+upload_vids.
 
 -type menu_name() :: atom().
 -type menu_data() :: #{integer() => menu_name()}.
@@ -266,18 +268,32 @@ handle_affair_input(#player_state{
                         undefined ->
                             ?RESPONSE_CONTENT([{nls, bilibili_manager_offline}, <<"\n">>] ++ MenuDescNls);
                         {struct, JsonObjectList} ->
-                            {<<"vids_list">>, VidsList} = lists:keyfind(<<"vids_list">>, 1, JsonObjectList),
-
-                            VidsListNls = lists:foldl(
-                                fun(PathBin, AccVidsList) ->
-                                    VidFilename = filename:basename(PathBin),
-                                    [<<"[", VidFilename/binary, "]\n">> | AccVidsList]
-                                end,
-                                [<<":\n">>, {nls, pending_upload_vids_desc}],
-                                VidsList
-                            ),
-                            ?RESPONSE_CONTENT(lists:reverse(VidsListNls))
+                            show_vids_list(PlayerState, JsonObjectList, DispatcherPid)
                     end,
+                    keep_state_and_data;
+                pending_upload_vids ->
+                    case request(PlayerUid, {pending_upload_vids, []}) of
+                        undefined ->
+                            ?RESPONSE_CONTENT([{nls, bilibili_manager_offline}, <<"\n">>] ++ MenuDescNls);
+                        {struct, JsonObjectList} ->
+                            show_vids_list(PlayerState, JsonObjectList, DispatcherPid)
+                    end,
+                    keep_state_and_data;
+                upload_vids ->
+                    ResponseMessage =
+                        case request(PlayerUid, {upload_vids, []}) of
+                            undefined ->
+                                [{nls, bilibili_manager_offline}, <<"\n">>];
+                            {struct, JsonObjectList} ->
+                                {<<"is_logged_on">>, IsLoggedOn} = lists:keyfind(<<"is_logged_on">>, 1, JsonObjectList),
+                                case IsLoggedOn of
+                                    false ->
+                                        [{nls, please_login_bilibili}, <<"\n">>];
+                                    _StartedUpload ->
+                                        [{nls, bilibili_upload_started}, <<"\n">>]
+                                end
+                        end,
+                    ?RESPONSE_CONTENT(ResponseMessage ++ MenuDescNls),
                     keep_state_and_data;
                 _InvalidCommand ->
                     ?RESPONSE_CONTENT([{nls, invalid_command}, RawInput, <<"\n">>] ++ MenuDescNls),
@@ -334,13 +350,6 @@ handle_affair_input(#player_state{
                                     }};
                                 _InvalidCaptcha ->
                                     login_bilibili(PlayerState, DispatcherPid, false)
-%%                                    case request(PlayerUid, {get_latest_captcha, []}) of
-%%                                        undefined ->
-%%                                            exit_menu(PlayerState, DispatcherPid);
-%%                                        {struct, _JsonObjList} ->
-%%                                            ?RESPONSE_CONTENT([{nls, please_input_captcha}, <<"\n">>, CaptchaUrl]),
-%%                                            keep_state_and_data
-%%                                    end
                             end
                     end
             end
@@ -587,3 +596,26 @@ exit_menu(#player_state{
 
     scene_fsm:show_scene(SceneName, PlayerUid, DispatcherPid),
     {next_state, non_battle, UpdatedPlayerState}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Show video list.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec show_vids_list(#player_state{}, JsonObjectList, pid()) -> ok when
+    JsonObjectList :: [{binary(), binary()}].
+%%noinspection ErlangUnusedVariable
+show_vids_list(PlayerState, JsonObjectList, DispatcherPid) ->
+    {<<"vids_list">>, VidsList} = lists:keyfind(<<"vids_list">>, 1, JsonObjectList),
+
+    VidsListNls = lists:foldl(
+        fun(PathBin, AccVidsList) ->
+            VidFilename = filename:basename(PathBin),
+            [<<"[", VidFilename/binary, "]\n">> | AccVidsList]
+        end,
+        [<<":\n">>, {nls, pending_upload_vids_desc}],
+        VidsList
+    ),
+    ?RESPONSE_CONTENT(lists:reverse(VidsListNls)),
+    ok.
