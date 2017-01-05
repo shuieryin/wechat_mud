@@ -268,7 +268,7 @@ handle_affair_input(#player_state{
                         undefined ->
                             ?RESPONSE_CONTENT([{nls, bilibili_manager_offline}, <<"\n">>] ++ MenuDescNls);
                         {struct, JsonObjectList} ->
-                            show_vids_list(PlayerState, JsonObjectList, DispatcherPid)
+                            show_vids_list(PlayerState, JsonObjectList, DispatcherPid, pending_process_vids_desc)
                     end,
                     keep_state_and_data;
                 pending_upload_vids ->
@@ -276,7 +276,7 @@ handle_affair_input(#player_state{
                         undefined ->
                             ?RESPONSE_CONTENT([{nls, bilibili_manager_offline}, <<"\n">>] ++ MenuDescNls);
                         {struct, JsonObjectList} ->
-                            show_vids_list(PlayerState, JsonObjectList, DispatcherPid)
+                            show_vids_list(PlayerState, JsonObjectList, DispatcherPid, pending_upload_vids_desc)
                     end,
                     keep_state_and_data;
                 upload_vids ->
@@ -603,10 +603,10 @@ exit_menu(#player_state{
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec show_vids_list(#player_state{}, JsonObjectList, pid()) -> ok when
+-spec show_vids_list(#player_state{}, JsonObjectList, pid(), nls_server:key()) -> ok when
     JsonObjectList :: [{binary(), binary()}].
 %%noinspection ErlangUnusedVariable
-show_vids_list(PlayerState, JsonObjectList, DispatcherPid) ->
+show_vids_list(PlayerState, JsonObjectList, DispatcherPid, NlsKey) ->
     {<<"vids_list">>, VidsList} = lists:keyfind(<<"vids_list">>, 1, JsonObjectList),
 
     VidsListNls = lists:foldl(
@@ -614,7 +614,7 @@ show_vids_list(PlayerState, JsonObjectList, DispatcherPid) ->
             VidFilename = filename:basename(PathBin),
             [<<"[", VidFilename/binary, "]\n">> | AccVidsList]
         end,
-        [<<":\n">>, {nls, pending_upload_vids_desc}],
+        [<<":\n">>, {nls, NlsKey}],
         VidsList
     ),
     ?RESPONSE_CONTENT(lists:reverse(VidsListNls)),
