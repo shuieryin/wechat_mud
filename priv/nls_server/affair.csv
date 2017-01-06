@@ -20,7 +20,7 @@ bilibili_manager_help,BILIBILI管理员指令帮助:~nask bilibili manager about
 affair_manage,管理,manage
 affair_menu,菜单:,menu:
 affiar_menu_exit,退出菜单,Exit menu
-pending_process_vids_desc,显示等待处理视频,Show pending process videos
+pending_process_vids_desc,显示正在处理视频,Show processing videos
 pending_upload_vids_desc,显示等待上传视频,Show pending upload videos
 login_bilibili_desc,登录BILIBILI,Login Bilibili
 affair_action_bilibili_manager,BILIBILI管理菜单:,BILIBILI management menu:
@@ -34,3 +34,4 @@ please_input_captcha,请输入(98 + 空格 + 图片验证码),Please input (98 +
 please_login_bilibili,请登录BILIBILI,Please login BILIBILI
 bilibili_upload_started,已开始上传视频至BILIBILI,Upload videos to BILIBILI has been started
 upload_vids_to_bilibili,上传视频至BILIBILI,Upload videos to BILIBILI
+no_processed_vids,没有等待上传视频,No pending upload videos

@@ -285,13 +285,8 @@ handle_affair_input(#player_state{
                             undefined ->
                                 [{nls, bilibili_manager_offline}, <<"\n">>];
                             {struct, JsonObjectList} ->
-                                {<<"is_logged_on">>, IsLoggedOn} = lists:keyfind(<<"is_logged_on">>, 1, JsonObjectList),
-                                case IsLoggedOn of
-                                    false ->
-                                        [{nls, please_login_bilibili}, <<"\n">>];
-                                    _StartedUpload ->
-                                        [{nls, bilibili_upload_started}, <<"\n">>]
-                                end
+                                {<<"status">>, Status} = lists:keyfind(<<"status">>, 1, JsonObjectList),
+                                [{nls, binary_to_atom(Status, utf8)}, <<"\n">>]
                         end,
                     ?RESPONSE_CONTENT(ResponseMessage ++ MenuDescNls),
                     keep_state_and_data;
