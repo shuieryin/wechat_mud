@@ -22,7 +22,8 @@
     runtime_data/1,
     runtime_data/2,
     runtime_datas/1,
-    random_npc/0
+    random_npc/0,
+    start/1
 ]).
 
 %% gen_server callbacks
@@ -38,6 +39,7 @@
 
 -define(SERVER, ?MODULE).
 -define(DEFAULT_WECHAT_DEBUG_MODE, true).
+-define(EMPTY_CONTENT, <<>>).
 
 -include("../data_type/npc_profile.hrl").
 
@@ -63,6 +65,36 @@
 -spec start_link() -> gen:start_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Handle data request.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec start(Req) -> {Reply, UpdatedReq} when
+    Req :: cowboy_req:req(),
+    Reply :: iodata(),
+    UpdatedReq :: Req.
+start(Req) ->
+    case cowboy_req:qs(Req) of
+        ?EMPTY_CONTENT ->
+            {<<"do_nothing">>, Req};
+        HeaderParams ->
+            #{
+                data_name := DataName
+            } = _ParamsMap = elib:gen_get_params(HeaderParams),
+
+            DataBin
+                = case redis_client_server:get(DataName) of
+                      undefined ->
+                          <<"not_found">>;
+                      RawData ->
+                          RawData
+                  end,
+
+            {DataBin, Req}
+    end.
 
 %%--------------------------------------------------------------------
 %% @doc

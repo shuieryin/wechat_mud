@@ -78,7 +78,7 @@
     UpdatedReq :: Req.
 start(Req) ->
     case cowboy_req:qs(Req) of
-        <<>> ->
+        ?EMPTY_CONTENT ->
             IsWechatDebug = common_server:is_wechat_debug(),
             case IsWechatDebug of
                 true ->
@@ -130,7 +130,7 @@ pending_content(Module, Function, Args) ->
         {execed, Self, ReturnContent} ->
             ReturnContent
     after
-        5000 ->
+        2000 ->
             no_response
     end.
 
@@ -509,72 +509,12 @@ unmarshall_params([{_Other, [], [_ParamValue]} | Tail], ParamsRecord) ->
 %%--------------------------------------------------------------------
 -spec gen_get_params(binary()) -> #wechat_get_params{}.
 gen_get_params(HeaderParams) ->
-    gen_get_params(size(HeaderParams) - 1, HeaderParams, #{}).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Implementation function for gen_get_params/1.
-%% @see gen_get_params/1.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec gen_get_params(Pos, Bin, AccParamsMap) -> Params when
-    Pos :: integer(), % generic integer
-    Bin :: binary(),
-    AccParamsMap :: map(), % generic map
-    Params :: #wechat_get_params{}.
-gen_get_params(
-    -1,
-    _Bin,
     #{
         signature := Signature,
         timestamp := TimeStamp,
         nonce := Nonce
-    } = ParamsMap
-) ->
-    {wechat_get_params, Signature, TimeStamp, Nonce, maps:get(echostr, ParamsMap, undefined)};
-gen_get_params(Pos, Bin, ParamsMap) ->
-    {ValueBin, CurPosByValue} = gen_get_param_value(binary:at(Bin, Pos), [], Pos - 1, Bin),
-    {KeyBin, CurPosByKey} = gen_req_param_key(binary:at(Bin, CurPosByValue), [], CurPosByValue - 1, Bin),
-    gen_get_params(CurPosByKey, Bin, maps:put(binary_to_atom(KeyBin, unicode), ValueBin, ParamsMap)).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% This function generates request raw request param keys.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec gen_req_param_key(CurByte, KeyBinList, Pos, SrcBin) -> {KeyBin, CurPos} when
-    CurByte :: byte(),
-    KeyBinList :: [CurByte],
-    Pos :: integer(), % generic integer
-    SrcBin :: binary(),
-    KeyBin :: SrcBin,
-    CurPos :: Pos.
-gen_req_param_key($&, KeyBinList, Pos, _SrcBin) ->
-    {list_to_binary(KeyBinList), Pos};
-gen_req_param_key(CurByte, KeyBinList, -1, _SrcBin) ->
-    {list_to_binary([CurByte | KeyBinList]), -1};
-gen_req_param_key(CurByte, KeyBinList, Pos, SrcBin) ->
-    gen_req_param_key(binary:at(SrcBin, Pos), [CurByte | KeyBinList], Pos - 1, SrcBin).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% This function generates request raw request param values.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec gen_get_param_value(CurByte, ValueBinList, Pos, SrcBin) -> {ValueBin, CurPos} when
-    CurByte :: byte(),
-    ValueBinList :: [CurByte],
-    Pos :: integer(), % generic integer
-    SrcBin :: binary(),
-    ValueBin :: SrcBin,
-    CurPos :: Pos.
-gen_get_param_value($=, ValueBinList, Pos, _SrcBin) ->
-    {list_to_binary(ValueBinList), Pos};
-gen_get_param_value(CurByte, ValueBinList, Pos, SrcBin) ->
-    gen_get_param_value(binary:at(SrcBin, Pos), [CurByte | ValueBinList], Pos - 1, SrcBin).
+    } = ParamsMap = elib:gen_get_params(HeaderParams),
+    {wechat_get_params, Signature, TimeStamp, Nonce, maps:get(echostr, ParamsMap, undefined)}.
 
 %%--------------------------------------------------------------------
 %% @doc
