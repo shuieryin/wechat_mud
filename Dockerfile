@@ -1,8 +1,8 @@
-FROM shuieryin/erlang:19.2
+FROM shuieryin/erlang:19.3
 
 MAINTAINER Shuieryin <shuieryin@gmail.com>
 
-LABEL "version"="0.3.0" \
+LABEL "version"="0.3.1" \
 	"description"="Wechat mud game." \
 	"author"="Shuieryin"
 
