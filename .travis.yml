@@ -10,8 +10,11 @@ env:
 services:
   - redis-server
 
+#skip automated regression tests
 script:
-  - make
+  - make install_rebar3
+  - make build
+  - make ck
 
 notifications:
   email:
