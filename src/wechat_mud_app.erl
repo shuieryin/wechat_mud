@@ -55,7 +55,7 @@ start(normal, [AppNameStr] = StartArgs) ->
     NumberOfAcceptors = 100,
 
     Port = 13579,
-    case cowboy:start_http(binary_to_atom(<<AppNameBin/binary, "_listener">>, utf8), NumberOfAcceptors, [{port, Port}], [{env, [{dispatch, Dispatch}]}]) of
+    case cowboy:start_clear(binary_to_atom(<<AppNameBin/binary, "_listener">>, utf8), NumberOfAcceptors, [{port, Port}], #{env => #{dispatch => Dispatch}}) of
         {error, Reason} ->
             error_logger:error_msg("websockets could not be started -- port ~p probably in use~nReason:~p~n", [Port, Reason]),
             cm:q();
@@ -104,7 +104,7 @@ init(Req, {priv_dir, AppName, StaticFolder} = Env) ->
         ["/", "hapi", ModStr] ->
             Mod = list_to_atom(ModStr),
             {Reply, UpdatedReq} = apply(Mod, start, [Req]),
-            {ok, cowboy_req:reply(200, "", Reply, UpdatedReq), Env};
+            {ok, cowboy_req:reply(200, #{}, Reply, UpdatedReq), Env};
         ["/", "assets", Filename] ->
             StaticFolderPath = filename:join([code:priv_dir(AppName), StaticFolder, Filename]),
             ReturnContent =
@@ -114,9 +114,9 @@ init(Req, {priv_dir, AppName, StaticFolder} = Env) ->
                     Error ->
                         list_to_binary(io_lib:format("~p", [Error]))
                 end,
-            {ok, cowboy_req:reply(200, "", ReturnContent, Req), Env};
+            {ok, cowboy_req:reply(200, #{}, ReturnContent, Req), Env};
         _Resource ->
-            {ok, cowboy_req:reply(200, "", "", Req), Env}
+            {ok, cowboy_req:reply(200, #{}, <<>>, Req), Env}
     end.
 
 %%%===================================================================

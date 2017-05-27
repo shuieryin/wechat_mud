@@ -78,6 +78,8 @@ test(_Config) ->
                 func_total_weighing = elib:total_weighing(RandomFuncs)
             },
 
+            %error_logger:info_msg("=========ModelState:~p~n", [ModelState]),
+
             run_test(RandomFuncs, ModelState)
     end.
 

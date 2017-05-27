@@ -447,8 +447,7 @@ compose_text_response(UidBin, PlatformIdBin, ContentBin) ->
     ReqParams :: #wechat_post_params{} | parse_failed,
     UpdatedReq :: Req.
 parse_xml_request(Req) ->
-    {ok, Message, UpdatedReq} = cowboy_req:body(Req),
-    % io:format("Message:~p~n", [Message]),
+    {ok, Message, UpdatedReq} = cowboy_req:read_body(Req),
     ReqParams =
         case Message of
             <<>> ->
