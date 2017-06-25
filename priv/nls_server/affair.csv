@@ -36,3 +36,4 @@ bilibili_upload_started,已开始上传视频至BILIBILI,Upload videos to BILIBI
 upload_vids_to_bilibili,上传视频至BILIBILI,Upload videos to BILIBILI
 no_processed_vids,没有等待上传视频,No pending upload videos
 existing_video_being_uploaded,已有正在上传视频,Existing video is being uploaded
+login_always_cause_server_down,多次登录导致服务器崩溃,Login due to server down.
