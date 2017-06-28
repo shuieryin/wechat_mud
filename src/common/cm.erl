@@ -39,8 +39,8 @@
 -spec q() -> no_return().
 q() ->
     ok = login_server:logout_all_players(),
-    rb:stop(),
     os:cmd("redis-cli shutdown"),
+    rb:stop(),
     init:stop().
 
 %%--------------------------------------------------------------------
