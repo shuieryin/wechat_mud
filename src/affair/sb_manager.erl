@@ -16,6 +16,7 @@
     init/2,
     register/3,
     status/3,
+    ip/3,
     feedback/3
 ]).
 
@@ -180,6 +181,31 @@ status(NpcState, #command_context{
         CommandContext#command_context{
             command_args = AffairContext#affair_context{
                 response_message = lists:flatten(ResponseMessage)
+            }
+        }, StateName
+    }.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Get SB server ip.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec ip(NpcState, CommandContext, StateName) -> {UpdatedNpcState, UpdatedCommandContext, UpdatedStateName} when
+    NpcState :: #npc_state{},
+    CommandContext :: #command_context{},
+    UpdatedNpcState :: NpcState,
+    UpdatedCommandContext :: CommandContext,
+    StateName :: gen_statem:state_name(),
+    UpdatedStateName :: StateName.
+ip(NpcState, #command_context{
+    command_args = AffairContext
+} = CommandContext, StateName) ->
+    {
+        NpcState,
+        CommandContext#command_context{
+            command_args = AffairContext#affair_context{
+                response_message = [list_to_binary(os:cmd("curl -s ifconfig.co"))]
             }
         }, StateName
     }.
