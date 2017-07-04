@@ -126,7 +126,7 @@ from_init(
                                 skill = Skill
                             }
                         },
-                        scene_fsm:general_target(UpdatedCommandContext),
+                        scene_statem:general_target(UpdatedCommandContext),
                         State
                 end
         end,

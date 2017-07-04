@@ -39,7 +39,7 @@
     gender :: player_statem:gender() | undefined,
     lang :: nls_server:support_lang() | undefined,
     register_time :: pos_integer() | undefined,
-    scene :: scene_fsm:scene_name() | undefined,
+    scene :: scene_statem:scene_name() | undefined,
     avatar_profile :: #avatar_profile{} | undefined,
     battle_status :: #battle_status{} | undefined
 }).

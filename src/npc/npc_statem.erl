@@ -19,7 +19,7 @@
     non_battle/3
 ]).
 
-%% gen_fsm callbacks
+%% gen_statem callbacks
 -export([
     init/1,
     terminate/3,
@@ -53,7 +53,7 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Creates a gen_fsm process which calls Module:init/1 to
+%% Creates a gen_statem process which calls Module:init/1 to
 %% initialize. To ensure a synchronized start-up procedure, this
 %% function does not return until Module:init/1 has returned.
 %%
@@ -66,7 +66,7 @@ start_link(
         npc_uid = NpcUid
     } = NpcProfile
 ) ->
-    gen_fsm:start_link({local, NpcUid}, ?MODULE, NpcProfile, []).
+    gen_statem:start_link({local, NpcUid}, ?MODULE, NpcProfile, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -98,17 +98,17 @@ simple_npc(
 %%--------------------------------------------------------------------
 -spec npc_state(npc_uid()) -> #npc_state{}.
 npc_state(NpcUid) ->
-    gen_fsm:sync_send_all_state_event(NpcUid, npc_state).
+    gen_statem:call(NpcUid, npc_state).
 
 %%%===================================================================
-%%% gen_fsm callbacks
+%%% gen_statem callbacks
 %%%===================================================================
 
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% Whenever a gen_fsm is started using gen_fsm:start/[3,4] or
-%% gen_fsm:start_link/[3,4], this function is called by the new
+%% Whenever a gen_statem is started using gen_statem:start/[3,4] or
+%% gen_statem:start_link/[3,4], this function is called by the new
 %% process to initialize.
 %%
 %% @end
@@ -170,13 +170,16 @@ init(NpcProfile) ->
 -spec non_battle(EventType, EventContent, Data) -> StateFunctionResult when
     EventType :: gen_statem:event_type(),
 
-    EventContent :: {execute_command, CommandContext},
+    EventContent :: {execute_command, CommandContext} |
+    npc_state,
 
     CommandContext :: #command_context{},
 
     State :: #npc_state{},
     Action :: gen_statem:reply_action() | {reply, From, Reply},
     From :: gen_statem:from(),
+
+    Reply :: term(), % generic term
 
     StateFunctionResult :: gen_statem:event_handler_result(Data) |
     {keep_state_and_data, Action} |
@@ -193,14 +196,16 @@ non_battle(
     State
 ) ->
     {ok, NextStateName, UpdatedData} = CommandModule:CommandFunc(CommandContext, State, non_battle),
-    {next_state, NextStateName, UpdatedData}.
+    {next_state, NextStateName, UpdatedData};
+non_battle({call, From}, npc_state, NpcData) ->
+    {keep_state_and_data, {reply, From, NpcData}}.
 
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% This function is called by a gen_fsm when it is about to
+%% This function is called by a gen_statem when it is about to
 %% terminate. It should be the opposite of Module:init/1 and do any
-%% necessary cleaning up. When it returns, the gen_fsm terminates with
+%% necessary cleaning up. When it returns, the gen_statem terminates with
 %% Reason. The return value is ignored.
 %%
 %% @end
@@ -245,7 +250,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
     State :: #npc_state{},
     Status :: term(). % generic term
 format_status(Opt, StatusData) ->
-    gen_fsm:format_status(Opt, StatusData).
+    gen_statem:format_status(Opt, StatusData).
 
 %%--------------------------------------------------------------------
 %% @private

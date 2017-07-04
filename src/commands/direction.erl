@@ -87,11 +87,11 @@ go_direction(
     StateName
 ) ->
     {TargetSceneName, UpdatedState} =
-        case scene_fsm:go_direction(CurSceneName, Uid, Direction) of
+        case scene_statem:go_direction(CurSceneName, Uid, Direction) of
             undefined ->
                 {CurSceneName, player_statem:do_response_content(State, [{nls, invalid_exit}], DispatcherPid)};
             NewSceneName ->
-                ok = scene_fsm:enter(NewSceneName, DispatcherPid, player_statem:simple_player(PlayerProfile), CurSceneName),
+                ok = scene_statem:enter(NewSceneName, DispatcherPid, player_statem:simple_player(PlayerProfile), CurSceneName),
                 {NewSceneName, State}
         end,
     {

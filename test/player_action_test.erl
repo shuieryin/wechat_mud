@@ -101,7 +101,7 @@ look_target(#state{player_uid = PlayerUid}) ->
     TargetName = try
 
                      CurrentSceneName = player_statem:current_scene_name(PlayerUid),
-                     SceneObjectList = scene_fsm:scene_object_list(CurrentSceneName),
+                     SceneObjectList = scene_statem:scene_object_list(CurrentSceneName),
                      SceneObject = ?ONE_OF(SceneObjectList),
                      atom_to_binary(case SceneObject of
                                         #simple_npc{npc_uid = TargetNpcFsmId} ->
@@ -234,7 +234,7 @@ attack(#state{player_uid = PlayerUid}) ->
 
 scene_targets(PlayerUid) ->
     CurrentSceneName = player_statem:current_scene_name(PlayerUid),
-    SceneObjectList = scene_fsm:scene_object_list(CurrentSceneName),
+    SceneObjectList = scene_statem:scene_object_list(CurrentSceneName),
 
     SceneObjList = [SceneObject || SceneObject <- SceneObjectList, perform_filter(SceneObject)],
     %ct:pal("Scene object list:~p~n", [SceneObjList]),
@@ -343,7 +343,7 @@ upgrade_value_by_id(#state{player_id = PlayerId}) ->
 
 exits_map(_State) ->
     try
-        scene_fsm:exits_map(?ONE_OF([dream_board_nw, dream_board_w, dream_board_sw, dream_board_s, dream_board_se, dream_board_e, dream_board_ne, dream_board_n, dream_board_center]))
+        scene_statem:exits_map(?ONE_OF([dream_board_nw, dream_board_w, dream_board_sw, dream_board_s, dream_board_se, dream_board_e, dream_board_ne, dream_board_n, dream_board_center]))
     catch
         Type:Reason ->
             error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()])

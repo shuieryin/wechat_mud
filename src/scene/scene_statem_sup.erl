@@ -4,13 +4,13 @@
 %%% @doc
 %%%
 %%% Scene supervisor. This supervisor starts up scene worker per row
-%%% of scene csv file under priv/scene by scene_fsm_sup.erl which the number
+%%% of scene csv file under priv/scene by scene_statem_sup.erl which the number
 %%% of children configs equals to the number of rows in scene csv file.
 %%%
 %%% @end
 %%% Created : 14. Sep 2015 10:42 PM
 %%%-------------------------------------------------------------------
--module(scene_fsm_sup).
+-module(scene_statem_sup).
 -author("shuieryin").
 
 -behaviour(supervisor).
@@ -30,7 +30,7 @@
 %% Unique scene file extension
 -define(FILE_EXTENSION, ".csv").
 
--type scene_child() :: {scene_fsm:scene_name(), {scene_fsm, start_link, [#scene_info{}]}, supervisor:restart(), supervisor:shutdown(), supervisor:worker(), [scene_fsm]}.
+-type scene_child() :: {scene_statem:scene_name(), {scene_statem, start_link, [#scene_info{}]}, supervisor:restart(), supervisor:shutdown(), supervisor:worker(), [scene_statem]}.
 
 -export_type([
     scene_child/0
@@ -83,7 +83,7 @@ init([]) ->
 %%--------------------------------------------------------------------
 %% @doc
 %% Generates scene worker configs per row of scene csv file under
-%% priv/scene by scene_fsm_sup.erl which the number of children configs
+%% priv/scene by scene_statem_sup.erl which the number of children configs
 %% equals to the number of rows in scene csv file.
 %%
 %% @end

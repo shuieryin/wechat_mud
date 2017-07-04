@@ -191,7 +191,7 @@ look_scene(
     } = State,
     StateName
 ) ->
-    scene_fsm:show_scene(SceneName, Uid, DispatcherPid),
+    scene_statem:show_scene(SceneName, Uid, DispatcherPid),
     {ok, StateName, State}.
 
 %%%===================================================================

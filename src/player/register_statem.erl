@@ -30,7 +30,7 @@
     stop/1
 ]).
 
-%% gen_fsm callbacks
+%% gen_statem callbacks
 -export([
     init/1,
     terminate/3,
@@ -66,11 +66,11 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Creates a player gen_fsm process which calls Module:init/1 to
+%% Creates a player gen_statem process which calls Module:init/1 to
 %% initialize. To ensure a synchronized start-up procedure, this
 %% function does not return until Module:init/1 has returned.
 %%
-%% This function creates a register gen_fsm with uid and the default
+%% This function creates a register gen_statem with uid and the default
 %% state, and prints all supported langauge abbreviations to user.
 %% The server name is set to "uid+_register_statem".
 %%
@@ -81,7 +81,7 @@
     DispatcherPid :: pid(),
     BornTypeInfoMap :: register_statem:born_type_info_map().
 start_link(DispatcherPid, Uid, BornTypeInfoMap) ->
-    gen_fsm:start_link({local, register_server_name(Uid)}, ?MODULE, {Uid, DispatcherPid, BornTypeInfoMap}, []).
+    gen_statem:start_link({local, register_server_name(Uid)}, ?MODULE, {Uid, DispatcherPid, BornTypeInfoMap}, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -92,7 +92,7 @@ start_link(DispatcherPid, Uid, BornTypeInfoMap) ->
 -spec stop(Uid) -> ok when
     Uid :: player_statem:uid().
 stop(Uid) ->
-    gen_fsm:send_all_state_event(register_server_name(Uid), stop).
+    gen_statem:call(register_server_name(Uid), stop).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -107,7 +107,7 @@ stop(Uid) ->
     Input :: binary(),
     DispatcherPid :: pid().
 input(DispatcherPid, Uid, Input) ->
-    gen_fsm:send_event(register_server_name(Uid), {Input, DispatcherPid}).
+    gen_statem:cast(register_server_name(Uid), {Input, DispatcherPid}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -119,7 +119,7 @@ input(DispatcherPid, Uid, Input) ->
     Uid :: player_statem:uid(),
     CurrentPlayerProfile :: #player_profile{}.
 current_player_profile(Uid) ->
-    gen_fsm:sync_send_all_state_event(register_server_name(Uid), current_player_profile).
+    gen_statem:call(register_server_name(Uid), current_player_profile).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -134,14 +134,14 @@ register_server_name(Uid) ->
     list_to_atom(atom_to_list(Uid) ++ "_register_statem").
 
 %%%===================================================================
-%%% gen_fsm callbacks
+%%% gen_statem callbacks
 %%%===================================================================
 
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% Whenever a gen_fsm is started using gen_fsm:start/[3,4] or
-%% gen_fsm:start_link/[3,4], this function is called by the new
+%% Whenever a gen_statem is started using gen_statem:start/[3,4] or
+%% gen_statem:start_link/[3,4], this function is called by the new
 %% process to initialize.
 %%
 %% See start_link/2 for details.
@@ -198,6 +198,8 @@ init({Uid, DispatcherPid, BornTypeInfoMap}) ->
     Action :: gen_statem:reply_action() | {reply, From, Reply},
     From :: gen_statem:from(),
 
+    Reply :: term(), % generic term
+
     StateFunctionResult :: gen_statem:event_handler_result(Data) |
     {keep_state_and_data, Action} |
     {next_state, State, Data, {reply, From, Reply}}.
@@ -253,6 +255,8 @@ select_lang(
     State :: #state{},
     Action :: gen_statem:reply_action() | {reply, From, Reply},
     From :: gen_statem:from(),
+
+    Reply :: term(), % generic term
 
     StateFunctionResult :: gen_statem:event_handler_result(Data) |
     {keep_state_and_data, Action} |
@@ -312,6 +316,8 @@ input_id(
     State :: #state{},
     Action :: gen_statem:reply_action() | {reply, From, Reply},
     From :: gen_statem:from(),
+
+    Reply :: term(), % generic term
 
     StateFunctionResult :: gen_statem:event_handler_result(Data) |
     {keep_state_and_data, Action} |
@@ -384,6 +390,8 @@ input_gender(
     Action :: gen_statem:reply_action() | {reply, From, Reply},
     From :: gen_statem:from(),
 
+    Reply :: term(), % generic term
+
     StateFunctionResult :: gen_statem:event_handler_result(Data) |
     {keep_state_and_data, Action} |
     {next_state, State, Data, {reply, From, Reply}}.
@@ -428,7 +436,7 @@ input_born_month(
 %% Acknowledgement of all the preivous inputs. The previous state is
 %% "input_born_month". If player inputs "y" or "n", tells login server
 %% the registration is done by calling login_server:registration_done/2
-%% and terminates the register gen_fsm.
+%% and terminates the register gen_statem.
 %% @see login_server:registration_done/2.
 %%
 %% @end
@@ -445,6 +453,8 @@ input_born_month(
     State :: #state{},
     Action :: gen_statem:reply_action() | {reply, From, Reply},
     From :: gen_statem:from(),
+
+    Reply :: term(), % generic term
 
     StateFunctionResult :: gen_statem:event_handler_result(Data) |
     {keep_state_and_data, Action} |
@@ -546,10 +556,10 @@ input_confirmation(
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% This function is called by a gen_fsm when it is about to
+%% This function is called by a gen_statem when it is about to
 %% terminate. It should be the opposite of Module:init/1 and do any
-%% necessary cleaning up. When it returns, the gen_fsm terminates with
-%% Reason. The return value is ignored. If the gen_fsm is terminated
+%% necessary cleaning up. When it returns, the gen_statem terminates with
+%% Reason. The return value is ignored. If the gen_statem is terminated
 %% abnormally, it is restarted with the current state name and state data.
 %%
 %% @end
@@ -594,7 +604,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
     State :: #state{},
     Status :: term(). % generic term
 format_status(Opt, StatusData) ->
-    gen_fsm:format_status(Opt, StatusData).
+    gen_statem:format_status(Opt, StatusData).
 
 %%--------------------------------------------------------------------
 %% @private

@@ -67,12 +67,12 @@ init([]) ->
             [scene_manager]
         },
 
-        {scene_fsm_sup,
-            {scene_fsm_sup, start_link, []},
+        {scene_statem_sup,
+            {scene_statem_sup, start_link, []},
             permanent,
             10000,
             supervisor,
-            [scene_fsm_sup]
+            [scene_statem_sup]
         }
     ]}}.
 

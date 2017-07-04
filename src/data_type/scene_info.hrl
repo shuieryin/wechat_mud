@@ -9,8 +9,8 @@
 -author("shuieryin").
 
 -record(scene_info, {
-    id :: scene_fsm:scene_name(),
-    exits :: scene_fsm:exits_map(),
+    id :: scene_statem:scene_name(),
+    exits :: scene_statem:exits_map(),
     title :: nls_server:key(),
     desc :: nls_server:key(),
     npcs :: [npc_statem_manager:npc_spec()]
@@ -21,9 +21,9 @@
     command = ?MODULE :: module() | undefined,
     command_func :: player_statem:command_func() | undefined,
     command_args :: player_statem:command_args() | undefined,
-    scene :: scene_fsm:scene_name() | undefined,
-    from :: scene_fsm:scene_object() | undefined,
-    to :: scene_fsm:scene_object() | undefined,
+    scene :: scene_statem:scene_name() | undefined,
+    from :: scene_statem:scene_object() | undefined,
+    to :: scene_statem:scene_object() | undefined,
     dispatcher_pid :: pid() | undefined,
     target_name :: player_statem:id() | npc_statem:npc_id() | undefined,
     sequence :: non_neg_integer() | undefined,

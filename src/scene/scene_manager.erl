@@ -30,7 +30,7 @@
 
 -define(SERVER, ?MODULE).
 
--type scene_specs_map() :: #{scene_fsm:scene_name() => scene_fsm_sup:scene_child()}.
+-type scene_specs_map() :: #{scene_statem:scene_name() => scene_statem_sup:scene_child()}.
 
 -export_type([
     scene_specs_map/0
@@ -207,7 +207,7 @@ code_change(_OldVsn, State, _Extra) ->
         error_logger:info_msg("~p~n============changed scenes~n~tp~n", [?MODULE_STRING, ChangedSceneSpecsMap]),
         ok = maps:fold(
             fun(SceneName, {_SceneName, {scene_fsm, start_link, [SceneInfo]}, _RestartTime, _ShutdownTime, _WorkerType, [scene_fsm]}, ok) ->
-                scene_fsm:update_scene_info(SceneName, SceneInfo)
+                scene_statem:update_scene_info(SceneName, SceneInfo)
             end, ok, ChangedSceneSpecsMap),
         {ok, State#state{
             scene_specs_map = SceneSpecsMap
@@ -258,7 +258,7 @@ load_scene_specs(ExistingSceneSpecsMap) ->
 
     ChildFun =
         fun(SceneValues) ->
-            scene_fsm:scene_child_spec(SceneValues, Restart, Shutdown, Type)
+            scene_statem:scene_child_spec(SceneValues, Restart, Shutdown, Type)
         end,
 
     SceneNlsPath = filename:join(code:priv_dir(elib:app_name()), ?MODULE_STRING),

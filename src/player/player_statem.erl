@@ -115,7 +115,7 @@ start_link(Uid, DispatcherPid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec current_scene_name(PlayerUid) -> scene_fsm:scene_name() when
+-spec current_scene_name(PlayerUid) -> scene_statem:scene_name() when
     PlayerUid :: player_statem:uid().
 current_scene_name(PlayerUid) ->
     gen_statem:call(PlayerUid, current_scene_name).
@@ -498,7 +498,7 @@ init({Uid, DispatcherPid}) ->
         runtime_data_constraints = [{born_type_info, [BornMonth]}, {skill, SkillKeys}]
     },
 
-    ok = scene_fsm:enter(CurSceneName, DispatcherPid, simple_player(PlayerProfile), undefined),
+    ok = scene_statem:enter(CurSceneName, DispatcherPid, simple_player(PlayerProfile), undefined),
     {ok, non_battle, State}.
 
 %%--------------------------------------------------------------------
@@ -534,7 +534,7 @@ init({Uid, DispatcherPid}) ->
     From :: gen_statem:from(),
 
     Reply :: Lang |
-    scene_fsm:scene_name() |
+    scene_statem:scene_name() |
     ok |
     Data |
     LangMap |
@@ -749,10 +749,10 @@ affair_menu({call, From}, affair_name, #player_state{current_affair = {AffairNam
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% This function is called by a gen_fsm when it is about to
+%% This function is called by a gen_statem when it is about to
 %% terminate. It should be the opposite of Module:init/1 and do any
-%% necessary cleaning up. When it returns, the gen_fsm terminates with
-%% Reason. The return value is ignored. If the gen_fsm is terminated
+%% necessary cleaning up. When it returns, the gen_statem terminates with
+%% Reason. The return value is ignored. If the gen_statem is terminated
 %% abnormally, it is restarted with the current state name and state data. test
 %%
 %% @end
@@ -1011,7 +1011,7 @@ general_target(
                           SrcPlayerId == TargetId ->
                               do_response_content(PlayerState, SelfMessage, DispatcherPid);
                           true ->
-                              scene_fsm:general_target(CommandContext#command_context{
+                              scene_statem:general_target(CommandContext#command_context{
                                   scene = CurSceneName,
                                   from = simple_player(PlayerProfile)
                               }),
@@ -1069,7 +1069,7 @@ logout(#player_state{
         scene = CurSceneName
     } = PlayerProfile
 } = PlayerState, From) ->
-    scene_fsm:leave(CurSceneName, Uid),
+    scene_statem:leave(CurSceneName, Uid),
     true = redis_client_server:set(Uid, PlayerProfile, true),
     error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
     gen_statem:reply(From, ok),
