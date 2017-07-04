@@ -31,7 +31,8 @@
     general_target/1,
     morning/3,
     update_scene_info/2,
-    state/1
+    scene_state/1,
+    update_state/1
 ]).
 
 %% gen_statem callbacks
@@ -47,6 +48,7 @@
 -include("../data_type/npc_profile.hrl").
 -include("../data_type/player_profile.hrl").
 
+-type scene_state_name() :: morning | noon | afternoon | nightfall | night | midnight | dawn | state_name.
 -type scene_object() :: #simple_player{} | #simple_npc{}.
 -type scene_character_name() :: npc_statem:npc_id() | player_statem:uid().
 -type scene_name() :: atom(). % generic atom
@@ -60,7 +62,16 @@
     exits_description :: [nls_server:nls_object()]
 }).
 
--type scene_state_name() :: morning | noon | afternoon | nightfall | night | midnight | dawn | state_name.
+-type action(Reply) :: gen_statem:reply_action() | {reply, gen_statem:from(), Reply}.
+-type state_function_result(Reply) ::
+gen_statem:event_handler_result(#scene_state{}) |
+{keep_state_and_data, action(Reply)} |
+{
+    next_state,
+    #scene_state{},
+    scene_state_name(),
+    action(Reply)
+}.
 
 -export_type([
     scene_name/0,
@@ -127,8 +138,30 @@ scene_child_spec([_CityName | SceneValues], Restart, Shutdown, Type) ->
     DispatcherPid :: pid(),
     SimplePlayer :: #simple_player{},
     FromSceneName :: scene_name().
-enter(SceneName, DispatcherPid, SimplePlayer, FromSceneName) ->
-    gen_statem:cast(SceneName, {enter, DispatcherPid, SimplePlayer, FromSceneName}).
+enter(SceneName, DispatcherPid, #simple_player{
+    uid = Uid,
+    name = PlayerName
+} = SimplePlayer, FromSceneName) ->
+    #scene_state{
+        scene_object_list = SceneObjectList,
+        exits_scenes = ExitsScenes
+    } = SceneData = scene_state(SceneName),
+    {ok, IsPlayerExist} = do_show_scene(SceneData, Uid, DispatcherPid),
+    EnterSceneMessage = case FromSceneName of
+                            undefined ->
+                                [{nls, enter_scene, [PlayerName]}, <<"\n">>];
+                            _FromSceneName ->
+                                [{nls, enter_scene_from, [PlayerName, {nls, maps:get(FromSceneName, ExitsScenes)}]}, <<"\n">>]
+                        end,
+    UpdatedState =
+        case IsPlayerExist of
+            true ->
+                SceneData;
+            false ->
+                broadcast(SceneData, EnterSceneMessage, scene, []),
+                SceneData#scene_state{scene_object_list = [SimplePlayer | SceneObjectList]}
+        end,
+    update_state(UpdatedState).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -147,7 +180,24 @@ enter(SceneName, DispatcherPid, SimplePlayer, FromSceneName) ->
     TargetSceneName :: scene_name(),
     SceneNlsServerName :: erlang:registered_name().
 go_direction(SceneName, Uid, TargetDirection) ->
-    gen_statem:call(SceneName, {go_direction, Uid, TargetDirection}).
+    #scene_state{
+        scene_info = #scene_info{
+            exits = ExitsMap
+        },
+        scene_object_list = SceneObjectList
+    } = SceneData = scene_state(SceneName),
+    {TargetSceneName, UpdatedData} =
+        case maps:get(TargetDirection, ExitsMap, undefined) of
+            undefined ->
+                {undefined, SceneData};
+            SceneName ->
+                #simple_player{name = PlayerName} = scene_player_by_uid(SceneObjectList, Uid),
+                broadcast(SceneData, [{nls, leave_scene, [PlayerName, {nls, TargetDirection}]}, <<"\n">>], scene, [Uid]),
+                {SceneName, remove_scene_object(Uid, SceneData)}
+        end,
+
+    update_state(UpdatedData),
+    TargetSceneName.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -160,7 +210,12 @@ go_direction(SceneName, Uid, TargetDirection) ->
     SceneName :: scene_name(),
     Uid :: player_statem:uid().
 leave(SceneName, Uid) ->
-    gen_statem:cast(SceneName, {leave, Uid}).
+    #scene_state{
+        scene_object_list = SceneObjectList
+    } = SceneData = scene_state(SceneName),
+    #simple_player{name = PlayerName} = scene_player_by_uid(SceneObjectList, Uid),
+    broadcast(SceneData, [{nls, leave_scene, [PlayerName, {nls, unknown}]}, <<"\n">>], scene, [Uid]),
+    update_state(remove_scene_object(Uid, SceneData)).
 
 
 %%--------------------------------------------------------------------
@@ -169,12 +224,14 @@ leave(SceneName, Uid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec show_scene(CurSceneName, Uid, DispatcherPid) -> ok when
-    CurSceneName :: scene_name(),
+-spec show_scene(SceneName, Uid, DispatcherPid) -> ok when
+    SceneName :: scene_name(),
     DispatcherPid :: pid(),
     Uid :: player_statem:uid().
-show_scene(CurSceneName, Uid, DispatcherPid) ->
-    gen_statem:cast(CurSceneName, {show_scene, Uid, DispatcherPid}).
+show_scene(SceneName, Uid, DispatcherPid) ->
+    SceneData = scene_state(SceneName),
+    {ok, _IsCallerExist} = do_show_scene(SceneData, Uid, DispatcherPid),
+    ok.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -192,10 +249,41 @@ show_scene(CurSceneName, Uid, DispatcherPid) ->
     CommandContext :: #command_context{}.
 general_target(
     #command_context{
-        scene = SceneName
+        scene = SceneName,
+        from = #simple_player{
+            uid = SrcUid
+        },
+        dispatcher_pid = DispatcherPid,
+        target_name = TargetId,
+        sequence = Sequence,
+        target_name_bin = TargetBin
     } = CommandContext
 ) ->
-    gen_statem:cast(SceneName, {general_target, CommandContext}).
+    #scene_state{
+        scene_object_list = SceneObjectList
+    } = scene_state(SceneName),
+    TargetSceneObject = grab_target_scene_objects(SceneObjectList, TargetId, Sequence),
+    if
+        undefined == TargetSceneObject ->
+            player_statem:response_content(SrcUid, [{nls, no_such_target}, TargetBin, <<"\n">>], DispatcherPid);
+        true ->
+            UpdatedCommandContext = CommandContext#command_context{
+                to = TargetSceneObject
+            },
+
+            TargetUid =
+                case TargetSceneObject of
+                    #simple_npc{
+                        npc_uid = TargetNpcUid
+                    } ->
+                        TargetNpcUid;
+                    #simple_player{
+                        uid = TargetPlayerUid
+                    } ->
+                        TargetPlayerUid
+                end,
+            cm:execute_command(TargetUid, UpdatedCommandContext)
+    end.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -237,9 +325,17 @@ update_scene_info(SceneName, SceneInfo) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec state(scene_name()) -> #scene_state{}.
-state(SceneName) ->
-    gen_statem:call(SceneName, state).
+-spec scene_state(scene_name()) -> #scene_state{}.
+scene_state(SceneName) ->
+    gen_statem:call(SceneName, scene_state).
+
+-spec update_state(#scene_state{}) -> ok.
+update_state(#scene_state{
+    scene_info = #scene_info{
+        id = SceneName
+    }
+} = SceneData) ->
+    gen_statem:cast(SceneName, {update_state, SceneData}).
 
 %%%===================================================================
 %%% gen_statem callbacks
@@ -284,40 +380,25 @@ init(
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec morning(EventType, EventContent, Data) -> StateFunctionResult when
+-spec morning(EventType, EventContent, Data) -> state_function_result(Reply) when
     EventType :: gen_statem:event_type(),
 
     EventContent :: {execute_command, CommandContext} |
-    {enter, DispatcherPid, SimplePlayer, FromSceneName} |
-    {leave, Uid} |
-    {look_scene, Uid, DispatcherPid} |
-    {general_target, CommandContext} |
-    {go_direction, Uid, TargetDirection} |
     scene_object_list |
     exits_map |
     {update_scene_info, SceneInfo} |
-    state,
+    scene_state |
+    {update_state, Data},
 
     Reply :: SceneName | ok,
 
     Uid :: player_statem:uid(),
-    TargetDirection :: direction:directions(),
     SceneName :: scene_name(),
     SceneInfo :: #scene_info{},
 
-    SimplePlayer :: #simple_player{},
-    FromSceneName :: scene_name(),
-    DispatcherPid :: pid(),
     Uid :: player_statem:uid(),
     CommandContext :: #command_context{},
-
-    State :: #scene_state{},
-    Action :: gen_statem:reply_action() | {reply, From, Reply},
-    From :: gen_statem:from(),
-
-    StateFunctionResult :: gen_statem:event_handler_result(Data) |
-    {keep_state_and_data, Action} |
-    {next_state, State, Data, {reply, From, Reply}}.
+    Data :: #scene_state{}.
 morning(
     cast,
     {
@@ -345,113 +426,6 @@ morning(
     {ok, Result, NextStateName, UpdatedState} = CommandModule:CommandFunc(CommandContext, State, morning),
     {reply, Result, NextStateName, UpdatedState};
 morning(
-    cast,
-    {
-        enter,
-        DispatcherPid,
-        #simple_player{
-            uid = Uid,
-            name = PlayerName
-        } = SimplePlayer,
-        FromSceneName
-    },
-    #scene_state{
-        scene_object_list = SceneObjectList,
-        exits_scenes = ExitsScenes
-    } = Data
-) ->
-    {ok, IsPlayerExist} = do_show_scene(Data, Uid, DispatcherPid),
-    EnterSceneMessage = case FromSceneName of
-                            undefined ->
-                                [{nls, enter_scene, [PlayerName]}, <<"\n">>];
-                            _FromSceneName ->
-                                [{nls, enter_scene_from, [PlayerName, {nls, maps:get(FromSceneName, ExitsScenes)}]}, <<"\n">>]
-                        end,
-    UpdatedState =
-        case IsPlayerExist of
-            true ->
-                Data;
-            false ->
-                broadcast(Data, EnterSceneMessage, scene, []),
-                Data#scene_state{scene_object_list = [SimplePlayer | SceneObjectList]}
-        end,
-    {next_state, morning, UpdatedState};
-morning(
-    cast,
-    {leave, Uid},
-    #scene_state{
-        scene_object_list = SceneObjectList
-    } = Data
-) ->
-    #simple_player{name = PlayerName} = scene_player_by_uid(SceneObjectList, Uid),
-    broadcast(Data, [{nls, leave_scene, [PlayerName, {nls, unknown}]}, <<"\n">>], scene, [Uid]),
-    {next_state, morning, remove_scene_object(Uid, Data)};
-morning(cast, {show_scene, Uid, DispatcherPid}, Data) ->
-    {ok, _IsCallerExist} = do_show_scene(Data, Uid, DispatcherPid),
-    {next_state, morning, Data};
-morning(
-    cast,
-    {
-        general_target,
-        #command_context{
-            from = #simple_player{
-                uid = SrcUid
-            },
-            dispatcher_pid = DispatcherPid,
-            target_name = TargetId,
-            sequence = Sequence,
-            target_name_bin = TargetBin
-        } = CommandContext
-    },
-    #scene_state{
-        scene_object_list = SceneObjectList
-    } = Data
-) ->
-    TargetSceneObject = grab_target_scene_objects(SceneObjectList, TargetId, Sequence),
-    if
-        undefined == TargetSceneObject ->
-            ok = player_statem:response_content(SrcUid, [{nls, no_such_target}, TargetBin, <<"\n">>], DispatcherPid);
-        true ->
-            UpdatedCommandContext = CommandContext#command_context{
-                to = TargetSceneObject
-            },
-
-            TargetUid =
-                case TargetSceneObject of
-                    #simple_npc{
-                        npc_uid = TargetNpcUid
-                    } ->
-                        TargetNpcUid;
-                    #simple_player{
-                        uid = TargetPlayerUid
-                    } ->
-                        TargetPlayerUid
-                end,
-            ok = cm:execute_command(TargetUid, UpdatedCommandContext)
-    end,
-    {next_state, morning, Data};
-morning(
-    {call, From},
-    {go_direction, Uid, TargetDirection},
-    #scene_state{
-        scene_info = #scene_info{
-            exits = ExitsMap
-        },
-        scene_object_list = SceneObjectList
-    } = Data
-) ->
-    {TargetSceneName, UpdatedData} =
-        case maps:get(TargetDirection, ExitsMap, undefined) of
-            undefined ->
-                {undefined, Data};
-            SceneName ->
-                #simple_player{name = PlayerName} = scene_player_by_uid(SceneObjectList, Uid),
-                broadcast(Data, [{nls, leave_scene, [PlayerName, {nls, TargetDirection}]}, <<"\n">>], scene, [Uid]),
-                {SceneName, remove_scene_object(Uid, Data)}
-        end,
-
-    {next_state, morning, UpdatedData, {reply, From, TargetSceneName}};
-morning(
     {call, From},
     scene_object_list,
     #scene_state{
@@ -475,7 +449,9 @@ morning({call, From}, {update_scene_info, NewSceneInfo}, #scene_state{
     UpdatedData = populate_scene_state(NewSceneInfo, ExistingSceneObjectList),
     {next_state, morning, UpdatedData, {reply, From, ok}};
 morning({call, From}, state, State) ->
-    {keep_state_and_data, {reply, From, State}}.
+    {keep_state_and_data, {reply, From, State}};
+morning(cast, {update_state, SceneData}, _OldData) ->
+    {next_state, morning, SceneData}.
 
 %%--------------------------------------------------------------------
 %% @doc

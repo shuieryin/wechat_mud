@@ -14,7 +14,6 @@ services:
 script:
   - make install_rebar3
   - make bc
-  - make ct
 
 notifications:
   email:

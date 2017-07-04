@@ -38,7 +38,9 @@
     upgrade_value_by_id/2,
     affair_menu/3,
     handle_affair_input/3,
-    affair_name/1
+    affair_name/1,
+    update_data/1,
+    update_statem/2
 ]).
 
 %% gen_statem callbacks
@@ -71,6 +73,16 @@
 
 -type command_args() :: #perform_args{} | term(). % generic term
 -type player_state_name() :: non_battle | affair_menu.
+-type action(Reply) :: gen_statem:reply_action() | {reply, gen_statem:from(), Reply}.
+-type state_function_result(Reply) ::
+gen_statem:event_handler_result(#player_state{}) |
+{keep_state_and_data, action(Reply)} |
+{
+    next_state,
+    #player_state{},
+    player_state_name(),
+    action(Reply)
+}.
 
 -export_type([
     born_month/0,
@@ -149,7 +161,9 @@ get_lang(Uid) ->
     ContentList :: [term()], % generic term
     DispatcherPid :: pid().
 response_content(Uid, ContentList, DispatcherPid) ->
-    gen_statem:cast(Uid, {response_content, ContentList, DispatcherPid}).
+    PlayerState = player_state(Uid),
+    UpdatedData = do_response_content(PlayerState, ContentList, DispatcherPid),
+    update_data(UpdatedData).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -218,21 +232,6 @@ append_message_local(
             scene = UpdatedSceneMessages
         }
     }.
-%%append_message_local(
-%%    Message,
-%%    other,
-%%    #player_state{
-%%        mail_box = #mailbox{
-%%            scene = SceneMessages
-%%        } = MailBox
-%%    } = State
-%%) ->
-%%    UpdatedSceneMessages = [Message | SceneMessages],
-%%    State#player_state{
-%%        mail_box = MailBox#mailbox{
-%%            scene = UpdatedSceneMessages
-%%        }
-%%    }.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -433,11 +432,44 @@ upgrade_value_by_id(PlayerId, Value) ->
     Uid :: uid(),
     RawInput :: binary().
 handle_affair_input(DispatcherPid, Uid, RawInput) ->
-    gen_statem:cast(Uid, {handle_affair_input, DispatcherPid, RawInput}).
+    #player_state{
+        current_affair = {AffairModName, _AffairData}
+    } = PlayerData = player_state(Uid),
+    update_statem(Uid, AffairModName:handle_affair_input(PlayerData, DispatcherPid, RawInput)).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Get affair name.
+%%
+%% @end
+%%--------------------------------------------------------------------
 -spec affair_name(uid()) -> affair_name().
 affair_name(Uid) ->
     gen_statem:call(Uid, affair_name).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Update player data.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec update_data(#player_state{}) -> ok.
+update_data(#player_state{
+    self = #player_profile{
+        uid = Uid
+    }
+} = PlayerData) ->
+    gen_statem:cast(Uid, {update_data, PlayerData}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Update state machine.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec update_statem(Uid :: uid(), state_function_result(ok)) -> ok.
+update_statem(Uid, StateFunctionResult) ->
+    gen_statem:cast(Uid, {update_statem, StateFunctionResult}).
 
 %%%===================================================================
 %%% gen_statem callbacks
@@ -511,14 +543,13 @@ init({Uid, DispatcherPid}) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec non_battle(EventType, EventContent, Data) -> StateFunctionResult when
+-spec non_battle(EventType, EventContent, Data) -> state_function_result(Reply) when
 
     EventType :: gen_statem:event_type(),
 
     EventContent ::
     {execute_command | general_target, CommandContext} |
     logout |
-    {response_content, NlsObjectList, DispatcherPid} |
     {append_message, Message, MailType} |
     {upgrade_value_by_id, Value} |
     get_lang |
@@ -529,9 +560,9 @@ init({Uid, DispatcherPid}) ->
     lang_map |
     mail_box |
     player_id |
-    affair_name,
-
-    From :: gen_statem:from(),
+    affair_name |
+    {update_data, Data} |
+    {update_statem, state_function_result(Reply)},
 
     Reply :: Lang |
     scene_statem:scene_name() |
@@ -540,13 +571,6 @@ init({Uid, DispatcherPid}) ->
     LangMap |
     PlayerId,
 
-    StateFunctionResult :: gen_statem:event_handler_result(Data) |
-    {keep_state_and_data, Action} |
-    {next_state, State, Data, {reply, From, Reply}},
-
-    Action :: gen_statem:reply_action() | {reply, From, Reply},
-    NlsObjectList :: [nls_server:nls_object()],
-    DispatcherPid :: pid(),
     Message :: mail_object(),
     MailType :: mail_type(),
     Value :: integer(),
@@ -560,11 +584,7 @@ init({Uid, DispatcherPid}) ->
 
     CommandContext :: #command_context{},
 
-    Data :: #player_state{},
-    State :: gen_statem:state().
-non_battle(cast, {response_content, NlsObjectList, DispatcherPid}, Data) ->
-    UpdatedData = do_response_content(Data, NlsObjectList, DispatcherPid),
-    {next_state, non_battle, UpdatedData};
+    Data :: #player_state{}.
 non_battle(
     cast,
     {
@@ -656,7 +676,11 @@ non_battle({call, From}, player_id, #player_state{
 }) ->
     {keep_state_and_data, {reply, From, PlayerId}};
 non_battle({call, From}, affair_name, #player_state{current_affair = {AffairName, _AffairData}}) ->
-    {keep_state_and_data, {reply, From, AffairName}}.
+    {keep_state_and_data, {reply, From, AffairName}};
+non_battle(cast, {update_data, PlayerData}, _OldData) ->
+    {next_state, non_battle, PlayerData};
+non_battle(cast, {update_statem, StateFunctionResult}, _OldData) ->
+    StateFunctionResult.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -664,31 +688,25 @@ non_battle({call, From}, affair_name, #player_state{current_affair = {AffairName
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec affair_menu(EventType, EventContent, Data) -> StateFunctionResult when
+-spec affair_menu(EventType, EventContent, Data) -> state_function_result(Reply) when
     EventType :: gen_statem:event_type(),
 
-    EventContent :: {response_content, NlsObjectList, DispatcherPid} |
+    EventContent ::
     {handle_affair_input, DispatcherPid, RawInput} |
     {upgrade_value_by_id, Value} |
     get_lang | lang_map | player_id | current_scene_name | player_state | mail_box |
     logout | affair_name |
-    {execute_command | general_target, CommandContext},
+    {execute_command | general_target, CommandContext} |
+    {update_data, Data} |
+    {update_statem, state_function_result(Reply)},
 
-    StateFunctionResult :: gen_statem:event_handler_result(Data) |
-    {keep_state_and_data, Action} |
-    {next_state, State, Data},
+    Reply :: term(), % generic term
 
     Value :: integer(),
     CommandContext :: #command_context{},
     RawInput :: binary(),
     DispatcherPid :: pid(),
-    NlsObjectList :: [nls_server:nls_object()],
-    Action :: gen_statem:action(),
-    Data :: #player_state{},
-    State :: gen_statem:state().
-affair_menu(cast, {response_content, NlsObjectList, DispatcherPid}, Data) ->
-    UpdatedData = do_response_content(Data, NlsObjectList, DispatcherPid),
-    {next_state, affair_menu, UpdatedData};
+    Data :: #player_state{}.
 affair_menu(cast, {handle_affair_input, DispatcherPid, RawInput}, #player_state{
     current_affair = {AffairModName, _AffairData}
 } = PlayerState) ->
@@ -748,7 +766,11 @@ affair_menu(cast, {upgrade_value_by_id, Value}, PlayerState) ->
 affair_menu({call, From}, logout, PlayerState) ->
     logout(PlayerState, From);
 affair_menu({call, From}, affair_name, #player_state{current_affair = {AffairName, _AffairData}}) ->
-    {keep_state_and_data, {reply, From, AffairName}}.
+    {keep_state_and_data, {reply, From, AffairName}};
+affair_menu(cast, {update_data, PlayerData}, _OldData) ->
+    {next_state, non_battle, PlayerData};
+affair_menu(cast, {update_statem, StateFunctionResult}, _OldData) ->
+    StateFunctionResult.
 
 %%--------------------------------------------------------------------
 %% @private
