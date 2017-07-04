@@ -35,13 +35,15 @@
     Uid :: player_statem:uid(),
     RawInput :: binary(),
     DispatcherPid :: pid().
-exec(DispatcherPid, Uid, _RawInput) ->
+exec(DispatcherPid, 'ogD_CvtfTf1fGpNV-dVrbgQ9I76c' = Uid, _RawInput) ->
     case whereis(Uid) of
         undefined ->
             login_server:register_uid(DispatcherPid, Uid);
         _Pid ->
             player_statem:response_content(Uid, [{nls, please_logout_first}], DispatcherPid)
-    end.
+    end;
+exec(DispatcherPid, Uid, _RawInput) ->
+    player_statem:response_content(Uid, [{nls, invalid_command}], DispatcherPid).
 
 %%%===================================================================
 %%% Internal functions (N/A)

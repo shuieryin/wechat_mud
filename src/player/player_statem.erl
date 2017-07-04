@@ -526,7 +526,6 @@ init({Uid, DispatcherPid}) ->
     current_scene_name |
     {update_nls, ChangedLangMap, RemovedNlsSet} |
     {pending_update_runtime_data, {ChangedFilesStruct, DeletedFilesStruct}} |
-    player_state |
     lang_map |
     mail_box |
     player_id |
