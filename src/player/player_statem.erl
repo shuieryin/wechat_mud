@@ -3,7 +3,7 @@
 %%% @copyright (C) 2016, Shuieryin
 %%% @doc
 %%%
-%%% Player gen_fsm. This gen_fsm is created when player logs in and
+%%% Player gen_statem. This gen_statem is created when player logs in and
 %%% detroyed when player logs out. It holds the current player state
 %%% and state data for player journey.
 %%%
@@ -41,7 +41,7 @@
     affair_name/1
 ]).
 
-%% gen_fsm callbacks
+%% gen_statem callbacks
 -export([
     init/1,
     terminate/3,
@@ -95,11 +95,11 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Creates a player gen_fsm process which calls Module:init/1 to
+%% Creates a player gen_statem process which calls Module:init/1 to
 %% initialize. To ensure a synchronized start-up procedure, this
 %% function does not return until Module:init/1 has returned.
 %%
-%% This function starts gen_fsm by setting player uid as fsm name.
+%% This function starts gen_statem by setting player uid as fsm name.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -154,7 +154,7 @@ response_content(Uid, ContentList, DispatcherPid) ->
 %%--------------------------------------------------------------------
 %% @doc
 %% Logs out player by exit the current scene and terminate its player
-%% gen_fsm process.
+%% gen_statem process.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -440,14 +440,14 @@ affair_name(Uid) ->
     gen_statem:call(Uid, affair_name).
 
 %%%===================================================================
-%%% gen_fsm callbacks
+%%% gen_statem callbacks
 %%%===================================================================
 
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% Whenever a gen_fsm is started using gen_fsm:start/[3,4] or
-%% gen_fsm:start_link/[3,4], this function is called by the new
+%% Whenever a gen_statem is started using gen_statem:start/[3,4] or
+%% gen_statem:start_link/[3,4], this function is called by the new
 %% process to initialize.
 %%
 %% See start_link/1 for details.
