@@ -52,10 +52,9 @@ start(normal, [AppNameStr] = StartArgs) ->
     ),
 
     AppNameBin = list_to_binary(AppNameStr),
-    NumberOfAcceptors = 100,
 
     Port = 13579,
-    case cowboy:start_clear(binary_to_atom(<<AppNameBin/binary, "_listener">>, utf8), NumberOfAcceptors, [{port, Port}], #{env => #{dispatch => Dispatch}}) of
+    case cowboy:start_clear(binary_to_atom(<<AppNameBin/binary, "_listener">>, utf8), [{port, Port}], #{env => #{dispatch => Dispatch}}) of
         {error, Reason} ->
             error_logger:error_msg("websockets could not be started -- port ~p probably in use~nReason:~p~n", [Port, Reason]),
             cm:q();

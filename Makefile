@@ -1,5 +1,5 @@
 # all - for build and run test after a fresh clone
-all: install_rebar3 build ct
+all: install_rebar3 bc ct
 
 install_rebar3:
 	@./config/install_rebar3.sh
