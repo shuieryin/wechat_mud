@@ -6,28 +6,26 @@
 %%% @end
 %%% Created : 06. Nov 2015 7:09 PM
 %%%-------------------------------------------------------------------
--module(npc_fsm).
+-module(npc_statem).
 -author("shuieryin").
 
--behaviour(gen_fsm).
+-behaviour(gen_statem).
 
 %% API
 -export([
     start_link/1,
-    non_battle/2
+    simple_npc/1,
+    npc_state/1,
+    non_battle/3
 ]).
 
 %% gen_fsm callbacks
 -export([
     init/1,
-    handle_event/3,
-    handle_sync_event/4,
-    handle_info/3,
     terminate/3,
     code_change/4,
     format_status/2,
-    simple_npc/1,
-    npc_state/1
+    callback_mode/0
 ]).
 
 -define(SERVER, ?MODULE).
@@ -169,21 +167,22 @@ init(NpcProfile) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec non_battle(Event, State) ->
-    {next_state, NextStateName, NextState} |
-    {next_state, NextStateName, NextState, timeout() | hibernate} |
-    {stop, Reason, NewState} when
+-spec non_battle(EventType, EventContent, Data) -> StateFunctionResult when
+    EventType :: gen_statem:event_type(),
 
-    Event :: {execute_command, CommandContext},
+    EventContent :: {execute_command, CommandContext},
 
     CommandContext :: #command_context{},
 
     State :: #npc_state{},
-    NextStateName :: npc_state_name(),
-    NextState :: State,
-    NewState :: State,
-    Reason :: term(). % generic term
+    Action :: gen_statem:reply_action() | {reply, From, Reply},
+    From :: gen_statem:from(),
+
+    StateFunctionResult :: gen_statem:event_handler_result(Data) |
+    {keep_state_and_data, Action} |
+    {next_state, State, Data, {reply, From, Reply}}.
 non_battle(
+    cast,
     {
         execute_command,
         #command_context{
@@ -193,83 +192,8 @@ non_battle(
     },
     State
 ) ->
-    {ok, NextStateName, UpdatedState} = CommandModule:CommandFunc(CommandContext, State, non_battle),
-    {next_state, NextStateName, UpdatedState}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Whenever a gen_fsm receives an event sent using
-%% gen_fsm:send_all_state_event/2, this function is called to handle
-%% the event.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec handle_event(Event, StateName, StateData) ->
-    {next_state, NextStateName, NewStateData} |
-    {next_state, NextStateName, NewStateData, timeout() | hibernate} |
-    {stop, Reason, NewStateData} when
-
-    Event :: term(), % generic term
-    StateName :: npc_state_name(),
-    StateData :: #npc_state{},
-    NextStateName :: StateName,
-    NewStateData :: StateData,
-    Reason :: term(). % generic term
-handle_event(_Event, StateName, State) ->
-    {next_state, StateName, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Whenever a gen_fsm receives an event sent using
-%% gen_fsm:sync_send_all_state_event/[2,3], this function is called
-%% to handle the event.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec handle_sync_event(Event, From, StateName, StateData) ->
-    {reply, Reply, NextStateName, NewStateData} |
-    {reply, Reply, NextStateName, NewStateData, timeout() | hibernate} |
-    {next_state, NextStateName, NewStateData} |
-    {next_state, NextStateName, NewStateData, timeout() | hibernate} |
-    {stop, Reason, Reply, NewStateData} |
-    {stop, Reason, NewStateData} when
-
-    Event :: npc_state, % generic term
-    Reply :: #npc_state{},
-
-    From :: {pid(), Tag :: term()}, % generic term
-    StateName :: npc_state_name(),
-    StateData :: #npc_state{},
-    NextStateName :: StateName,
-    NewStateData :: StateData,
-    Reason :: term(). % generic term
-handle_sync_event(npc_state, _From, StateName, NpcState) ->
-    {reply, NpcState, StateName, NpcState}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% This function is called by a gen_fsm when it receives any
-%% message other than a synchronous or asynchronous event
-%% (or a system message).
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec handle_info(Info, StateName, StateData) ->
-    {next_state, NextStateName, NewStateData} |
-    {next_state, NextStateName, NewStateData, timeout() | hibernate} |
-    {stop, Reason, NewStateData} when
-
-    Info :: term(), % generic term
-    StateName :: npc_state_name(),
-    StateData :: #npc_state{},
-    NextStateName :: StateName,
-    NewStateData :: StateData,
-    Reason :: normal | term(). % generic term
-handle_info(_Info, StateName, State) ->
-    {next_state, StateName, State}.
+    {ok, NextStateName, UpdatedData} = CommandModule:CommandFunc(CommandContext, State, non_battle),
+    {next_state, NextStateName, UpdatedData}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -322,6 +246,17 @@ code_change(_OldVsn, StateName, State, _Extra) ->
     Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_fsm:format_status(Opt, StatusData).
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% This function returns the callback mode to gen_statem
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec callback_mode() -> gen_statem:callback_mode_result().
+callback_mode() ->
+    [state_functions].
 
 %%%===================================================================
 %%% Internal functions (N/A)

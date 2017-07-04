@@ -3,13 +3,13 @@
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
-%%% Npc_fsm supervisor. This is a simple one for one supervisor which
-%%% npc_fsm children dynamically are added to or removed from it.
+%%% Npc_statem supervisor. This is a simple one for one supervisor which
+%%% npc_statem children dynamically are added to or removed from it.
 %%%
 %%% @end
 %%% Created : 01. Nov 2015 6:12 PM
 %%%-------------------------------------------------------------------
--module(npc_fsm_sup).
+-module(npc_statem_sup).
 -author("shuieryin").
 
 -behaviour(supervisor).
@@ -79,7 +79,7 @@ init([]) ->
     Shutdown = 2000,
     Type = worker,
 
-    ChildSpec = {npc_fsm, {npc_fsm, start_link, []}, Restart, Shutdown, Type, [npc_fsm]},
+    ChildSpec = {npc_statem, {npc_statem, start_link, []}, Restart, Shutdown, Type, [npc_statem]},
 
     {ok, {SupFlags, [ChildSpec]}}.
 

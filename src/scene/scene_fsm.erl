@@ -53,7 +53,7 @@
 -include("../data_type/player_profile.hrl").
 
 -type scene_object() :: #simple_player{} | #simple_npc{}.
--type scene_character_name() :: npc_fsm:npc_id() | player_statem:uid().
+-type scene_character_name() :: npc_statem:npc_id() | player_statem:uid().
 -type scene_name() :: atom(). % generic atom
 -type exits_map() :: #{direction:directions() => nls_server:key()}.
 -type exits_scenes() :: #{scene_name() => direction:directions()}.
@@ -611,7 +611,7 @@ grab_target_scene_objects([], _TargetName, _Sequence, _Counter) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec remove_scene_object(SceneObjectKey, State) -> UpdatedState when
-    SceneObjectKey :: npc_fsm:npc_uid() | player_statem:uid(),
+    SceneObjectKey :: npc_statem:npc_uid() | player_statem:uid(),
     State :: #scene_state{},
     UpdatedState :: State.
 remove_scene_object(
@@ -1002,7 +1002,7 @@ populate_scene_state(#scene_info{
 } = SceneInfo, ExistingSceneObjectList) ->
     SceneNpcsList = case ExistingSceneObjectList of
                         undefined ->
-                            npc_fsm_manager:new_npcs(NpcsSpec);
+                            npc_statem_manager:new_npcs(NpcsSpec);
                         _Exist ->
                             new_npcs(NpcsSpec, ExistingSceneObjectList) ++ ExistingSceneObjectList
                     end,
@@ -1026,7 +1026,7 @@ populate_scene_state(#scene_info{
 %% @end
 %%--------------------------------------------------------------------
 -spec new_npcs(NewNpcsSpec, ExistingSceneObjectList) -> [#simple_npc{}] when
-    NewNpcsSpec :: [npc_fsm_manager:npc_spec()],
+    NewNpcsSpec :: [npc_statem_manager:npc_spec()],
     ExistingSceneObjectList :: [scene_object()].
 new_npcs(NewNpcsSpec, ExistingSceneObjectList) ->
     DiffNpcsSpec =
@@ -1045,7 +1045,7 @@ new_npcs(NewNpcsSpec, ExistingSceneObjectList) ->
         [] ->
             [];
         _HasNewNpc ->
-            npc_fsm_manager:new_npcs(DiffNpcsSpec)
+            npc_statem_manager:new_npcs(DiffNpcsSpec)
     end.
 
 %%--------------------------------------------------------------------

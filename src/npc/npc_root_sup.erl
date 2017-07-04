@@ -3,7 +3,7 @@
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
-%%% This is npc root supervisor which starts up npc_fsm_manager and npc_fsm_sup.
+%%% This is npc root supervisor which starts up npc_statem_manager and npc_statem_sup.
 %%%
 %%% @end
 %%% Created : 06. Nov 2015 4:38 PM
@@ -63,20 +63,20 @@ init([]) ->
     {ok, {
         SupFlags,
         [
-            {npc_fsm_manager,
-                {npc_fsm_manager, start_link, []},
+            {npc_statem_manager,
+                {npc_statem_manager, start_link, []},
                 permanent,
                 10000,
                 worker,
-                [npc_fsm_manager]
+                [npc_statem_manager]
             },
 
-            {npc_fsm_sup,
-                {npc_fsm_sup, start_link, []},
+            {npc_statem_sup,
+                {npc_statem_sup, start_link, []},
                 permanent,
                 10000,
                 supervisor,
-                [npc_fsm_sup]
+                [npc_statem_sup]
             }
         ]
     }}.

@@ -13,7 +13,7 @@
     exits :: scene_fsm:exits_map(),
     title :: nls_server:key(),
     desc :: nls_server:key(),
-    npcs :: [npc_fsm_manager:npc_spec()]
+    npcs :: [npc_statem_manager:npc_spec()]
 }).
 
 -record(command_context, {
@@ -25,7 +25,7 @@
     from :: scene_fsm:scene_object() | undefined,
     to :: scene_fsm:scene_object() | undefined,
     dispatcher_pid :: pid() | undefined,
-    target_name :: player_statem:id() | npc_fsm:npc_id() | undefined,
+    target_name :: player_statem:id() | npc_statem:npc_id() | undefined,
     sequence :: non_neg_integer() | undefined,
     target_name_bin :: binary() | undefined,
     self_targeted_message :: [nls_server:nls_object()] | undefined,

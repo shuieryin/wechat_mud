@@ -142,7 +142,7 @@ from_init(
 -spec to_settle(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
     CommandContext :: #command_context{},
     State :: #player_state{} | #npc_state{},
-    StateName :: player_statem:player_state_name() | npc_fsm:npc_state_name(),
+    StateName :: player_statem:player_state_name() | npc_statem:npc_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
 to_settle(
@@ -184,7 +184,7 @@ to_settle(
 -spec feedback(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
     CommandContext :: #command_context{},
     State :: #player_state{} | #npc_state{},
-    StateName :: player_statem:player_state_name() | npc_fsm:npc_state_name(),
+    StateName :: player_statem:player_state_name() | npc_statem:npc_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
 feedback(
@@ -314,7 +314,7 @@ handle_perform_results(_BaseFromTo, _SrcName, [], FinalMessages, FinalCalcValueB
 %% @end
 %%--------------------------------------------------------------------
 -spec handle_feedback(TargetName, CommandContext, State) -> UpdatedState when
-    TargetName :: player_statem:name() | npc_fsm:npc_name(),
+    TargetName :: player_statem:name() | npc_statem:npc_name(),
     CommandContext :: #command_context{},
     State :: #player_state{},
     UpdatedState :: State.

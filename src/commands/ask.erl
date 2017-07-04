@@ -113,7 +113,7 @@ ask_init(
 -spec answer(CommandContext, State, StateName) -> {ok, UpdatedStateName, UpdatedState} when
     CommandContext :: #command_context{},
     State :: #player_state{} | #npc_state{},
-    StateName :: player_statem:player_state_name() | npc_fsm:npc_state_name(),
+    StateName :: player_statem:player_state_name() | npc_statem:npc_state_name(),
     UpdatedStateName :: StateName,
     UpdatedState :: State.
 answer(

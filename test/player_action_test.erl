@@ -259,7 +259,7 @@ ask(#state{player_uid = PlayerUid}) ->
                                   self = #npc_profile{
                                       ask_n_answers = RawAskNAnswers
                                   }
-                              } = npc_fsm:npc_state(NpcUid),
+                              } = npc_statem:npc_state(NpcUid),
 
                               ReturnAffairName =
                                   case RawAskNAnswers of

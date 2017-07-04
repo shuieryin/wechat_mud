@@ -20,8 +20,8 @@
 }).
 
 -record(npc_profile, {
-    npc_uid :: npc_fsm:npc_uid(),
-    npc_id :: npc_fsm:npc_id(), % define npc_id to binary for convenience of pattern matching.
+    npc_uid :: npc_statem:npc_uid(),
+    npc_id :: npc_statem:npc_id(), % define npc_id to binary for convenience of pattern matching.
     npc_name :: nls_server:nls_object(),
     character_desc :: nls_server:nls_object(),
     self_description :: nls_server:nls_object(),
@@ -33,9 +33,9 @@
 }).
 
 -record(simple_npc, {
-    npc_uid :: npc_fsm:npc_uid(),
-    npc_id :: npc_fsm:npc_id(),
-    npc_name :: npc_fsm:npc_name()
+    npc_uid :: npc_statem:npc_uid(),
+    npc_id :: npc_statem:npc_id(),
+    npc_name :: npc_statem:npc_name()
 }).
 
 -record(npc_state, {
