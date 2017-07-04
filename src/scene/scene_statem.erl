@@ -142,26 +142,30 @@ enter(SceneName, DispatcherPid, #simple_player{
     uid = Uid,
     name = PlayerName
 } = SimplePlayer, FromSceneName) ->
-    #scene_state{
-        scene_object_list = SceneObjectList,
-        exits_scenes = ExitsScenes
-    } = SceneData = scene_state(SceneName),
-    {ok, IsPlayerExist} = do_show_scene(SceneData, Uid, DispatcherPid),
-    EnterSceneMessage = case FromSceneName of
-                            undefined ->
-                                [{nls, enter_scene, [PlayerName]}, <<"\n">>];
-                            _FromSceneName ->
-                                [{nls, enter_scene_from, [PlayerName, {nls, maps:get(FromSceneName, ExitsScenes)}]}, <<"\n">>]
-                        end,
-    UpdatedState =
-        case IsPlayerExist of
-            true ->
-                SceneData;
-            false ->
-                broadcast(SceneData, EnterSceneMessage, scene, []),
-                SceneData#scene_state{scene_object_list = [SimplePlayer | SceneObjectList]}
-        end,
-    update_state(UpdatedState).
+    spawn(
+        fun() ->
+            #scene_state{
+                scene_object_list = SceneObjectList,
+                exits_scenes = ExitsScenes
+            } = SceneData = scene_state(SceneName),
+            {ok, IsPlayerExist} = do_show_scene(SceneData, Uid, DispatcherPid),
+            EnterSceneMessage = case FromSceneName of
+                                    undefined ->
+                                        [{nls, enter_scene, [PlayerName]}, <<"\n">>];
+                                    _FromSceneName ->
+                                        [{nls, enter_scene_from, [PlayerName, {nls, maps:get(FromSceneName, ExitsScenes)}]}, <<"\n">>]
+                                end,
+            UpdatedState =
+                case IsPlayerExist of
+                    true ->
+                        SceneData;
+                    false ->
+                        broadcast(SceneData, EnterSceneMessage, scene, []),
+                        SceneData#scene_state{scene_object_list = [SimplePlayer | SceneObjectList]}
+                end,
+            update_state(UpdatedState)
+        end),
+    ok.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -210,12 +214,16 @@ go_direction(SceneName, Uid, TargetDirection) ->
     SceneName :: scene_name(),
     Uid :: player_statem:uid().
 leave(SceneName, Uid) ->
-    #scene_state{
-        scene_object_list = SceneObjectList
-    } = SceneData = scene_state(SceneName),
-    #simple_player{name = PlayerName} = scene_player_by_uid(SceneObjectList, Uid),
-    broadcast(SceneData, [{nls, leave_scene, [PlayerName, {nls, unknown}]}, <<"\n">>], scene, [Uid]),
-    update_state(remove_scene_object(Uid, SceneData)).
+    spawn(
+        fun() ->
+            #scene_state{
+                scene_object_list = SceneObjectList
+            } = SceneData = scene_state(SceneName),
+            #simple_player{name = PlayerName} = scene_player_by_uid(SceneObjectList, Uid),
+            broadcast(SceneData, [{nls, leave_scene, [PlayerName, {nls, unknown}]}, <<"\n">>], scene, [Uid]),
+            update_state(remove_scene_object(Uid, SceneData))
+        end),
+    ok.
 
 
 %%--------------------------------------------------------------------
@@ -229,8 +237,11 @@ leave(SceneName, Uid) ->
     DispatcherPid :: pid(),
     Uid :: player_statem:uid().
 show_scene(SceneName, Uid, DispatcherPid) ->
-    SceneData = scene_state(SceneName),
-    {ok, _IsCallerExist} = do_show_scene(SceneData, Uid, DispatcherPid),
+    spawn(
+        fun() ->
+            SceneData = scene_state(SceneName),
+            {ok, _IsCallerExist} = do_show_scene(SceneData, Uid, DispatcherPid)
+        end),
     ok.
 
 %%--------------------------------------------------------------------
@@ -259,31 +270,35 @@ general_target(
         target_name_bin = TargetBin
     } = CommandContext
 ) ->
-    #scene_state{
-        scene_object_list = SceneObjectList
-    } = scene_state(SceneName),
-    TargetSceneObject = grab_target_scene_objects(SceneObjectList, TargetId, Sequence),
-    if
-        undefined == TargetSceneObject ->
-            player_statem:response_content(SrcUid, [{nls, no_such_target}, TargetBin, <<"\n">>], DispatcherPid);
-        true ->
-            UpdatedCommandContext = CommandContext#command_context{
-                to = TargetSceneObject
-            },
+    spawn(
+        fun() ->
+            #scene_state{
+                scene_object_list = SceneObjectList
+            } = scene_state(SceneName),
+            TargetSceneObject = grab_target_scene_objects(SceneObjectList, TargetId, Sequence),
+            if
+                undefined == TargetSceneObject ->
+                    player_statem:response_content(SrcUid, [{nls, no_such_target}, TargetBin, <<"\n">>], DispatcherPid);
+                true ->
+                    UpdatedCommandContext = CommandContext#command_context{
+                        to = TargetSceneObject
+                    },
 
-            TargetUid =
-                case TargetSceneObject of
-                    #simple_npc{
-                        npc_uid = TargetNpcUid
-                    } ->
-                        TargetNpcUid;
-                    #simple_player{
-                        uid = TargetPlayerUid
-                    } ->
-                        TargetPlayerUid
-                end,
-            cm:execute_command(TargetUid, UpdatedCommandContext)
-    end.
+                    TargetUid =
+                        case TargetSceneObject of
+                            #simple_npc{
+                                npc_uid = TargetNpcUid
+                            } ->
+                                TargetNpcUid;
+                            #simple_player{
+                                uid = TargetPlayerUid
+                            } ->
+                                TargetPlayerUid
+                        end,
+                    cm:execute_command(TargetUid, UpdatedCommandContext)
+            end
+        end),
+    ok.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -448,7 +463,7 @@ morning({call, From}, {update_scene_info, NewSceneInfo}, #scene_state{
 }) ->
     UpdatedData = populate_scene_state(NewSceneInfo, ExistingSceneObjectList),
     {next_state, morning, UpdatedData, {reply, From, ok}};
-morning({call, From}, state, State) ->
+morning({call, From}, scene_state, State) ->
     {keep_state_and_data, {reply, From, State}};
 morning(cast, {update_state, SceneData}, _OldData) ->
     {next_state, morning, SceneData}.

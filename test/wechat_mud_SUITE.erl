@@ -59,7 +59,7 @@ all() ->
     ].
 
 groups() ->
-    SpawnAmount = 5, % 32
+    SpawnAmount = 10, % 32
     PlayerActionRegression = {
         player_action_regression,
         [parallel, {repeat, SpawnAmount div 2}],

@@ -589,7 +589,7 @@ exit_menu(#player_state{
         current_affair = {undefined, undefined}
     },
 
-    scene_statem:show_scene(SceneName, PlayerUid, DispatcherPid),
+    ok = scene_statem:show_scene(SceneName, PlayerUid, DispatcherPid),
     {next_state, non_battle, UpdatedPlayerState}.
 
 %%--------------------------------------------------------------------

@@ -98,7 +98,7 @@ ask_init(
                         dispatcher_pid = DispatcherPid
                     }
                 },
-                scene_statem:general_target(UpdatedCommandContext),
+                ok = scene_statem:general_target(UpdatedCommandContext),
                 State
         end,
 

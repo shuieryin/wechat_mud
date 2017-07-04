@@ -161,9 +161,13 @@ get_lang(Uid) ->
     ContentList :: [term()], % generic term
     DispatcherPid :: pid().
 response_content(Uid, ContentList, DispatcherPid) ->
-    PlayerState = player_state(Uid),
-    UpdatedData = do_response_content(PlayerState, ContentList, DispatcherPid),
-    update_data(UpdatedData).
+    spawn(
+        fun() ->
+            PlayerState = player_state(Uid),
+            UpdatedData = do_response_content(PlayerState, ContentList, DispatcherPid),
+            update_data(UpdatedData)
+        end),
+    ok.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -1037,7 +1041,7 @@ general_target(
                           SrcPlayerId == TargetId ->
                               do_response_content(PlayerState, SelfMessage, DispatcherPid);
                           true ->
-                              scene_statem:general_target(CommandContext#command_context{
+                              ok = scene_statem:general_target(CommandContext#command_context{
                                   scene = CurSceneName,
                                   from = simple_player(PlayerProfile)
                               }),
@@ -1095,7 +1099,7 @@ logout(#player_state{
         scene = CurSceneName
     } = PlayerProfile
 } = PlayerState, From) ->
-    scene_statem:leave(CurSceneName, Uid),
+    ok = scene_statem:leave(CurSceneName, Uid),
     true = redis_client_server:set(Uid, PlayerProfile, true),
     error_logger:info_msg("Logout PlayerProfile:~p~n", [PlayerProfile]),
     gen_statem:reply(From, ok),

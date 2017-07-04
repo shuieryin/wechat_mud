@@ -126,7 +126,7 @@ from_init(
                                 skill = Skill
                             }
                         },
-                        scene_statem:general_target(UpdatedCommandContext),
+                        ok = scene_statem:general_target(UpdatedCommandContext),
                         State
                 end
         end,
