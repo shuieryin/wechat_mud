@@ -194,10 +194,10 @@ go_direction(SceneName, Uid, TargetDirection) ->
         case maps:get(TargetDirection, ExitsMap, undefined) of
             undefined ->
                 {undefined, SceneData};
-            SceneName ->
+            RawSceneName ->
                 #simple_player{name = PlayerName} = scene_player_by_uid(SceneObjectList, Uid),
                 broadcast(SceneData, [{nls, leave_scene, [PlayerName, {nls, TargetDirection}]}, <<"\n">>], scene, [Uid]),
-                {SceneName, remove_scene_object(Uid, SceneData)}
+                {RawSceneName, remove_scene_object(Uid, SceneData)}
         end,
 
     update_state(UpdatedData),
