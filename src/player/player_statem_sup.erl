@@ -3,8 +3,8 @@
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
-%%% Player_fsm supervisor. This is a simple one for one supervisor
-%%% which player_fsm children dynamically are added to or removed from it.
+%%% Player_statem supervisor. This is a simple one for one supervisor
+%%% which player_statem children dynamically are added to or removed from it.
 %%%
 %%% @end
 %%% Created : 01. Nov 2015 6:12 PM

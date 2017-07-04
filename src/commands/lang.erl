@@ -30,7 +30,7 @@
 %% other inputs defaults to language switch.
 %%
 %% This function returns "ok" immeidately and the scene info will
-%% be responsed to user from player_fsm by sending responses to
+%% be responsed to user from player_statem by sending responses to
 %% DispatcherPid process.
 %%
 %% @end

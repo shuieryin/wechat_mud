@@ -25,8 +25,8 @@
 %% Re-register player. The existing player profile will not be removed
 %% until the registration is done.
 %%
-%% This function returns "ok" immeidately and the scene info will
-%% be responsed to user from player_fsm by sending responses to
+%% This function returns "ok" immediately and the scene info will
+%% be respond to user from player_statem by sending responses to
 %% DispatcherPid process.
 %%
 %% @end

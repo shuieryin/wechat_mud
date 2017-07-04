@@ -31,7 +31,7 @@ test(_Config) ->
     RawTestUid = elib:uuid(),
     TestUid = atom_to_binary(RawTestUid, utf8),
     TestId = test_id(TestUid),
-    FsmId = register_fsm:register_server_name(RawTestUid),
+    FsmId = register_statem:register_server_name(RawTestUid),
 
     % First time - START
     mod_input(TestUid, <<"afsdf">>),
@@ -53,7 +53,7 @@ test(_Config) ->
 
     % Third time - START
     normal_reg_flow(TestUid, TestId),
-    register_fsm:current_player_profile(RawTestUid),
+    register_statem:current_player_profile(RawTestUid),
     mod_input(TestUid, <<>>),
     mod_input(TestUid, <<"y">>),
     % Third time - END

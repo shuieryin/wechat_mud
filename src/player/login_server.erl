@@ -54,7 +54,7 @@
 -record(state, {
     logged_in_uids_set :: uid_set(),
     registering_uids_set :: uid_set(),
-    born_type_info_map :: register_fsm:born_type_info_map(),
+    born_type_info_map :: register_statem:born_type_info_map(),
     uids_cross_ids :: [{player_statem:uid(), player_statem:id()}]
 }).
 
@@ -154,7 +154,7 @@ delete_player(Uid) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Logs user in by creating its own player_fsm process.
+%% Logs user in by creating its own player_statem process.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -177,7 +177,7 @@ is_uid_logged_in(Uid) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Logs user out by destroying its player_fsm process.
+%% Logs user out by destroying its player_statem process.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -505,7 +505,7 @@ handle_cast(
     } = State
 ) ->
     UpdatedState =
-        case register_fsm_sup:add_child(DispatcherPid, Uid, BornTypeInfoMap) of
+        case register_statem_sup:add_child(DispatcherPid, Uid, BornTypeInfoMap) of
             {ok, _Pid} ->
                 error_logger:info_msg("Started register fsm successfully.~nUid:~p~n", [Uid]),
                 State#state{
@@ -612,7 +612,7 @@ format_status(Opt, StatusData) ->
 %% This function is called by "delete_user" and "logout" from
 %% handle_call/3 and handle_cast/2.
 %%
-%% Logs user out by destroying its player_fsm process.
+%% Logs user out by destroying its player_statem process.
 %%
 %% @end
 %%--------------------------------------------------------------------

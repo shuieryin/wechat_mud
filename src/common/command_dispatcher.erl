@@ -189,15 +189,15 @@ validate_signature([OriginalSignatureBin | ParamList] = OriginalParams) ->
 %% 1. Extract raw inputs and generate process function from private
 %% function gen_action_from_message_type/2.
 %%
-%% 2. Check if player_fsm exists, if so, it indicates that user has already
+%% 2. Check if player_statem exists, if so, it indicates that user has already
 %% logged in and then execute process function directly, otherwise go to step 5.
 %%
-%% 3. Check if register_fsm exists, if so, it indicates that user is in
+%% 3. Check if register_statem exists, if so, it indicates that user is in
 %% registration procedure and then process registration with user input,
 %% otherse go to step 6.
 %%
 %% 4. Check if user is registered, if so, go to step 5, otherwise starts
-%% registration procedure by spawning register_fsm.
+%% registration procedure by spawning register_statem.
 %%
 %% 5. If raw input is empty, return empty content, otherwise go to step 6.
 %%
@@ -232,7 +232,7 @@ process_request(Req) ->
                 ReturnContent =
                     case whereis(Uid) of % login_server:is_uid_logged_in(Uid)
                         undefined ->
-                            case whereis(register_fsm:register_server_name(Uid)) of % login_server:is_in_registration(Uid)
+                            case whereis(register_statem:register_server_name(Uid)) of % login_server:is_in_registration(Uid)
                                 undefined ->
                                     case login_server:is_uid_registered(Uid) of
                                         false ->
@@ -248,10 +248,10 @@ process_request(Req) ->
                                 _RegisterPid ->
                                     if
                                         unsubscribe == RawInput ->
-                                            register_fsm:stop(Uid),
+                                            register_statem:stop(Uid),
                                             no_response;
                                         true ->
-                                            pending_content(register_fsm, input, [Uid, RawInput])
+                                            pending_content(register_statem, input, [Uid, RawInput])
                                     end
                             end;
                         _PlayerPid ->

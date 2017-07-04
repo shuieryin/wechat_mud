@@ -116,12 +116,12 @@ init([AppName]) ->
                 [scene_root_sup]
             },
 
-            {register_fsm_sup,
-                {register_fsm_sup, start_link, []},
+            {register_statem_sup,
+                {register_statem_sup, start_link, []},
                 permanent,
                 10000,
                 supervisor,
-                [register_fsm_sup]
+                [register_statem_sup]
             },
 
             {player_statem_sup,

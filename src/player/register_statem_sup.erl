@@ -3,13 +3,13 @@
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
-%%% Register_fsm supervisor. This is a simple one for one supervisor
-%%% which register_fsm children dynamically are added to or removed from it.
+%%% Register_statem supervisor. This is a simple one for one supervisor
+%%% which register_statem children dynamically are added to or removed from it.
 %%%
 %%% @end
 %%% Created : 01. Nov 2015 6:12 PM
 %%%-------------------------------------------------------------------
--module(register_fsm_sup).
+-module(register_statem_sup).
 -author("shuieryin").
 
 -behaviour(supervisor).
@@ -41,14 +41,14 @@ start_link() ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Add register_fsm
+%% Add register_statem
 %%
 %% @end
 %%--------------------------------------------------------------------
 -spec add_child(DispatcherPid, Uid, BornTypeInfoMap) -> supervisor:startchild_ret() when
     DispatcherPid :: pid(),
     Uid :: player_statem:uid(),
-    BornTypeInfoMap :: register_fsm:born_type_info_map().
+    BornTypeInfoMap :: register_statem:born_type_info_map().
 add_child(DispatcherPid, Uid, BornTypeInfoMap) ->
     supervisor:start_child(?MODULE, [DispatcherPid, Uid, BornTypeInfoMap]).
 
@@ -79,7 +79,7 @@ init([]) ->
     Shutdown = 2000,
     Type = worker,
 
-    ChildSpec = {register_fsm, {register_fsm, start_link, []}, Restart, Shutdown, Type, [register_fsm]},
+    ChildSpec = {register_statem, {register_statem, start_link, []}, Restart, Shutdown, Type, [register_statem]},
 
     {ok, {SupFlags, [ChildSpec]}}.
 

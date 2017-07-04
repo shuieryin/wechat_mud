@@ -3,41 +3,41 @@
 %%% @copyright (C) 2015, Shuieryin
 %%% @doc
 %%%
-%%% Registration gen_fsm. This gen_fsm states linear as
+%%% Registration gen_statem. This gen_statem states linear as
 %%% select_lang --> input_id --> input_gender --> input_born_month --> input_confirmation --> done.
-%%% This gen_fsm is created when player starts registration procedure
+%%% This gen_statem is created when player starts registration procedure
 %%% and destroyed when the registration is done.
 %%%
 %%% @end
 %%% Created : 29. Aug 2015 5:49 PM
 %%%-------------------------------------------------------------------
--module(register_fsm).
+-module(register_statem).
 -author("Shuieryin").
 
--behaviour(gen_fsm).
+-behaviour(gen_statem).
 
 %% API
 -export([
     start_link/3,
     input/3,
-    select_lang/2,
-    input_id/2,
-    input_gender/2,
-    input_born_month/2,
-    input_confirmation/2,
+    select_lang/3,
+    input_id/3,
+    input_gender/3,
+    input_born_month/3,
+    input_confirmation/3,
     register_server_name/1,
     current_player_profile/1,
     stop/1
 ]).
 
 %% gen_fsm callbacks
--export([init/1,
-    handle_event/3,
-    handle_sync_event/4,
-    handle_info/3,
+-export([
+    init/1,
     terminate/3,
     code_change/4,
-    format_status/2]).
+    format_status/2,
+    callback_mode/0
+]).
 
 -import(command_dispatcher, [return_content/2]).
 
@@ -72,14 +72,14 @@
 %%
 %% This function creates a register gen_fsm with uid and the default
 %% state, and prints all supported langauge abbreviations to user.
-%% The server name is set to "uid+_register_fsm".
+%% The server name is set to "uid+_register_statem".
 %%
 %% @end
 %%--------------------------------------------------------------------
 -spec start_link(DispatcherPid, Uid, BornTypeInfoMap) -> gen:start_ret() when
     Uid :: player_statem:uid(),
     DispatcherPid :: pid(),
-    BornTypeInfoMap :: register_fsm:born_type_info_map().
+    BornTypeInfoMap :: register_statem:born_type_info_map().
 start_link(DispatcherPid, Uid, BornTypeInfoMap) ->
     gen_fsm:start_link({local, register_server_name(Uid)}, ?MODULE, {Uid, DispatcherPid, BornTypeInfoMap}, []).
 
@@ -123,7 +123,7 @@ current_player_profile(Uid) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Appends "_register_fsm" to Uid as the register_fsm server name.
+%% Appends "_register_statem" to Uid as the register_statem server name.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -131,7 +131,7 @@ current_player_profile(Uid) ->
     Uid :: player_statem:uid(),
     PlayerServerName :: erlang:registered_name().
 register_server_name(Uid) ->
-    list_to_atom(atom_to_list(Uid) ++ "_register_fsm").
+    list_to_atom(atom_to_list(Uid) ++ "_register_statem").
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -156,7 +156,7 @@ register_server_name(Uid) ->
 
     Uid :: player_statem:uid(),
     DispatcherPid :: pid(),
-    BornTypeInfoMap :: register_fsm:born_type_info_map(),
+    BornTypeInfoMap :: register_statem:born_type_info_map(),
 
     Reason :: term(), % generic term
     StateName :: state_name(),
@@ -181,45 +181,56 @@ init({Uid, DispatcherPid, BornTypeInfoMap}) ->
 %% After player has selected one of the supported langauges, all of
 %% the subsequence messages will be displayed in the selected langauges
 %% until player switched lanauge.
-%% @see player_fsm:switch_lang/3.
+%% @see player_statem:switch_lang/3.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec select_lang(Request, State) ->
-    {next_state, NextStateName, NextState} |
-    {next_state, NextStateName, NextState, timeout() | hibernate} |
-    {stop, Reason, NewState} when
+-spec select_lang(EventType, EventContent, Data) -> StateFunctionResult when
+    EventType :: gen_statem:event_type(),
 
-    Request :: {LangBin, DispatcherPid},
+    EventContent :: {LangBin, DispatcherPid} |
+    current_player_profile,
+
     LangBin :: binary(),
-
     DispatcherPid :: pid(),
+
     State :: #state{},
-    NextStateName :: state_name(),
-    NextState :: State,
-    NewState :: State,
-    Reason :: term(). % generic term
+    Action :: gen_statem:reply_action() | {reply, From, Reply},
+    From :: gen_statem:from(),
+
+    StateFunctionResult :: gen_statem:event_handler_result(Data) |
+    {keep_state_and_data, Action} |
+    {next_state, State, Data, {reply, From, Reply}}.
 select_lang(
+    cast,
     {LangBin, DispatcherPid},
     #state{
         self = PlayerProfile
-    } = State
+    } = Data
 ) ->
-    {NextState, NewState, ContentList, Lang} =
+    {NextState, UpdatedData, ContentList, Lang} =
         try
             case nls_server:is_valid_lang(LangBin) of
                 true ->
                     CurLang = binary_to_atom(LangBin, utf8),
-                    {input_id, State#state{self = PlayerProfile#player_profile{lang = CurLang}}, [{nls, please_input_id}], CurLang};
+                    {input_id, Data#state{self = PlayerProfile#player_profile{lang = CurLang}}, [{nls, please_input_id}], CurLang};
                 false ->
-                    {select_lang, State, [{nls, select_lang}], zh}
+                    {select_lang, Data, [{nls, select_lang}], zh}
             end
         catch
             _ErrorType:_Reason ->
-                {select_lang, State, [{nls, select_lang}], zh}
+                {select_lang, Data, [{nls, select_lang}], zh}
         end,
     nls_server:response_content(ContentList, Lang, DispatcherPid),
-    {next_state, NextState, NewState}.
+    {next_state, NextState, UpdatedData};
+select_lang(
+    {call, From},
+    current_player_profile,
+    #state{
+        self = CurrentPlayerProfile
+    }
+) ->
+    {keep_state_and_data, {reply, From, CurrentPlayerProfile}}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -230,19 +241,24 @@ select_lang(
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec input_id({RawId, DispatcherPid}, State) ->
-    {next_state, NextStateName, NextState} |
-    {next_state, NextStateName, NextState, timeout() | hibernate} |
-    {stop, Reason, NewState} when
+-spec input_id(EventType, EventContent, Data) -> StateFunctionResult when
+    EventType :: gen_statem:event_type(),
+
+    EventContent :: {RawId, DispatcherPid} |
+    current_player_profile,
 
     RawId :: binary(),
     DispatcherPid :: pid(),
+
     State :: #state{},
-    NextStateName :: state_name(),
-    NextState :: State,
-    NewState :: State,
-    Reason :: term(). % generic term
+    Action :: gen_statem:reply_action() | {reply, From, Reply},
+    From :: gen_statem:from(),
+
+    StateFunctionResult :: gen_statem:event_handler_result(Data) |
+    {keep_state_and_data, Action} |
+    {next_state, State, Data, {reply, From, Reply}}.
 input_id(
+    cast,
     {RawId, DispatcherPid},
     #state{
         self = #player_profile{
@@ -251,7 +267,7 @@ input_id(
     } = State
 ) ->
     % TODO: filter npc, items and prohibited names
-    {MessageList, NextStateName, UpdatedState} =
+    {MessageList, NextStateName, UpdatedData} =
         case re:run(RawId, ?ID_RULE_REGEX) of
             nomatch ->
                 {[{nls, invalid_id}, RawId, <<"\n\n">>, {nls, please_input_id}], input_id, State};
@@ -265,7 +281,15 @@ input_id(
                 end
         end,
     nls_server:response_content(MessageList, Lang, DispatcherPid),
-    {next_state, NextStateName, UpdatedState}.
+    {next_state, NextStateName, UpdatedData};
+input_id(
+    {call, From},
+    current_player_profile,
+    #state{
+        self = CurrentPlayerProfile
+    }
+) ->
+    {keep_state_and_data, {reply, From, CurrentPlayerProfile}}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -276,58 +300,67 @@ input_id(
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec input_gender({RawGender, DispatcherPid}, State) ->
-    {next_state, NextStateName, NextState} |
-    {next_state, NextStateName, NextState, timeout() | hibernate} |
-    {stop, Reason, NewState} when
+-spec input_gender(EventType, EventContent, Data) -> StateFunctionResult when
+    EventType :: gen_statem:event_type(),
+
+    EventContent :: {RawGender, DispatcherPid} |
+    current_player_profile,
 
     RawGender :: binary(),
     DispatcherPid :: pid(),
+
     State :: #state{},
-    NextStateName :: state_name(),
-    NextState :: State,
-    NewState :: State,
-    Reason :: term(). % generic term
-input_gender({RawGender, DispatcherPid}, State) when RawGender == <<"m">> orelse RawGender == <<"male">> ->
-    input_gender(male, DispatcherPid, State);
-input_gender({RawGender, DispatcherPid}, State) when RawGender == <<"f">> orelse RawGender == <<"female">> ->
-    input_gender(female, DispatcherPid, State);
-input_gender(
-    {Other, DispatcherPid},
-    #state{
-        self = #player_profile{
-            lang = Lang
-        }
-    } = State
-) ->
-    ErrorMessageNlsList =
-        case Other of
-            <<>> ->
-                [{nls, please_input_gender}];
-            SomeInput ->
-                [{nls, invalid_gender}, SomeInput, <<"\n\n">>, {nls, please_input_gender}]
-        end,
-    nls_server:response_content(ErrorMessageNlsList, Lang, DispatcherPid),
-    {next_state, input_gender, State}.
-input_gender(
-    Gender,
-    DispatcherPid,
-    #state{
-        self = #player_profile{
-            lang = Lang
-        } = PlayerProfile
-    } = State
-) ->
-    nls_server:response_content([{nls, please_input_born_month}], Lang, DispatcherPid),
-    {
-        next_state,
-        input_born_month,
-        State#state{
-            self = PlayerProfile#player_profile{
-                gender = Gender
+    Action :: gen_statem:reply_action() | {reply, From, Reply},
+    From :: gen_statem:from(),
+
+    StateFunctionResult :: gen_statem:event_handler_result(Data) |
+    {keep_state_and_data, Action} |
+    {next_state, State, Data, {reply, From, Reply}}.
+input_gender(cast, {RawGender, DispatcherPid}, #state{
+    self = #player_profile{
+        lang = Lang
+    } = PlayerProfile
+} = Data) ->
+    Gender = if
+                 RawGender == <<"m">> orelse RawGender == <<"male">> ->
+                     male;
+                 RawGender == <<"f">> orelse RawGender == <<"female">> ->
+                     female;
+                 true ->
+                     undefined
+             end,
+
+    case Gender of
+        undefined ->
+            ErrorMessageNlsList =
+                case RawGender of
+                    <<>> ->
+                        [{nls, please_input_gender}];
+                    SomeInput ->
+                        [{nls, invalid_gender}, SomeInput, <<"\n\n">>, {nls, please_input_gender}]
+                end,
+            nls_server:response_content(ErrorMessageNlsList, Lang, DispatcherPid),
+            {next_state, input_gender, Data};
+        _ValidGender ->
+            nls_server:response_content([{nls, please_input_born_month}], Lang, DispatcherPid),
+            {
+                next_state,
+                input_born_month,
+                Data#state{
+                    self = PlayerProfile#player_profile{
+                        gender = Gender
+                    }
+                }
             }
-        }
-    }.
+    end;
+input_gender(
+    {call, From},
+    current_player_profile,
+    #state{
+        self = CurrentPlayerProfile
+    }
+) ->
+    {keep_state_and_data, {reply, From, CurrentPlayerProfile}}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -337,19 +370,25 @@ input_gender(
 %% infos to player, otherwise prints current state infos to player.
 %%
 %% @end
-%%--------------------------------------------------------------------
--spec input_born_month({MonthBin, DispatcherPid}, State) ->
-    {next_state, NextStateName, NextState} |
-    {next_state, NextStateName, NextState, timeout() | hibernate} |
-    {stop, Reason, NewState} when
+%%-------------------------------------------------------------------
+-spec input_born_month(EventType, EventContent, Data) -> StateFunctionResult when
+    EventType :: gen_statem:event_type(),
+
+    EventContent :: {MonthBin, DispatcherPid} |
+    current_player_profile,
+
     MonthBin :: binary(),
     DispatcherPid :: pid(),
+
     State :: #state{},
-    NextStateName :: state_name(),
-    NextState :: State,
-    NewState :: State,
-    Reason :: term(). % generic term
+    Action :: gen_statem:reply_action() | {reply, From, Reply},
+    From :: gen_statem:from(),
+
+    StateFunctionResult :: gen_statem:event_handler_result(Data) |
+    {keep_state_and_data, Action} |
+    {next_state, State, Data, {reply, From, Reply}}.
 input_born_month(
+    cast,
     {MonthBin, DispatcherPid},
     #state{
         self = #player_profile{
@@ -357,7 +396,7 @@ input_born_month(
         } = PlayerProfile
     } = State
 ) ->
-    {NewStateName, NewState, ContentList} =
+    {NewStateName, UpdatedData, ContentList} =
         case validate_month(MonthBin) of
             {ok, Month} ->
                 UpdatedPlayerProfile = PlayerProfile#player_profile{born_month = Month},
@@ -374,7 +413,15 @@ input_born_month(
                 {input_born_month, State, [ErrorMessageNlsContent, {nls, please_input_born_month}]}
         end,
     nls_server:response_content(lists:flatten(ContentList), Lang, DispatcherPid),
-    {next_state, NewStateName, NewState}.
+    {next_state, NewStateName, UpdatedData};
+input_born_month(
+    {call, From},
+    current_player_profile,
+    #state{
+        self = CurrentPlayerProfile
+    }
+) ->
+    {keep_state_and_data, {reply, From, CurrentPlayerProfile}}.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -386,20 +433,24 @@ input_born_month(
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec input_confirmation({Event, DispatcherPid}, State) ->
-    {next_state, NextStateName, NextState} |
-    {next_state, NextStateName, NextState, timeout() | hibernate} |
-    {stop, Reason, NewState} when
+-spec input_confirmation(EventType, EventContent, Data) -> StateFunctionResult when
+    EventType :: gen_statem:event_type(),
 
+    EventContent :: {Answer, DispatcherPid} |
+    current_player_profile,
+
+    Answer :: binary(),
     DispatcherPid :: pid(),
 
     State :: #state{},
-    Event :: binary(),
-    NextStateName :: state_name(),
-    NextState :: State,
-    NewState :: State,
-    Reason :: term(). % generic term
+    Action :: gen_statem:reply_action() | {reply, From, Reply},
+    From :: gen_statem:from(),
+
+    StateFunctionResult :: gen_statem:event_handler_result(Data) |
+    {keep_state_and_data, Action} |
+    {next_state, State, Data, {reply, From, Reply}}.
 input_confirmation(
+    cast,
     {Answer, DispatcherPid},
     #state{
         self = #player_profile{
@@ -449,6 +500,7 @@ input_confirmation(
     ok = login_server:login(DispatcherPid, PlayerUid),
     {stop, normal, UpdatedState};
 input_confirmation(
+    cast,
     {Answer, DispatcherPid},
     #state{
         self = #player_profile{
@@ -471,6 +523,7 @@ input_confirmation(
         }
     };
 input_confirmation(
+    cast,
     {Other, DispatcherPid},
     #state{
         self = #player_profile{
@@ -480,90 +533,15 @@ input_confirmation(
     } = State
 ) ->
     nls_server:response_content(lists:flatten([{nls, invalid_command}, Other, <<"\n\n">>, SummaryContent]), Lang, DispatcherPid),
-    {next_state, input_confirmation, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Whenever a gen_fsm receives an event sent using
-%% gen_fsm:send_all_state_event/2, this function is called to handle
-%% the event.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec handle_event(Event, StateName, StateData) ->
-    {next_state, NextStateName, NewStateData} |
-    {next_state, NextStateName, NewStateData, timeout() | hibernate} |
-    {stop, Reason, NewStateData} when
-
-    Event :: stop,
-    Reason :: normal,
-
-    StateName :: state_name(),
-    StateData :: #state{},
-    NextStateName :: StateName,
-    NewStateData :: StateData.
-handle_event(stop, _StateName, State) ->
-    {stop, normal, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Whenever a gen_fsm receives an event sent using
-%% gen_fsm:sync_send_all_state_event/[2,3], this function is called
-%% to handle the event.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec handle_sync_event(Event, From, StateName, StateData) ->
-    {reply, Reply, NextStateName, NewStateData} |
-    {reply, Reply, NextStateName, NewStateData, timeout() | hibernate} |
-    {next_state, NextStateName, NewStateData} |
-    {next_state, NextStateName, NewStateData, timeout() | hibernate} |
-    {stop, Reason, Reply, NewStateData} |
-    {stop, Reason, NewStateData} when
-
-    Event :: current_player_profile,
-    Reply :: #player_profile{},
-
-    From :: {pid(), Tag :: term()}, % generic term
-    StateName :: state_name(),
-    StateData :: #state{},
-    NextStateName :: StateName,
-    NewStateData :: StateData,
-    Reason :: term(). % generic term
-handle_sync_event(
+    {next_state, input_confirmation, State};
+input_confirmation(
+    {call, From},
     current_player_profile,
-    _From,
-    StateName,
     #state{
         self = CurrentPlayerProfile
-    } = State
+    }
 ) ->
-    {reply, CurrentPlayerProfile, StateName, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% This function is called by a gen_fsm when it receives any
-%% message other than a synchronous or asynchronous event
-%% (or a system message).
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec handle_info(Info, StateName, StateData) ->
-    {next_state, NextStateName, NewStateData} |
-    {next_state, NextStateName, NewStateData, timeout() | hibernate} |
-    {stop, Reason, NewStateData} when
-
-    Info :: term(), % generic term
-    StateName :: state_name(),
-    StateData :: #state{},
-    NextStateName :: StateName,
-    NewStateData :: StateData,
-    Reason :: normal | term(). % generic term
-handle_info(_Info, StateName, State) ->
-    {next_state, StateName, State}.
+    {keep_state_and_data, {reply, From, CurrentPlayerProfile}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -617,6 +595,17 @@ code_change(_OldVsn, StateName, State, _Extra) ->
     Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_fsm:format_status(Opt, StatusData).
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% This function returns the callback mode to gen_statem
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec callback_mode() -> gen_statem:callback_mode_result().
+callback_mode() ->
+    [state_functions].
 
 %%%===================================================================
 %%% Internal functions
