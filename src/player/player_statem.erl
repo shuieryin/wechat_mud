@@ -516,7 +516,7 @@ init({Uid, DispatcherPid}) ->
     EventType :: gen_statem:event_type(),
 
     EventContent ::
-    {'$gen_event', {execute_command | general_target, CommandContext}} |
+    {execute_command | general_target, CommandContext} |
     logout |
     {response_content, NlsObjectList, DispatcherPid} |
     {append_message, Message, MailType} |
@@ -565,17 +565,19 @@ init({Uid, DispatcherPid}) ->
 non_battle(cast, {response_content, NlsObjectList, DispatcherPid}, Data) ->
     UpdatedData = do_response_content(Data, NlsObjectList, DispatcherPid),
     {next_state, non_battle, UpdatedData};
-non_battle(info, {'$gen_event',
+non_battle(
+    cast,
     {
         general_target,
         CommandContext
-    }}, PlayerState) ->
+    }, PlayerState) ->
     general_target(CommandContext, PlayerState, non_battle);
-non_battle(info, {'$gen_event',
+non_battle(
+    cast,
     {
         execute_command,
         CommandContext
-    }}, PlayerState) ->
+    }, PlayerState) ->
     execute_command(CommandContext, PlayerState, non_battle);
 non_battle({call, From}, logout, PlayerState) ->
     logout(PlayerState, From);
@@ -670,7 +672,7 @@ non_battle({call, From}, affair_name, #player_state{current_affair = {AffairName
     {upgrade_value_by_id, Value} |
     get_lang | lang_map | player_id | current_scene_name | player_state | mail_box |
     logout | affair_name |
-    {'$gen_event', {execute_command | general_target, CommandContext}},
+    {execute_command | general_target, CommandContext},
 
     StateFunctionResult :: gen_statem:event_handler_result(Data) |
     {keep_state_and_data, Action} |
@@ -691,17 +693,19 @@ affair_menu(cast, {handle_affair_input, DispatcherPid, RawInput}, #player_state{
     current_affair = {AffairModName, _AffairData}
 } = PlayerState) ->
     AffairModName:handle_affair_input(PlayerState, DispatcherPid, RawInput);
-affair_menu(info, {'$gen_event',
+affair_menu(
+    cast,
     {
         general_target,
         CommandContext
-    }}, PlayerState) ->
+    }, PlayerState) ->
     general_target(CommandContext, PlayerState, affair_menu);
-affair_menu(info, {'$gen_event',
+affair_menu(
+    cast,
     {
         execute_command,
         CommandContext
-    }}, PlayerState) ->
+    }, PlayerState) ->
     execute_command(CommandContext, PlayerState, affair_menu);
 affair_menu(
     {call, From},
