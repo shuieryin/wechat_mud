@@ -22,8 +22,7 @@
     runtime_data/1,
     runtime_data/2,
     runtime_datas/1,
-    random_npc/0,
-    start/1
+    random_npc/0
 ]).
 
 %% gen_server callbacks
@@ -68,36 +67,6 @@ start_link() ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Handle data request.
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec start(Req) -> {Reply, UpdatedReq} when
-    Req :: cowboy_req:req(),
-    Reply :: iodata(),
-    UpdatedReq :: Req.
-start(Req) ->
-    case cowboy_req:qs(Req) of
-        ?EMPTY_CONTENT ->
-            {<<"do_nothing">>, Req};
-        HeaderParams ->
-            #{
-                data_name := DataName
-            } = _ParamsMap = elib:gen_get_params(HeaderParams),
-
-            DataBin
-                = case redis_client_server:get(DataName) of
-                      undefined ->
-                          <<"not_found">>;
-                      RawData ->
-                          RawData
-                  end,
-
-            {DataBin, Req}
-    end.
-
-%%--------------------------------------------------------------------
-%% @doc
 %% Checks if wechat debug mode is on.
 %%
 %% If wechat debug mode is on, the signature validation will be skipped
@@ -107,7 +76,7 @@ start(Req) ->
 %%--------------------------------------------------------------------
 -spec is_wechat_debug() -> boolean().
 is_wechat_debug() ->
-    gen_server:call(?MODULE, is_wechat_debug).
+    gen_server:call(?SERVER, is_wechat_debug).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -120,7 +89,7 @@ is_wechat_debug() ->
 %%--------------------------------------------------------------------
 -spec turn_on_wechat_debug() -> boolean().
 turn_on_wechat_debug() ->
-    gen_server:call(?MODULE, {set_wechat_debug, true}).
+    gen_server:call(?SERVER, {set_wechat_debug, true}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -133,7 +102,7 @@ turn_on_wechat_debug() ->
 %%--------------------------------------------------------------------
 -spec turn_off_wechat_debug() -> boolean().
 turn_off_wechat_debug() ->
-    gen_server:call(?MODULE, {set_wechat_debug, false}).
+    gen_server:call(?SERVER, {set_wechat_debug, false}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -149,7 +118,8 @@ turn_off_wechat_debug() ->
     FileName :: csv_to_object:key(),
     RuntimeData :: csv_to_object:csv_data().
 runtime_data(DataName) ->
-    gen_server:call(?MODULE, {runtime_data, [DataName]}).
+    RuntimeDatas = gen_server:call(?SERVER, runtime_datas),
+    grab_runtime_data([DataName], RuntimeDatas).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -175,7 +145,8 @@ runtime_data(DataName) ->
     RecordName :: term(), % generic term
     RuntimeRecord :: csv_to_object:csv_row_data().
 runtime_data(DataName, RecordName) ->
-    gen_server:call(?MODULE, {runtime_data, [DataName, RecordName]}).
+    RuntimeDatas = gen_server:call(?SERVER, runtime_datas),
+    grab_runtime_data([DataName, RecordName], RuntimeDatas).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -191,7 +162,8 @@ runtime_data(DataName, RecordName) ->
     TargetDataStruct :: [csv_to_object:csv_data_struct()],
     RuntimeDatas :: csv_to_object:csv_object().
 runtime_datas(TargetDataStruct) ->
-    gen_server:call(?MODULE, {runtime_datas, TargetDataStruct}).
+    State = gen_server:call(?SERVER, common_state),
+    grab_runtime_datas(State, TargetDataStruct).
 
 
 %%--------------------------------------------------------------------
@@ -203,7 +175,12 @@ runtime_datas(TargetDataStruct) ->
 -spec random_npc() -> NpcProfile when
     NpcProfile :: #npc_profile{}.
 random_npc() ->
-    gen_server:call(?MODULE, random_npc).
+    #{
+        npc_profile := NpcsRuntimeDataMap
+    } = gen_server:call(?SERVER, runtime_datas),
+    RandomKey = elib:random_from_list(maps:keys(NpcsRuntimeDataMap)),
+    #{RandomKey := RandomNpc} = NpcsRuntimeDataMap,
+    RandomNpc.
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -271,18 +248,14 @@ init([]) ->
     Request ::
     is_wechat_debug |
     {set_wechat_debug, IsWechatDebug} |
-    {runtime_data, Phases} |
-    {runtime_datas, TargetDataStruct},
+    runtime_datas |
+    common_state,
 
     Reply ::
     IsWechatDebug |
-    TargetRuntimeData |
     RuntimeDatas,
 
     IsWechatDebug :: boolean(),
-    TargetRuntimeData :: csv_to_object:csv_data(),
-    Phases :: [csv_to_object:key()],
-    TargetDataStruct :: [csv_to_object:csv_data_struct()],
     RuntimeDatas :: csv_to_object:csv_object(),
 
     From :: {pid(), Tag :: term()}, % generic term
@@ -317,29 +290,12 @@ handle_call(
             is_wechat_debug = IsWechatDebug
         }
     }};
-handle_call(
-    {runtime_data, Phases},
-    _From,
-    #state{
-        runtime_datas = RuntimeDatasMap
-    } = State
-) ->
-    TargetRuntimeData = grab_runtime_data(Phases, RuntimeDatasMap),
-    {reply, TargetRuntimeData, State};
-handle_call({runtime_datas, TargetDataStruct}, _From, State) ->
-    {reply, grab_runtime_datas(State, TargetDataStruct), State};
-handle_call(
-    random_npc,
-    _From,
-    #state{
-        runtime_datas = #{
-            npc_profile := NpcsRuntimeDataMap
-        }
-    } = State
-) ->
-    RandomKey = elib:random_from_list(maps:keys(NpcsRuntimeDataMap)),
-    #{RandomKey := RandomNpc} = NpcsRuntimeDataMap,
-    {reply, RandomNpc, State}.
+handle_call(runtime_datas, _From, #state{
+    runtime_datas = RuntimeDatas
+} = State) ->
+    {reply, RuntimeDatas, State};
+handle_call(common_state, _From, State) ->
+    {reply, State, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -524,7 +480,7 @@ grab_runtime_data([Phase | Tail], RuntimeDatasMap) ->
 -spec grab_runtime_datas(State, DataStruct) -> TargetRuntimeDataMap when
     State :: #state{},
     DataStruct :: [csv_to_object:csv_data_struct()],
-    TargetRuntimeDataMap :: csv_to_object:csv_data().
+    TargetRuntimeDataMap :: csv_to_object:csv_object().
 grab_runtime_datas(#state{
     runtime_datas = RuntimeDatasMap
 } = State, DataStruct) ->

@@ -242,7 +242,7 @@ process_request(Req) ->
                                                 <<"login">> == RawInput orelse <<"rereg">> == RawInput orelse subscribe == RawInput ->
                                                     FuncExec(Uid);
                                                 true ->
-                                                    nls_server:get_nls_content([{nls, please_login}], zh)
+                                                    nls_server:nls_content([{nls, please_login}], zh)
                                             end
                                     end;
                                 _RegisterPid ->
@@ -320,7 +320,7 @@ gen_action_from_message_type(
                 <<"subscribe">> ->
                     {subscribe,
                         fun(_Uid) ->
-                            nls_server:get_nls_content([{nls, welcome_back}], zh)
+                            nls_server:nls_content([{nls, welcome_back}], zh)
                         end};
                 <<"unsubscribe">> ->
                     {unsubscribe,
@@ -345,7 +345,7 @@ gen_action_from_message_type(
         _MsgType ->
             {<<>>,
                 fun(Uid) ->
-                    nls_server:get_nls_content([{nls, message_type_not_support}], ?Get_lang(Uid))
+                    nls_server:nls_content([{nls, message_type_not_support}], ?Get_lang(Uid))
                 end}
     end.
 
@@ -611,9 +611,9 @@ handle_normal_input(Uid, RawInput) ->
                 true ->
                     pending_content(ModuleName, exec, Args);
                 false ->
-                    nls_server:get_nls_content([{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(binary_to_list(RawModuleName) ++ "_help")}], ?Get_lang(Uid))
+                    nls_server:nls_content([{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(binary_to_list(RawModuleName) ++ "_help")}], ?Get_lang(Uid))
             end;
 
         invalid_command ->
-            nls_server:get_nls_content([{nls, invalid_command}, ModuleNameBin], ?Get_lang(Uid))
+            nls_server:nls_content([{nls, invalid_command}, ModuleNameBin], ?Get_lang(Uid))
     end.

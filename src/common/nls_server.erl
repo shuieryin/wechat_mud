@@ -23,14 +23,14 @@
     start_link/0,
     is_valid_lang/1,
     response_content/3,
-    get_nls_content/2,
+    nls_content/2,
     show_langs/2,
     do_response_content/3,
     lang_map/1,
     fill_in_content/3,
     convert_target_nls/4,
     nls_file_name_map/0,
-    get_nls_langs/1
+    nls_langs/1
 ]).
 
 %% gen_server callbacks
@@ -104,7 +104,8 @@ start_link() ->
     Lang :: support_lang(),
     DispatcherPid :: pid().
 response_content(NlsObjectList, Lang, DispatcherPid) ->
-    gen_server:cast(?SERVER, {response_content, NlsObjectList, Lang, DispatcherPid}).
+    State = gen_server:call(?SERVER, nls_state),
+    do_response_content(Lang, State, NlsObjectList, DispatcherPid).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -114,25 +115,51 @@ response_content(NlsObjectList, Lang, DispatcherPid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_nls_content(NlsObjectList, Lang) -> ContentList when
+-spec nls_content(NlsObjectList, Lang) -> ContentList when
     NlsObjectList :: [nls_server:nls_object()],
     Lang :: support_lang(),
     ContentList :: [value()].
-get_nls_content(NlsObjectList, Lang) ->
-    gen_server:call(?SERVER, {get_nls_content, NlsObjectList, Lang}).
+nls_content(NlsObjectList, Lang) ->
+    NlsMap = gen_server:call(?SERVER, nls_map),
+    LangMap = maps:get(Lang, NlsMap),
+    fill_in_nls(NlsObjectList, LangMap, []).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Given "NlsKeyList" contains items [NlsKey] to retrieve [NlsValue] of all langugages.
+%% Given "NlsKeyList" contains items [NlsKey] to retrieve [NlsValue] of all languages.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec get_nls_langs(NlsKeyList) -> NlsValuesList when
+-spec nls_langs(NlsKeyList) -> NlsValuesList when
     NlsKeyList :: [key()],
     NlsValueList :: [value()],
     NlsValuesList :: [NlsValueList].
-get_nls_langs(NlsKeyList) ->
-    gen_server:call(?SERVER, {get_nls_langs, NlsKeyList}).
+nls_langs(NlsKeyList) ->
+    NlsMap = gen_server:call(?SERVER, nls_map),
+    maps:fold(
+        fun(_Lang, LangMap, AccLangsList) ->
+            CurLangsList = lists:foldl(
+                fun({nls, NlsKey}, AccCurLangsList) ->
+                    CurNlsValue = maps:get(NlsKey, LangMap),
+                    [CurNlsValue | AccCurLangsList]
+                end, [], NlsKeyList),
+
+            {UpdatedAccLangsList, []} =
+                case AccLangsList of
+                    [] ->
+                        NewLangsList = lists:foldl(
+                            fun(NlsValue, AccNewLangsList) ->
+                                [[NlsValue] | AccNewLangsList]
+                            end, [], CurLangsList),
+                        {NewLangsList, []};
+                    _HasNlsValues ->
+                        lists:foldl(
+                            fun(NlsValue, {AccAccLangsList, [AccLangs | OriAccLangsList]}) ->
+                                {[[NlsValue | AccLangs] | AccAccLangsList], OriAccLangsList}
+                            end, {[], AccLangsList}, CurLangsList)
+                end,
+            lists:reverse(UpdatedAccLangsList)
+        end, [], NlsMap).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -141,10 +168,21 @@ get_nls_langs(NlsKeyList) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec is_valid_lang(Lang) -> boolean() when
-    Lang :: support_lang() | binary().
-is_valid_lang(Lang) ->
-    gen_server:call(?SERVER, {is_valid_lang, Lang}).
+-spec is_valid_lang(TargetLang) -> boolean() when
+    TargetLang :: support_lang() | binary().
+is_valid_lang(TargetLang) ->
+    #state{
+        nls_map = NlsMap,
+        valid_langs = ValidLangs
+    } = gen_server:call(?SERVER, nls_state),
+    case elib:type_of(TargetLang) of
+        binary ->
+            lists:member(TargetLang, ValidLangs);
+        atom ->
+            maps:is_key(TargetLang, NlsMap);
+        _OtherType ->
+            false
+    end.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -156,7 +194,16 @@ is_valid_lang(Lang) ->
     DispatcherPid :: pid(),
     Lang :: support_lang().
 show_langs(DispatcherPid, Lang) ->
-    gen_server:cast(?SERVER, {show_langs, DispatcherPid, Lang}).
+    spawn(
+        fun() ->
+            #state{
+                nls_map = NlsMap
+            } = State = gen_server:call(?SERVER, nls_state),
+            LangsNls = lists:reverse([[atom_to_binary(LangName, utf8), <<"\n">>] || LangName <- maps:keys(NlsMap)]),
+            do_response_content(Lang, State, lists:flatten([{nls, possible_lang}, <<"\n">>, LangsNls]), DispatcherPid)
+        end
+    ),
+    ok.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -347,98 +394,16 @@ init([]) ->
     {stop, Reason, NewState} when
 
     Request ::
-    {get, NlsKey, Lang} |
-    {is_valid_lang, TargetLang} |
-    {get_nls_content, NlsObjectList, Lang} |
-    {get_nls_langs, NlsKeyList} |
-    {lang_map, Lang} |
-    stop,
+    {lang_map, support_lang()} |
+    nls_state |
+    nls_map,
 
-    Reply :: State | ContentList | IsValidLang | NlsValue | NlsValuesList,
-
-    NlsKey :: erlang:registered_name(),
-    NlsValue :: value(),
-    Lang :: support_lang(),
-    TargetLang :: Lang | binary(),
-    NlsObjectList :: [nls_server:nls_object()],
-    ContentList :: [NlsValue],
-    IsValidLang :: boolean(),
-    NlsKeyList :: [key()],
-    NlsValueList :: [NlsValue],
-    NlsValuesList :: [NlsValueList],
+    Reply :: State | map(),
 
     From :: {pid(), Tag :: term()}, % generic term
     State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
-handle_call(
-    {get, NlsKey, Lang},
-    _From,
-    #state{
-        nls_map = NlsMap
-    } = State
-) ->
-    NlsValue = maps:get(NlsKey, maps:get(Lang, NlsMap)),
-    {reply, NlsValue, State};
-handle_call(
-    {is_valid_lang, TargetLang},
-    _From,
-    #state{
-        nls_map = NlsMap,
-        valid_langs = ValidLangs
-    } = State
-) ->
-    Result = case elib:type_of(TargetLang) of
-                 binary ->
-                     lists:member(TargetLang, ValidLangs);
-                 atom ->
-                     maps:is_key(TargetLang, NlsMap);
-                 _OtherType ->
-                     false
-             end,
-    {reply, Result, State};
-handle_call(
-    {get_nls_content, NlsObjectList, Lang},
-    _From,
-    #state{
-        nls_map = NlsMap
-    } = State
-) ->
-    LangMap = maps:get(Lang, NlsMap),
-    ReturnContent = fill_in_nls(NlsObjectList, LangMap, []),
-    {reply, ReturnContent, State};
-handle_call(
-    {get_nls_langs, NlsKeyList},
-    _From,
-    #state{
-        nls_map = NlsMap
-    } = State
-) ->
-    NlsValuesList = maps:fold(
-        fun(_Lang, LangMap, AccLangsList) ->
-            CurLangsList = lists:foldl(
-                fun({nls, NlsKey}, AccCurLangsList) ->
-                    CurNlsValue = maps:get(NlsKey, LangMap),
-                    [CurNlsValue | AccCurLangsList]
-                end, [], NlsKeyList),
-
-            {UpdatedAccLangsList, []} =
-                case AccLangsList of
-                    [] ->
-                        NewLangsList = lists:foldl(
-                            fun(NlsValue, AccNewLangsList) ->
-                                [[NlsValue] | AccNewLangsList]
-                            end, [], CurLangsList),
-                        {NewLangsList, []};
-                    _HasNlsValues ->
-                        lists:foldl(
-                            fun(NlsValue, {AccAccLangsList, [AccLangs | OriAccLangsList]}) ->
-                                {[[NlsValue | AccLangs] | AccAccLangsList], OriAccLangsList}
-                            end, {[], AccLangsList}, CurLangsList)
-                end,
-            lists:reverse(UpdatedAccLangsList)
-        end, [], NlsMap),
-    {reply, NlsValuesList, State};
 handle_call(
     {lang_map, Lang},
     _From,
@@ -450,7 +415,13 @@ handle_call(
 handle_call(nls_file_name_map, _From, #state{
     nls_file_name_map = NlsFileNameMap
 } = State) ->
-    {reply, NlsFileNameMap, State}.
+    {reply, NlsFileNameMap, State};
+handle_call(nls_state, _From, State) ->
+    {reply, State, State};
+handle_call(nls_map, _From, #state{
+    nls_map = NlsMap
+} = State) ->
+    {reply, NlsMap, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -464,25 +435,11 @@ handle_call(nls_file_name_map, _From, #state{
     {noreply, NewState, timeout() | hibernate} |
     {stop, Reason, NewState} when
 
-    Request :: {response_content, NlsObjectList, Lang, DispatcherPid} | {show_langs, DispatcherPid, Lang},
-    NlsObjectList :: [nls_server:nls_object()],
-    Lang :: support_lang(),
-    DispatcherPid :: pid(),
+    Request :: stop,
+
     State :: #state{},
     NewState :: State,
     Reason :: term(). % generic term
-handle_cast({response_content, NlsObjectList, Lang, DispatcherPid}, State) ->
-    do_response_content(Lang, State, NlsObjectList, DispatcherPid),
-    {noreply, State};
-handle_cast(
-    {show_langs, DispatcherPid, Lang},
-    #state{
-        nls_map = NlsMap
-    } = State
-) ->
-    LangsNls = lists:reverse([[atom_to_binary(LangName, utf8), <<"\n">>] || LangName <- maps:keys(NlsMap)]),
-    do_response_content(Lang, State, lists:flatten([{nls, possible_lang}, <<"\n">>, LangsNls]), DispatcherPid),
-    {noreply, State};
 handle_cast(stop, State) ->
     {stop, normal, State}.
 
