@@ -40,7 +40,6 @@
 q() ->
     ok = login_server:logout_all_players(),
     os:cmd("redis-cli shutdown"),
-    rb:stop(),
     init:stop().
 
 %%--------------------------------------------------------------------
