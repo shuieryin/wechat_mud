@@ -267,16 +267,16 @@ handle_affair_input(#player_state{
                     case request(PlayerUid, {pending_process_vids, []}) of
                         undefined ->
                             ?RESPONSE_CONTENT([{nls, bilibili_manager_offline}, <<"\n">>] ++ MenuDescNls);
-                        {struct, JsonObjectList} ->
-                            show_vids_list(PlayerState, JsonObjectList, DispatcherPid, pending_process_vids_desc)
+                        ResponseMap ->
+                            show_vids_list(PlayerState, ResponseMap, DispatcherPid, pending_process_vids_desc)
                     end,
                     keep_state_and_data;
                 pending_upload_vids ->
                     case request(PlayerUid, {pending_upload_vids, []}) of
                         undefined ->
                             ?RESPONSE_CONTENT([{nls, bilibili_manager_offline}, <<"\n">>] ++ MenuDescNls);
-                        {struct, JsonObjectList} ->
-                            show_vids_list(PlayerState, JsonObjectList, DispatcherPid, pending_upload_vids_desc)
+                        ResponseMap ->
+                            show_vids_list(PlayerState, ResponseMap, DispatcherPid, pending_upload_vids_desc)
                     end,
                     keep_state_and_data;
                 upload_vids ->
@@ -478,7 +478,7 @@ request(Uid, {Event, EventParams}) ->
                 [] ->
                     undefined;
                 _Json ->
-                    mochijson2:decode(BodyStr)
+                    jsx:decode(BodyStr)
             end;
         Error ->
             error_logger:error_msg("~p", [Error]),
@@ -598,12 +598,11 @@ exit_menu(#player_state{
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec show_vids_list(#player_state{}, JsonObjectList, pid(), nls_server:key()) -> ok when
-    JsonObjectList :: [{binary(), binary()}].
+-spec show_vids_list(#player_state{}, map(), pid(), nls_server:key()) -> ok.
 %%noinspection ErlangUnusedVariable
-show_vids_list(PlayerState, JsonObjectList, DispatcherPid, NlsKey) ->
-    {<<"vids_list">>, VidsList} = lists:keyfind(<<"vids_list">>, 1, JsonObjectList),
-
+show_vids_list(PlayerState, #{
+    <<"vids_list">> := VidsList
+}, DispatcherPid, NlsKey) ->
     VidsListNls = lists:foldl(
         fun(PathBin, AccVidsList) ->
             VidFilename = filename:basename(PathBin),

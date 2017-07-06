@@ -63,7 +63,7 @@ groups() ->
     PlayerActionRegression = {
         player_action_regression,
         [parallel, {repeat, SpawnAmount div 2}],
-        inner_repeat(player_action_test, SpawnAmount * 2)
+        inner_repeat(player_action_test, SpawnAmount * 3)
     },
 
     [
