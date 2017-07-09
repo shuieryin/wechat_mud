@@ -17,6 +17,7 @@
     register/3,
     status/3,
     ip/3,
+    start/3,
     feedback/3
 ]).
 
@@ -206,6 +207,45 @@ ip(NpcState, #command_context{
         CommandContext#command_context{
             command_args = AffairContext#affair_context{
                 response_message = [list_to_binary(os:cmd("curl -s ifconfig.co"))]
+            }
+        }, StateName
+    }.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Safe start starbound server
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec start(NpcState, CommandContext, StateName) -> {UpdatedNpcState, UpdatedCommandContext, UpdatedStateName} when
+    NpcState :: #npc_state{},
+    CommandContext :: #command_context{},
+    UpdatedNpcState :: NpcState,
+    UpdatedCommandContext :: CommandContext,
+    StateName :: gen_statem:state_name(),
+    UpdatedStateName :: StateName.
+start(NpcState, #command_context{
+    command_args = AffairContext
+} = CommandContext, StateName) ->
+    ServerDownMessage = [{nls, sb_server_offline}, <<"\n">>],
+
+    ResponseMessage =
+        case elib:connect_node(?SB_NODE) of
+            true ->
+                case gen_server:call({global, ?SB_GEN_SERVER}, safe_start_cmd) of
+                    <<"server already started">> ->
+                        [{nls, server_already_started}, <<"\n">>];
+                    _Success ->
+                        [{nls, server_started}, <<"\n">>]
+                end;
+            _NoConnection ->
+                ServerDownMessage
+        end,
+    {
+        NpcState,
+        CommandContext#command_context{
+            command_args = AffairContext#affair_context{
+                response_message = lists:flatten(ResponseMessage)
             }
         }, StateName
     }.
