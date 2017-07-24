@@ -156,7 +156,8 @@ status(NpcState, #command_context{
                     online_users := OnlineUsers,
                     memory_usage := MemoryUsage,
                     temperature := Temperature,
-                    cpu_usage := CpuUsage
+                    cpu_usage := CpuUsage,
+                    admin_player := AdminPlayer
                 } = gen_server:call({global, ?SB_GEN_SERVER}, server_status),
                 case IsSbServerUp of
                     true ->
@@ -171,7 +172,26 @@ status(NpcState, #command_context{
                                 _Else ->
                                     [{nls, sb_online_players}, <<"\n">>, OnlinePlayernames]
                             end,
-                        [PlayerStatus, [{nls, sb_memory_usage}, MemoryUsage, <<"\n">>, {nls, sb_cpuusage}, CpuUsage, <<"\n">>, {nls, sb_temperature}, Temperature]];
+
+                        CurrentGm = case AdminPlayer of
+                                        undefined ->
+                                            <<"[]">>;
+                                        {PlayerId, _ExpireTime} ->
+                                            <<"[", PlayerId/binary, "]">>
+                                    end,
+
+                        [
+                            PlayerStatus,
+                            [
+                                {nls, sb_memory_usage}, MemoryUsage,
+                                <<"\n">>,
+                                {nls, sb_cpuusage}, CpuUsage,
+                                <<"\n">>,
+                                {nls, sb_temperature}, Temperature,
+                                <<"\n">>,
+                                {nls, current_gm}, CurrentGm
+                            ]
+                        ];
                     false ->
                         ServerDownMessage
                 end;
@@ -275,13 +295,8 @@ apply_admin(NpcState, #command_context{
     ResponseMessage =
         case elib:connect_node(?SB_NODE) of
             true ->
-                case gen_server:call({global, ?SB_GEN_SERVER}, {make_player_admin, PlayerId}) of
-                    <<"server already started">> ->
-                        [{nls, server_already_started}, <<"\n">>];
-                    _Success ->
-                        error_logger:info_msg("_Success:~p~n", [_Success]),
-                        [{nls, server_started}, <<"\n">>]
-                end;
+                Status = gen_server:call({global, ?SB_GEN_SERVER}, {make_player_admin, PlayerId}),
+                [{nls, Status}, <<"\n">>];
             _NoConnection ->
                 ServerDownMessage
         end,

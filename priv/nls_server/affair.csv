@@ -42,3 +42,7 @@ sb_start,启动,start
 server_already_started,服务器已经启动了,Server already started.
 server_started,启动了,Started.
 sb_apply_admin,权限,admin
+existing_admin_online,已有GM在线,Existing GM online
+invalid_admin_player,你的账号无法申请权限,Your account is not valid for apply admin right
+no_change,没有变化,No change
+current_gm,当前GM: ,Current gm: 
