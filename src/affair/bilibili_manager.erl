@@ -284,7 +284,7 @@ handle_affair_input(#player_state{
                         case request(PlayerUid, {upload_vids, []}) of
                             undefined ->
                                 [{nls, bilibili_manager_offline}, <<"\n">>];
-                            {struct, JsonObjectList} ->
+                            JsonObjectList ->
                                 {<<"status">>, Status} = lists:keyfind(<<"status">>, 1, JsonObjectList),
                                 [{nls, binary_to_atom(Status, utf8)}, <<"\n">>]
                         end,
@@ -331,7 +331,7 @@ handle_affair_input(#player_state{
                         undefined ->
                             ?RESPONSE_CONTENT([{nls, bilibili_manager_offline}, <<"\n">>] ++ MenuDescNls),
                             keep_state_and_data;
-                        {struct, JsonObjectList} ->
+                        JsonObjectList ->
                             {<<"status">>, InputCaptchaStatus} = lists:keyfind(<<"status">>, 1, JsonObjectList),
                             case InputCaptchaStatus of
                                 true ->
@@ -535,7 +535,7 @@ login_bilibili(#player_state{
                 undefined ->
                     ?RESPONSE_CONTENT([{nls, bilibili_manager_offline}, <<"\n">>] ++ MenuDescNls),
                     keep_state_and_data;
-                {struct, JsonObjectList} ->
+                JsonObjectList ->
                     {<<"is_logged_on">>, IsLoggedOn} = lists:keyfind(<<"is_logged_on">>, 1, JsonObjectList),
                     case IsLoggedOn of
                         true ->

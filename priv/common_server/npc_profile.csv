@@ -3,5 +3,6 @@ dog,dog,"{nls, npc_dog}.","{nls, npc_dog_desc}.","{nls, self_npc_dog_desc}.",[].
 little_boy,little_boy,"{nls, npc_little_boy}.","{nls, npc_little_boy_desc}.","{nls, self_npc_little_boy_desc}.",[].,10,10,100,3
 sb_manager,sb_manager,"{nls, sb_manager}.","{nls, sb_manager_desc}.","{nls, self_npc_little_boy_desc}.","[{ask_n_answer, {nls, sb_register},sb_manager, register},{ask_n_answer, {nls, sb_status},sb_manager, status},
 {ask_n_answer, {nls, sb_ip},sb_manager, ip},
-{ask_n_answer, {nls, sb_start},sb_manager, start}].",30,10000,10000,10
+{ask_n_answer, {nls, sb_start},sb_manager, start},
+{ask_n_answer, {nls, sb_apply_admin},sb_manager, apply_admin}].",30,10000,10000,10
 bilibili_manager,bilibili_manager,"{nls, bilibili_manager}.","{nls, bilibili_manager_desc}.","{nls, self_npc_little_boy_desc}.","[{ask_n_answer, {nls, affair_help},bilibili_manager, help},{ask_n_answer, {nls, affair_manage},bilibili_manager, manage}].",30,10000,10000,10

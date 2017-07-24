@@ -41,3 +41,4 @@ sb_ip,ip,ip
 sb_start,启动,start
 server_already_started,服务器已经启动了,Server already started.
 server_started,启动了,Started.
+sb_apply_admin,权限,admin

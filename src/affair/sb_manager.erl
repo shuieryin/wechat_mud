@@ -18,6 +18,7 @@
     status/3,
     ip/3,
     start/3,
+    apply_admin/3,
     feedback/3
 ]).
 
@@ -236,6 +237,49 @@ start(NpcState, #command_context{
                     <<"server already started">> ->
                         [{nls, server_already_started}, <<"\n">>];
                     _Success ->
+                        [{nls, server_started}, <<"\n">>]
+                end;
+            _NoConnection ->
+                ServerDownMessage
+        end,
+    {
+        NpcState,
+        CommandContext#command_context{
+            command_args = AffairContext#affair_context{
+                response_message = lists:flatten(ResponseMessage)
+            }
+        }, StateName
+    }.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Apply admin right.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec apply_admin(NpcState, CommandContext, StateName) -> {UpdatedNpcState, UpdatedCommandContext, UpdatedStateName} when
+    NpcState :: #npc_state{},
+    CommandContext :: #command_context{},
+    UpdatedNpcState :: NpcState,
+    UpdatedCommandContext :: CommandContext,
+    StateName :: gen_statem:state_name(),
+    UpdatedStateName :: StateName.
+apply_admin(NpcState, #command_context{
+    command_args = #affair_context{
+        from_player = #player_profile{
+            id = PlayerId
+        }
+    } = AffairContext
+} = CommandContext, StateName) ->
+    ServerDownMessage = [{nls, sb_server_offline}, <<"\n">>],
+    ResponseMessage =
+        case elib:connect_node(?SB_NODE) of
+            true ->
+                case gen_server:call({global, ?SB_GEN_SERVER}, {make_player_admin, PlayerId}) of
+                    <<"server already started">> ->
+                        [{nls, server_already_started}, <<"\n">>];
+                    _Success ->
+                        error_logger:info_msg("_Success:~p~n", [_Success]),
                         [{nls, server_started}, <<"\n">>]
                 end;
             _NoConnection ->

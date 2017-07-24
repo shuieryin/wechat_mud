@@ -1,7 +1,7 @@
-{application,wechat_mud,
-             [{vsn,"0.3.3"},
-              {description,"This project aims to provide mud games funny stuffs."},
-              {registered,[]},
-              {applications,[kernel,stdlib,cowboy,erlsom,ecsv,recon]},
-              {mod,{wechat_mud_app,["wechat_mud"]}},
-              {env,[]}]}.
+{application, wechat_mud,
+    [{vsn, "0.3.3"},
+        {description, "This project aims to provide mud games funny stuffs."},
+        {registered, []},
+        {applications, [kernel, stdlib, cowboy, erlsom, ecsv, recon, jsx]},
+        {mod, {wechat_mud_app, ["wechat_mud"]}},
+        {env, []}]}.
