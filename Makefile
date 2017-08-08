@@ -17,7 +17,7 @@ hcu:
 	@./config/rebar3 hcu
 
 reset:
-	@./config/rebar3 reset
+	@git fetch --all; git reset --hard origin/master
 
 app_deps:
 	@./_build/default/lib/recon/script/app_deps.erl; dot -T png -O app-deps.dot; rm -f app-deps.dot app-deps.dot.png
