@@ -12,8 +12,9 @@ services:
 
 #skip automated regression tests
 script:
-  - make install_rebar3
-  - make bc
+  - make
+#  - make install_rebar3
+#  - make bc
 
 notifications:
   email:

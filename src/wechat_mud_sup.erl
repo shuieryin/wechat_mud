@@ -55,8 +55,6 @@ start_link(StartArgs) ->
     {ok, {SupFlags :: supervisor:sup_flags(), [ChildSpec :: supervisor:child_spec()]}} | ignore when
     StartArgs :: [term()].
 init([AppName]) ->
-    erlang:set_cookie(node(), list_to_atom(AppName)),
-
     InfoServerName = list_to_atom(AppName ++ "_information_server"),
 
     RestartStrategy = one_for_one,

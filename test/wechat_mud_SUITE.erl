@@ -113,19 +113,23 @@ init_per_suite(Config) ->
     error_logger:tty(false),
     register(?MODULE, Self),
 
+%%    InetsStart:~p~n
+%%    CryptoStart:~p~n
+%%    Asn1Start:~p~n
+%%    PublickeyStart:~p~n
+%%    SslStart:~p~n
+%%    SaslStart:~p~n
+
     ct:pal("
-        InetsStart:~p~n
-        CryptoStart:~p~n
-        Asn1Start:~p~n
-        PublickeyStart:~p~n
-        SslStart:~p~n
+        JsxStart:~p~n
         SaslStart:~p~n
     ", [
-        application:start(inets),
-        application:start(crypto),
-        application:start(asn1),
-        application:start(public_key),
-        application:start(ssl),
+        %application:start(inets),
+        %application:start(crypto),
+        %application:start(asn1),
+        %application:start(public_key),
+        application:start(jsx),
+        %application:start(ssl),
         application:start(sasl)
     ]),
 
@@ -176,6 +180,13 @@ init_per_suite(Config) ->
     Config.
 
 end_per_suite(_Config) ->
+
+%%    SslStop:~p~n
+%%    PublickeyStop:~p~n
+%%    Asn1Stop:~p~n
+%%    CryptoStop:~p~n
+%%    InetsStop:~p~n
+
     ct:pal("
         WechatmudStop:~p~n
         ReconStop:~p~n
@@ -188,11 +199,7 @@ end_per_suite(_Config) ->
         RanchStop:~p~n
         CowlibStop:~p~n
         SaslStop:~p~n
-        SslStop:~p~n
-        PublickeyStop:~p~n
-        Asn1Stop:~p~n
-        CryptoStop:~p~n
-        InetsStop:~p~n
+        JsxStop:~p~n
     ", [
         application:stop(wechat_mud),
         application:stop(recon),
@@ -205,11 +212,12 @@ end_per_suite(_Config) ->
         application:stop(ranch),
         application:stop(cowlib),
         application:stop(sasl),
-        application:start(ssl),
-        application:start(public_key),
-        application:start(asn1),
-        application:start(crypto),
-        application:start(inets)
+        application:stop(jsx)
+        %application:start(ssl),
+        %application:start(public_key),
+        %application:start(asn1),
+        %application:start(crypto),
+        %application:start(inets)
     ]),
 
     spawn(
