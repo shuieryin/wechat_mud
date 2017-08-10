@@ -161,16 +161,16 @@ status(NpcState, #command_context{
                 } = gen_server:call({global, ?SB_GEN_SERVER}, server_status),
                 case IsSbServerUp of
                     true ->
-                        OnlinePlayernames = maps:fold(
-                            fun(_Username, #player_info{player_name = Playername}, AccPlayernames) ->
-                                [<<"[">>, Playername, <<"]\n">> | AccPlayernames]
+                        OnlinePlayerNames = maps:fold(
+                            fun(_Username, #player_info{player_name = PlayerName}, AccPlayerNames) ->
+                                [<<"[">>, re:replace(PlayerName, <<"\\^[\\w\\d#]+\\;">>, <<>>, [global, {return, binary}]), <<"]\n">> | AccPlayerNames]
                             end, [], OnlineUsers),
                         PlayerStatus =
-                            case OnlinePlayernames of
+                            case OnlinePlayerNames of
                                 [] ->
                                     [{nls, sb_no_one_online}, <<"\n">>];
                                 _Else ->
-                                    [{nls, sb_online_players}, <<"\n">>, OnlinePlayernames]
+                                    [{nls, sb_online_players}, <<"\n">>, OnlinePlayerNames]
                             end,
 
                         CurrentGm = case AdminPlayer of
