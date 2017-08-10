@@ -39,3 +39,5 @@ ck:
 	@./config/rebar3 ck
 
 bc: build ck
+
+br: build run

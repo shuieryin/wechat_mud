@@ -174,7 +174,7 @@ status(NpcState, #command_context{
                             end,
 
                         CurrentGm = case AdminPlayer of
-                                        undefined ->
+                                        {} ->
                                             <<"[]">>;
                                         {PlayerId, _ExpireTime} ->
                                             <<"[", PlayerId/binary, "]">>
