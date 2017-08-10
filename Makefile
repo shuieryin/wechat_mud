@@ -10,8 +10,11 @@ install:
 run:
 	@redis-server & ./_build/default/rel/wechat_mud/bin/wechat_mud console
 
-build:
+compile:
 	@./config/rebar3 compile
+
+build:
+	@./config/rebar3 build
 
 hcu:
 	@./config/rebar3 hcu
