@@ -13,7 +13,7 @@
 -export([
          init/1,
          format_status/2,
-         state_name/3,
+         the_state_name/3,
          terminate/3,
          code_change/4,
          callback_mode/0
@@ -23,7 +23,7 @@
 
 -record(state, {}).
 
--type state_name() :: state_name.
+-type the_state_name() :: normal_state.
 -type action(Reply) :: gen_statem:reply_action() | {reply, gen_statem:from(), Reply}.
 -type state_function_result(Reply) ::
 gen_statem:event_handler_result(#state{}) |
@@ -31,7 +31,7 @@ gen_statem:event_handler_result(#state{}) |
 {
     next_state,
     #state{},
-    state_name(),
+    the_state_name(),
     action(Reply)
 }.
 
@@ -70,11 +70,11 @@ start_link() ->
     {stop, Reason} |
     ignore when
 
-    StateName :: state_name(),
+    StateName :: the_state_name(),
     StateData :: #state{},
     Reason :: term(). % generic term
 init([]) ->
-    {ok, state_name, #state{}}.
+    {ok, the_state_name, #state{}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -101,7 +101,7 @@ format_status(_Opt, [_PDict, _StateName, _State]) ->
 %% functions is called when gen_statem receives and event from
 %% call/2, cast/2, or as a normal process message.
 %%
-%% @spec state_name(Event, From, State) ->
+%%               Response:
 %%                   {next_state, NextStateName, NextState} |
 %%                   {next_state, NextStateName, NextState, Actions} |
 %%                   {stop, Reason, NewState} |
@@ -116,13 +116,13 @@ format_status(_Opt, [_PDict, _StateName, _State]) ->
 %%                   {keep_state_and_data, Actions}
 %% @end
 %%--------------------------------------------------------------------
--spec state_name(EventType, EventContent, Data) -> state_function_result(Reply) when
+-spec normal_state(EventType, EventContent, Data) -> state_function_result(Reply) when
     EventType :: gen_statem:event_type(),
     EventContent :: logout,
 
     Data :: term(),
     Reply :: term().
-state_name(_EventType, _EventContent, State) ->
+normal_state(_EventType, _EventContent, State) ->
     NextStateName = next_state,
     {next_state, NextStateName, State}.
 
