@@ -12,7 +12,6 @@
          init/1,
          format_status/2,
          state_name/3,
-         handle_event/4,
          terminate/3,
          code_change/4,
          callback_mode/0
@@ -32,9 +31,9 @@
 %% initialize. To ensure a synchronized start-up procedure, this
 %% function does not return until Module:init/1 has returned.
 %%
-%% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
+-spec start_link() -> gen:start_ret().
 start_link() ->
     gen_statem:start_link({local, ?SERVER}, ?MODULE, [], []).
 
@@ -49,12 +48,17 @@ start_link() ->
 %% gen_statem:start_link/[3,4], this function is called by the new
 %% process to initialize.
 %%
-%% @spec init(Args) -> {CallbackMode, StateName, State} |
-%%                     {CallbackMode, StateName, State, Actions} |
-%%                     ignore |
-%%                     {stop, StopReason}
 %% @end
 %%--------------------------------------------------------------------
+-spec init([]) ->
+    {ok, StateName, StateData} |
+    {ok, StateName, StateData, timeout() | hibernate} |
+    {stop, Reason} |
+    ignore when
+
+    StateName :: player_state_name(),
+    StateData :: #state{},
+    Reason :: term(). % generic term
 init([]) ->
     {ok, state_name, #state{}}.
 
@@ -65,9 +69,12 @@ init([]) ->
 %% (2) when gen_statem terminates abnormally.
 %% This callback is optional.
 %%
-%% @spec format_status(Opt, [PDict, StateName, State]) -> term()
 %% @end
 %%--------------------------------------------------------------------
+-spec format_status(Opt, StatusData) -> Status when
+    Opt :: 'normal' | 'terminate',
+    StatusData :: [term()],
+    Status :: term(). % generic term
 format_status(_Opt, [_PDict, _StateName, _State]) ->
     Status = some_term,
     Status.
@@ -95,35 +102,12 @@ format_status(_Opt, [_PDict, _StateName, _State]) ->
 %%                   {keep_state_and_data, Actions}
 %% @end
 %%--------------------------------------------------------------------
+-spec state_name(EventType, EventContent, Data) -> state_function_result(Reply) when
+    EventType :: gen_statem:event_type(),
+    EventContent :: term(),
+    Reply :: term().
 state_name(_EventType, _EventContent, State) ->
     NextStateName = next_state,
-    {next_state, NextStateName, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%%
-%% If callback_mode is handle_event_function, then whenever a
-%% gen_statem receives an event from call/2, cast/2, or as a normal
-%% process message, this function is called.
-%%
-%% @spec handle_event(Event, StateName, State) ->
-%%                   {next_state, NextStateName, NextState} |
-%%                   {next_state, NextStateName, NextState, Actions} |
-%%                   {stop, Reason, NewState} |
-%%    				 stop |
-%%                   {stop, Reason :: term()} |
-%%                   {stop, Reason :: term(), NewData :: data()} |
-%%                   {stop_and_reply, Reason, Replies} |
-%%                   {stop_and_reply, Reason, Replies, NewState} |
-%%                   {keep_state, NewData :: data()} |
-%%                   {keep_state, NewState, Actions} |
-%%                   keep_state_and_data |
-%%                   {keep_state_and_data, Actions}
-%% @end
-%%--------------------------------------------------------------------
-handle_event(_EventType, _EventContent, _StateName, State) ->
-    NextStateName = the_next_state_name,
     {next_state, NextStateName, State}.
 
 %%--------------------------------------------------------------------
@@ -134,9 +118,12 @@ handle_event(_EventType, _EventContent, _StateName, State) ->
 %% necessary cleaning up. When it returns, the gen_statem terminates with
 %% Reason. The return value is ignored.
 %%
-%% @spec terminate(Reason, StateName, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
+-spec terminate(Reason, StateName, StateData) -> ok when
+    Reason :: normal | shutdown | {shutdown, term()} | term(), % generic term
+    StateName :: atom(),
+    StateData :: #state{}.
 terminate(_Reason, _StateName, _State) ->
     ok.
 
@@ -145,10 +132,15 @@ terminate(_Reason, _StateName, _State) ->
 %% @doc
 %% Convert process state when code is changed
 %%
-%% @spec code_change(OldVsn, StateName, State, Extra) ->
-%%                   {ok, StateName, NewState}
 %% @end
 %%--------------------------------------------------------------------
+-spec code_change(OldVsn, StateName, StateData, Extra) -> {ok, NextStateName, NewStateData} when
+    OldVsn :: term() | {down, term()}, % generic term
+    StateName :: atom(),
+    StateData :: #state{} | tuple(), % generic tuple
+    Extra :: term(), % generic term
+    NextStateName :: StateName,
+    NewStateData :: StateData.
 code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
 
@@ -164,5 +156,5 @@ callback_mode() ->
     [state_functions].
 
 %%%===================================================================
-%%% Internal functions
+%%% Internal functions (N/A)
 %%%===================================================================
