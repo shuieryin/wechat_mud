@@ -99,7 +99,7 @@ format_status(_Opt, [_PDict, _StateName, _State]) ->
 %% functions is called when gen_statem receives and event from
 %% call/2, cast/2, or as a normal process message.
 %%
-%% @spec state_name(Event, From, State) ->
+%%              Response:
 %%                   {next_state, NextStateName, NextState} |
 %%                   {next_state, NextStateName, NextState, Actions} |
 %%                   {stop, Reason, NewState} |
@@ -114,7 +114,7 @@ format_status(_Opt, [_PDict, _StateName, _State]) ->
 %%                   {keep_state_and_data, Actions}
 %% @end
 %%--------------------------------------------------------------------
--spec menu_main(EventType, EventContent, Data) -> state_function_result(Reply) when
+-spec state_name(EventType, EventContent, Data) -> state_function_result(Reply) when
     EventType :: gen_statem:event_type(),
     EventContent :: logout,
 
