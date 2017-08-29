@@ -17,19 +17,21 @@
          callback_mode/0
         ]).
 
+-define(SERVER, ?MODULE).
+
+-record(state, {}).
+
+-type state_name() :: state_name.
+-type action(Reply) :: gen_statem:reply_action() | {reply, gen_statem:from(), Reply}.
 -type state_function_result(Reply) ::
 gen_statem:event_handler_result(#state{}) |
 {keep_state_and_data, action(Reply)} |
 {
     next_state,
     #state{},
-    player_state_name(),
+    state_name(),
     action(Reply)
 }.
-
--define(SERVER, ?MODULE).
-
--record(state, {}).
 
 %%%===================================================================
 %%% API
