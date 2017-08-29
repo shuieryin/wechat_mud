@@ -70,7 +70,7 @@ start_link() ->
     {stop, Reason} |
     ignore when
 
-    StateName :: player_state_name(),
+    StateName :: state_name(),
     StateData :: #state{},
     Reason :: term(). % generic term
 init([]) ->
