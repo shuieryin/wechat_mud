@@ -5,7 +5,9 @@
 -behaviour(gen_statem).
 
 %% API
--export([start_link/0]).
+-export([
+    start_link/0
+]).
 
 %% gen_statem callbacks
 -export([
@@ -99,7 +101,7 @@ format_status(_Opt, [_PDict, _StateName, _State]) ->
 %% functions is called when gen_statem receives and event from
 %% call/2, cast/2, or as a normal process message.
 %%
-%%              Response:
+%% @spec state_name(Event, From, State) ->
 %%                   {next_state, NextStateName, NextState} |
 %%                   {next_state, NextStateName, NextState, Actions} |
 %%                   {stop, Reason, NewState} |
