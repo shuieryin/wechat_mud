@@ -102,9 +102,11 @@ format_status(_Opt, [_PDict, _StateName, _State]) ->
 %%                   {keep_state_and_data, Actions}
 %% @end
 %%--------------------------------------------------------------------
--spec state_name(EventType, EventContent, Data) -> state_function_result(Reply) when
+-spec menu_main(EventType, EventContent, Data) -> state_function_result(Reply) when
     EventType :: gen_statem:event_type(),
-    EventContent :: term(),
+    EventContent :: logout,
+
+    Data :: term(),
     Reply :: term().
 state_name(_EventType, _EventContent, State) ->
     NextStateName = next_state,
