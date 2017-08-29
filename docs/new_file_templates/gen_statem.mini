@@ -17,6 +17,16 @@
          callback_mode/0
         ]).
 
+-type state_function_result(Reply) ::
+gen_statem:event_handler_result(#state{}) |
+{keep_state_and_data, action(Reply)} |
+{
+    next_state,
+    #state{},
+    player_state_name(),
+    action(Reply)
+}.
+
 -define(SERVER, ?MODULE).
 
 -record(state, {}).
