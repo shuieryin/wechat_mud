@@ -24,14 +24,13 @@
 -record(state, {}).
 
 -type the_state_name() :: normal_state.
--type action(Reply) :: gen_statem:reply_action() | {reply, gen_statem:from(), Reply}.
+-type action(Reply) :: {reply, gen_statem:from(), Reply}.
 -type state_function_result(Reply) ::
-gen_statem:event_handler_result(#state{}) |
 {keep_state_and_data, action(Reply)} |
 {
     next_state,
     #state{},
-    the_state_name(),
+    scene_state_name(),
     action(Reply)
 }.
 
