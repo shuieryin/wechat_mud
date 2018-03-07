@@ -227,7 +227,7 @@ ip(NpcState, #command_context{
         NpcState,
         CommandContext#command_context{
             command_args = AffairContext#affair_context{
-                response_message = [list_to_binary(os:cmd("curl -s ifconfig.co"))]
+                response_message = [list_to_binary(os:cmd("curl ipecho.net/plain;echo \"\""))]
             }
         }, StateName
     }.
