@@ -243,7 +243,7 @@ init([]) ->
 
             ets:insert(TableId, {DecodedAESKey, WechatToken, AppId});
         _Other ->
-            ets:insert(TableId, {undefined, undefined, undefined})
+            ets:insert(TableId, {<<"DecodedAESKey">>, <<"WechatToken">>, <<"AppId">>})
     end,
 
     io:format("started~n~n"),
