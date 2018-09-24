@@ -231,8 +231,9 @@ init([]) ->
     PropsFilepath = filename:join([filename:dirname(code:lib_dir(elib:app_name())), <<"../misc/props.config">>]),
     case filelib:is_file(PropsFilepath) of
         true ->
-            {ok, [Props]} = file:consult(PropsFilepath),
-            ets:insert(TableId, Props);
+            {ok, [{EncodingAESKey, WechatToken, AppId}]} = file:consult(PropsFilepath),
+            DecodedAESKey = base64:mime_decode(EncodingAESKey),
+            ets:insert(TableId, {DecodedAESKey, WechatToken, AppId});
         _Other ->
             ets:insert(TableId, {<<"DecodedAESKey">>, <<"WechatToken">>, <<"AppId">>})
     end,
