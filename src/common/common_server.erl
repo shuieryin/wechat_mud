@@ -228,20 +228,11 @@ init([]) ->
     },
 
     TableId = ets:new(misc_table, [set, protected, named_table]),
-    BasePath = filename:join([filename:dirname(code:lib_dir(elib:app_name())), <<"../misc">>]),
-    case filelib:is_dir(BasePath) of
+    PropsFilepath = filename:join([filename:dirname(code:lib_dir(elib:app_name())), <<"../misc/props.config">>]),
+    case filelib:is_file(PropsFilepath) of
         true ->
-            {ok, RawKey} = file:read_file(filename:join([BasePath, <<"EncodingAESKey">>])),
-            EncodingAESKey = re:replace(RawKey, "\n", "", [global, {return, binary}]),
-            DecodedAESKey = base64:mime_decode(EncodingAESKey),
-
-            {ok, RawWechatToken} = file:read_file(filename:join([BasePath, <<"WechatToken">>])),
-            WechatToken = re:replace(RawWechatToken, "\n", "", [global, {return, binary}]),
-
-            {ok, RawAppId} = file:read_file(filename:join([BasePath, <<"AppId">>])),
-            AppId = re:replace(RawAppId, "\n", "", [global, {return, binary}]),
-
-            ets:insert(TableId, {DecodedAESKey, WechatToken, AppId});
+            {ok, [Props]} = file:consult(PropsFilepath),
+            ets:insert(TableId, Props);
         _Other ->
             ets:insert(TableId, {<<"DecodedAESKey">>, <<"WechatToken">>, <<"AppId">>})
     end,
