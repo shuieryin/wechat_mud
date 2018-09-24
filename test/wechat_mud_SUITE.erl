@@ -135,8 +135,6 @@ init_per_suite(Config) ->
 
     spawn(
         fun() ->
-            BasePath = filename:join([filename:dirname(code:lib_dir(elib:app_name())), ".."]),
-            ct:pal("~p~n", [os:cmd("rm -rf " ++ filename:join([BasePath, "misc"]) ++ "; cp -rf " ++ filename:join([BasePath, "../../misc"]) ++ " " ++ BasePath)]),
             ct:pal("~p~n", [os:cmd("redis-server")])
         end),
 
@@ -265,7 +263,7 @@ mod_input(RawUid, Type, Command) ->
         % Request
         {
             % URI
-            "http://localhost:13579/hapi/command_dispatcher?signature=09212eba69ae16975c347a14b94991ad5790d58e&timestamp=1483082058&nonce=165858907&openid=ogD_CvtfTf1fGpNV-dVrbgQ9I76c",
+            "http://localhost:13579/hapi/command_dispatcher?signature=4dcb69ddafca8c28d9c0cc737928e98033d3c2bc&timestamp=1483082058&nonce=165858907&openid=ogD_CvtfTf1fGpNV-dVrbgQ9I76c",
 
             % Headers
             [
