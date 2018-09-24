@@ -633,8 +633,8 @@ code_change(_OldVsn, #state{
                 {ok, State}
         end
     catch
-        Type:Reason ->
-            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
+        Type:Reason:Stacktrace ->
+            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, Stacktrace]),
             {ok, State}
     end.
 

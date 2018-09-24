@@ -110,8 +110,8 @@ look_target(#state{player_uid = PlayerUid}) ->
                                             TargetPlayerUid
                                     end, utf8)
                  catch
-                     Type:Reason ->
-                         error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()])
+                     Type:Reason:StackTrace ->
+                         error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, StackTrace])
                  end,
 
     case TargetName of
@@ -184,8 +184,8 @@ perform(#state{player_uid = PlayerUid}) ->
                   SkillName = atom_to_binary(?ONE_OF([invalid_skill | Skills]), utf8),
                   nls_server:fill_in_content(CommandContent, [SkillName, perform_convert(?ONE_OF(IdList))], <<>>)
               catch
-                  Type:Reason ->
-                      error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()])
+                  Type:Reason:StackTrace ->
+                      error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, StackTrace])
               end,
     case Command of
         ok ->
@@ -222,8 +222,8 @@ attack(#state{player_uid = PlayerUid}) ->
                   TargetId = perform_convert(?ONE_OF(scene_targets(PlayerUid))),
                   <<<<"attack ">>/binary, TargetId/binary>>
               catch
-                  Type:Reason ->
-                      error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()])
+                  Type:Reason:StackTrace ->
+                      error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, StackTrace])
               end,
     case Command of
         ok ->
@@ -276,8 +276,8 @@ ask(#state{player_uid = PlayerUid}) ->
                       end,
                   <<<<"ask ">>/binary, TargetId/binary, " about ", Affair/binary>>
               catch
-                  Type:Reason ->
-                      error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()])
+                  Type:Reason:StackTrace ->
+                      error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, StackTrace])
               end,
 
     case Command of
@@ -297,54 +297,54 @@ player_id(#state{player_uid = PlayerUid}) ->
     try
         player_statem:player_id(PlayerUid)
     catch
-        Type:Reason ->
-            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()])
+        Type:Reason:StackTrace ->
+            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, StackTrace])
     end.
 
 player_state(#state{player_uid = PlayerUid}) ->
     try
         player_statem:player_state(PlayerUid)
     catch
-        Type:Reason ->
-            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()])
+        Type:Reason:StackTrace ->
+            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, StackTrace])
     end.
 
 player_state_by_id(#state{player_id = PlayerId}) ->
     try
         player_statem:player_state_by_id(PlayerId)
     catch
-        Type:Reason ->
-            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()])
+        Type:Reason:StackTrace ->
+            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, StackTrace])
     end.
 
 mail_box(#state{player_uid = PlayerUid}) ->
     try
         player_statem:mail_box(PlayerUid)
     catch
-        Type:Reason ->
-            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()])
+        Type:Reason:StackTrace ->
+            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, StackTrace])
     end.
 
 lang_map(#state{player_uid = PlayerUid}) ->
     try
         player_statem:lang_map(PlayerUid)
     catch
-        Type:Reason ->
-            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()])
+        Type:Reason:StackTrace ->
+            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, StackTrace])
     end.
 
 upgrade_value_by_id(#state{player_id = PlayerId}) ->
     try
         player_statem:upgrade_value_by_id(PlayerId, 2)
     catch
-        Type:Reason ->
-            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()])
+        Type:Reason:StackTrace ->
+            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, StackTrace])
     end.
 
 exits_map(_State) ->
     try
         scene_statem:exits_map(?ONE_OF([dream_board_nw, dream_board_w, dream_board_sw, dream_board_s, dream_board_se, dream_board_e, dream_board_ne, dream_board_n, dream_board_center]))
     catch
-        Type:Reason ->
-            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()])
+        Type:Reason:StackTrace ->
+            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, StackTrace])
     end.

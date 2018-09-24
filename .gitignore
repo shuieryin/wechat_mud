@@ -18,3 +18,4 @@ docs/sketch*
 config/rebar3
 *.dot
 rebar3.crashdump
+misc/

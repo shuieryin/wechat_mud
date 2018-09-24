@@ -213,8 +213,8 @@ code_change(_OldVsn, State, _Extra) ->
             scene_specs_map = SceneSpecsMap
         }}
     catch
-        Type:Reason ->
-            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
+        Type:Reason:Stacktrace ->
+            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, Stacktrace]),
             {ok, State}
     end.
 

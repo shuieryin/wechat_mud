@@ -220,7 +220,7 @@ select_lang(
                     {select_lang, Data, [{nls, select_lang}], zh}
             end
         catch
-            _ErrorType:_Reason ->
+            _ErrorType:_Reason:_Stacktrace ->
                 {select_lang, Data, [{nls, select_lang}], zh}
         end,
     nls_server:response_content(ContentList, Lang, DispatcherPid),
@@ -640,7 +640,7 @@ validate_month(MonthBin) ->
                 {false, MonthBin}
         end
     catch
-        _ErrorType:_Reason ->
+        _ErrorType:_Reason:_Stacktrace ->
             {false, MonthBin}
     end.
 

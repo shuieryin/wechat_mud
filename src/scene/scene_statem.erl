@@ -599,8 +599,8 @@ code_change(_OldVsn, StateName, State, _Extra) ->
         UpdatedState = temp_scene_data_update(State),
         {ok, StateName, UpdatedState}
     catch
-        Type:Reason ->
-            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
+        Type:Reason:Stacktrace ->
+            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, Stacktrace]),
             {ok, StateName, State}
     end.
 

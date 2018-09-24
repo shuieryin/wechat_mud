@@ -5,6 +5,6 @@ if [ -f "./config/rebar3" ]; then
 fi
 
 cd config
-wget https://github.com/erlang/rebar3/releases/download/3.5.0/rebar3
+wget https://github.com/erlang/rebar3/releases/download/3.6.2/rebar3
 chmod +x rebar3
 cd ..

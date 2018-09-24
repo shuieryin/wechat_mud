@@ -135,6 +135,8 @@ init_per_suite(Config) ->
 
     spawn(
         fun() ->
+            BasePath = filename:join([filename:dirname(code:lib_dir(elib:app_name())), ".."]),
+            ct:pal("~p~n", [os:cmd("rm -rf " ++ filename:join([BasePath, "misc"]) ++ "; cp -rf " ++ filename:join([BasePath, "../../misc"]) ++ " " ++ BasePath)]),
             ct:pal("~p~n", [os:cmd("redis-server")])
         end),
 

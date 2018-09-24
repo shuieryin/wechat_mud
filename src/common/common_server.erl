@@ -227,6 +227,20 @@ init([]) ->
         runtime_datas = RuntimeDatas
     },
 
+    BasePath = filename:join([filename:dirname(code:lib_dir(elib:app_name())), <<"../misc">>]),
+    {ok, RawKey} = file:read_file(filename:join([BasePath, <<"EncodingAESKey">>])),
+    EncodingAESKey = re:replace(RawKey, "\n", "", [global, {return, binary}]),
+    DecodedAESKey = base64:mime_decode(EncodingAESKey),
+
+    {ok, RawWechatToken} = file:read_file(filename:join([BasePath, <<"WechatToken">>])),
+    WechatToken = re:replace(RawWechatToken, "\n", "", [global, {return, binary}]),
+
+    {ok, RawAppId} = file:read_file(filename:join([BasePath, <<"AppId">>])),
+    AppId = re:replace(RawAppId, "\n", "", [global, {return, binary}]),
+
+    TableId = ets:new(misc_table, [set, protected, named_table]),
+    ets:insert(TableId, {DecodedAESKey, WechatToken, AppId}),
+
     io:format("started~n~n"),
     {ok, State}.
 
@@ -411,8 +425,8 @@ code_change(
                 {ok, State}
         end
     catch
-        Type:Reason ->
-            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, erlang:get_stacktrace()]),
+        Type:Reason:Stacktrace ->
+            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, Stacktrace]),
             {ok, State}
     end.
 

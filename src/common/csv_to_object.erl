@@ -342,8 +342,8 @@ traverse_column([RawValue0 | TailValues], [{_Key, FieldType} | TailFieldInfos], 
                     end
             end
         catch
-            Type:Reason ->
-                error_logger:error_msg("traverse_column failed~nRawValue:~tp~nType:~p~nReason:~p~nStackTrace:~p~n", [RawValue, Type, Reason, erlang:get_stacktrace()]),
+            Type:Reason:Stacktrace ->
+                error_logger:error_msg("traverse_column failed~nRawValue:~tp~nType:~p~nReason:~p~nStackTrace:~p~n", [RawValue, Type, Reason, Stacktrace]),
                 RawValue
         end,
     traverse_column(TailValues, TailFieldInfos, [Value | AccValues]);
