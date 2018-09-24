@@ -229,7 +229,7 @@ init([]) ->
 
     TableId = ets:new(misc_table, [set, protected, named_table]),
     BasePath = filename:join([filename:dirname(code:lib_dir(elib:app_name())), <<"../misc">>]),
-    case filelib:is_dir("miscs") of
+    case filelib:is_dir("misc") of
         true ->
             {ok, RawKey} = file:read_file(filename:join([BasePath, <<"EncodingAESKey">>])),
             EncodingAESKey = re:replace(RawKey, "\n", "", [global, {return, binary}]),
