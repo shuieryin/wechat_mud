@@ -31,7 +31,7 @@
 -type return_content() :: nls_server:value() | {image, binary()} | [nls_server:value()] | no_response.
 
 -record(wechat_get_params, {
-    signature :: get_param(),
+    signature :: get_param() | undefined,
     timestamp :: get_param(),
     nonce :: get_param(),
     openid :: get_param(),
@@ -49,7 +49,8 @@
     'ToUserName' :: post_param() | undefined,
     'Event' :: post_param() | undefined,
     'EventKey' :: post_param() | undefined,
-    'Encrypt' :: post_param() | undefined
+    'Encrypt' :: post_param() | undefined,
+    'AgentID' :: post_param() | undefined
 }).
 
 %%%===================================================================
@@ -97,27 +98,27 @@ start(Req) ->
                 nonce = Nonce,
                 echostr = EchoStr,
                 openid = OpenId,
-                encrypt_type = EncryptType,
                 msg_signature = MsgSignature
             } = gen_get_params(HeaderParams),
             [{DecodedAESKey, WechatToken, AppId}] = ets:tab2list(misc_table),
-            ValidationParams = [Signature, WechatToken, Timestamp, Nonce],
-            case validate_signature(ValidationParams) of
+            PassFirstValidation =
+                case Signature of
+                    undefined ->
+                        true;
+                    _HasSignature ->
+                        ValidationParams = [Signature, WechatToken, Timestamp, Nonce],
+                        validate_signature(ValidationParams)
+                end,
+            case PassFirstValidation of
                 true ->
-                    case EchoStr of
-                        undefined ->
-                            EncryptParams =
-                                case EncryptType of
-                                    <<"aes">> ->
-                                        {OpenId, [MsgSignature, WechatToken, Timestamp, Nonce], DecodedAESKey, AppId};
-                                    _Other ->
-                                        undefined
-                                end,
-                            process_request(Req, EncryptParams);
-                        _EchoStr ->
-                            error_logger:info_msg("Connectivity success~n", []),
-                            {EchoStr, Req}
-                    end;
+                    EncryptParams =
+                        case MsgSignature of
+                            undefined ->
+                                undefined;
+                            _HasMsgSignature ->
+                                {OpenId, [MsgSignature, WechatToken, Timestamp, Nonce], DecodedAESKey, AppId, EchoStr}
+                        end,
+                    process_request(Req, EncryptParams);
                 false ->
                     {?EMPTY_CONTENT, Req}
             end
@@ -195,14 +196,14 @@ generate_signature(ParamList) ->
 -spec validate_signature(OriginalParams) -> IsValidSignature when
     OriginalParams :: [binary()], % generic binary
     IsValidSignature :: boolean().
-validate_signature([OriginalSignatureBin | ParamList] = OriginalParams) ->
+validate_signature([OriginalSignatureBin | ParamList]) ->
     GeneratedSignature = generate_signature(ParamList),
     Signature = binary_to_list(OriginalSignatureBin),
     case GeneratedSignature == Signature of
         true ->
             true;
         false ->
-            error_logger:error_msg("Validation signature failed:~nParamMap:~p~nGSignature:~p~nOSignature:~p~n", [OriginalParams, GeneratedSignature, Signature]),
+            error_logger:error_msg("Validation signature failed:~nParamList:~p~nGSignature:~p~nOSignature:~p~n", [ParamList, GeneratedSignature, Signature]),
             false
     end.
 
@@ -239,125 +240,134 @@ validate_signature([OriginalSignatureBin | ParamList] = OriginalParams) ->
 %%--------------------------------------------------------------------
 -spec process_request(Req, EncryptParams) -> {FormattedResponseContent, UpdatedReq} when
     Req :: cowboy_req:req(),
-    EncryptParams :: {OpenId, NextValidationParams, DecodedAESKey, AppId} | undefined,
+    EncryptParams :: {OpenId, NextValidationParams, DecodedAESKey, AppId, EchoStr} | undefined,
     OpenId :: get_param(),
     NextValidationParams :: [get_param()],
     DecodedAESKey :: get_param(),
     AppId :: get_param(),
+    EchoStr :: get_param(),
     FormattedResponseContent :: binary(),
     UpdatedReq :: Req.
 process_request(Req, EncryptParams) ->
     {ReqParams, UpdatedReq} = parse_xml_request(Req),
-    {FinalReqParams, DecodedAESKey, AppId} =
+%%    error_logger:info_msg("ReqParams:~p~n", [ReqParams]),
+    {FinalReqParams, DecodedAESKey, AppId, EchoStr} =
         case EncryptParams of
             undefined ->
-                {ReqParams, undefined, undefined};
-            {OpenId, NextValidationParams, RawDecodedAESKey, RawAppId} ->
+                {ReqParams, undefined, undefined, undefined};
+            {_RawOpenId, NextValidationParams, RawDecodedAESKey, RawAppId, RawEchoStr} ->
                 #wechat_post_params{
                     'ToUserName' = RawPlatformId,
                     'Encrypt' = EncryptedContent
                 } = ReqParams,
-                case validate_signature(NextValidationParams ++ [EncryptedContent]) of
-                    true ->
-                        32 = size(RawDecodedAESKey), % assertion
-                        {Ivec, _NextIv} = split_binary(RawDecodedAESKey, 16),
-                        DecodedContent = base64:mime_decode(EncryptedContent),
-                        {_Other, RawDecryptedContent} = split_binary(crypto:block_decrypt(aes_cbc256, RawDecodedAESKey, Ivec, DecodedContent), 20),
-                        [DecryptedContent, Paddings] = binary:split(RawDecryptedContent, RawAppId),
-                        true = size(Paddings) > 0, % AppId assertion
-                        {ok, {"xml", [], Params}, _UpdatedOptions} = erlsom:simple_form(DecryptedContent),
-                        #wechat_post_params{
-                            'FromUserName' = FromUserName,
-                            'ToUserName' = ToUserName
-                        } = RawReqParams = unmarshall_params(Params, #wechat_post_params{}),
-                        FromUserName = OpenId, % assertion
-                        ToUserName = RawPlatformId, % assertion
-                        {RawReqParams, RawDecodedAESKey, RawAppId};
-                    _Other ->
-                        {parse_failed, undefined, undefined}
+                case RawEchoStr of
+                    undefined ->
+                        case validate_signature(NextValidationParams ++ [EncryptedContent]) of
+                            true ->
+                                DecryptedContent = decrypt(EncryptedContent, RawDecodedAESKey, RawAppId),
+                                {ok, {"xml", [], Params}, _UpdatedOptions} = erlsom:simple_form(DecryptedContent),
+                                #wechat_post_params{
+                                    'ToUserName' = ToUserName
+                                } = RawReqParams = unmarshall_params(Params, #wechat_post_params{}),
+                                ToUserName = RawPlatformId, % assertion
+                                {RawReqParams, RawDecodedAESKey, RawAppId, RawEchoStr};
+                            _Other ->
+                                {parse_failed, undefined, undefined, undefined}
+                        end;
+                    _Connectivity ->
+                        UriDecodedEchoStr = http_uri:decode(RawEchoStr),
+                        case validate_signature(NextValidationParams ++ [UriDecodedEchoStr]) of
+                            true ->
+                                DecryptedEchoStr = decrypt(UriDecodedEchoStr, RawDecodedAESKey, RawAppId),
+                                {undefined, undefined, undefined, DecryptedEchoStr};
+                            _Other ->
+                                {parse_failed, undefined, undefined, undefined}
+                        end
                 end
         end,
-    RawFinalReply =
-        case FinalReqParams of
-            parse_failed ->
-                error_logger:info_msg("Parse xml request failed:~tp~n", [Req]),
-                ?EMPTY_CONTENT;
-            #wechat_post_params{
-                'Content' = RawInputBin,
-                'ToUserName' = PlatformId,
-                'FromUserName' = UidBin
-                %'MsgId' = MsgId
-            } = FinalReqParams ->
-                error_logger:info_msg("User input:~tp~n", [RawInputBin]),
 
-                Uid = binary_to_atom(UidBin, utf8),
-                {RawInput, FuncExec} = gen_action_from_message_type(FinalReqParams),
-                ReturnContent =
-                    case whereis(Uid) of % login_server:is_uid_logged_in(Uid)
-                        undefined ->
-                            case whereis(register_statem:register_server_name(Uid)) of % login_server:is_in_registration(Uid)
-                                undefined ->
-                                    case login_server:is_uid_registered(Uid) of
-                                        false ->
-                                            pending_content(login_server, register_uid, [Uid]);
-                                        true ->
-                                            if
-                                                <<"login">> == RawInput orelse <<"rereg">> == RawInput orelse subscribe == RawInput ->
-                                                    FuncExec(Uid);
-                                                true ->
-                                                    nls_server:nls_content([{nls, please_login}], zh)
-                                            end
-                                    end;
-                                _RegisterPid ->
-                                    if
-                                        unsubscribe == RawInput ->
-                                            register_statem:stop(Uid),
-                                            no_response;
-                                        true ->
-                                            pending_content(register_statem, input, [Uid, RawInput])
-                                    end
-                            end;
-                        _PlayerPid ->
-                            FuncExec(Uid)
-                    end,
+%%    error_logger:info_msg("FinalReqParams:~p~n", [FinalReqParams]),
 
-                Response =
-                    try
-                        case ReturnContent of
-                            no_response ->
-                                <<>>;
-                            {image, ImageUrl} ->
-                                compose_image_response(UidBin, PlatformId, ImageUrl);
-                            _ReturnContent ->
-                                ReturnContentBinary = list_to_binary(lists:flatten(elib:remove_last_newline(ReturnContent))),
-                                spawn(elib, pp, [ReturnContentBinary]),
-                                compose_text_response(UidBin, PlatformId, ReturnContentBinary)
-                        end
-                    catch
-                        Type:Reason:Stacktrace ->
-                            error_logger:error_msg("Invalid Content:~p~n", [ReturnContent]),
-                            error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, Stacktrace]),
-                            <<>>
-                    end,
-                Response
-        end,
     FinalReply =
-        case EncryptParams of
+        case EchoStr of
             undefined ->
-                RawFinalReply;
-            {_OpenId, [_FromMsgSignature, WechatToken, Timestamp, Nonce], DecodedAESKey, AppId} ->
-                {BIvec, _BNextIv} = split_binary(DecodedAESKey, 16),
-                RandomPrefix = crypto:strong_rand_bytes(16),
-                ReplyLen = size(RawFinalReply),
-                LenBin = <<ReplyLen:32>>,
-                RawReply = <<RandomPrefix/binary, LenBin/binary, RawFinalReply/binary, AppId/binary>>,
-                RawPackedReply = cm:pkcs7pad(RawReply),
-                EncryptedReply = crypto:block_encrypt(aes_cbc256, DecodedAESKey, BIvec, RawPackedReply),
-                EncodedReply = base64:encode(EncryptedReply),
-                ToMsgSignature = list_to_binary(generate_signature([WechatToken, Timestamp, Nonce, EncodedReply])),
-                ComposedReply = compose_encrypt_response(EncodedReply, ToMsgSignature, Timestamp, Nonce),
-%%                error_logger:info_msg("ComposedReply:~p~n", [ComposedReply]),
-                ComposedReply
+                RawFinalReply =
+                    case FinalReqParams of
+                        parse_failed ->
+                            error_logger:info_msg("Parse xml request failed:~tp~n", [Req]),
+                            ?EMPTY_CONTENT;
+                        #wechat_post_params{
+                            'Content' = RawInputBin,
+                            'ToUserName' = PlatformId,
+                            'FromUserName' = UidBin
+                            %'MsgId' = MsgId
+                        } = FinalReqParams ->
+                            error_logger:info_msg("User input:~tp~n", [RawInputBin]),
+
+                            Uid = binary_to_atom(UidBin, utf8),
+                            {RawInput, FuncExec} = gen_action_from_message_type(FinalReqParams),
+                            ReturnContent =
+                                case whereis(Uid) of % login_server:is_uid_logged_in(Uid)
+                                    undefined ->
+                                        case whereis(register_statem:register_server_name(Uid)) of % login_server:is_in_registration(Uid)
+                                            undefined ->
+                                                case login_server:is_uid_registered(Uid) of
+                                                    false ->
+                                                        pending_content(login_server, register_uid, [Uid]);
+                                                    true ->
+                                                        if
+                                                            <<"login">> == RawInput orelse <<"rereg">> == RawInput orelse subscribe == RawInput ->
+                                                                FuncExec(Uid);
+                                                            true ->
+                                                                nls_server:nls_content([{nls, please_login}], zh)
+                                                        end
+                                                end;
+                                            _RegisterPid ->
+                                                if
+                                                    unsubscribe == RawInput ->
+                                                        register_statem:stop(Uid),
+                                                        no_response;
+                                                    true ->
+                                                        pending_content(register_statem, input, [Uid, RawInput])
+                                                end
+                                        end;
+                                    _PlayerPid ->
+                                        FuncExec(Uid)
+                                end,
+
+                            Response =
+                                try
+                                    case ReturnContent of
+                                        no_response ->
+                                            <<>>;
+                                        {image, ImageUrl} ->
+                                            compose_image_response(UidBin, PlatformId, ImageUrl);
+                                        _ReturnContent ->
+                                            ReturnContentBinary = list_to_binary(lists:flatten(elib:remove_last_newline(ReturnContent))),
+                                            spawn(elib, pp, [ReturnContentBinary]),
+                                            compose_text_response(UidBin, PlatformId, ReturnContentBinary)
+                                    end
+                                catch
+                                    Type:Reason:Stacktrace ->
+                                        error_logger:error_msg("Invalid Content:~p~n", [ReturnContent]),
+                                        error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, Stacktrace]),
+                                        <<>>
+                                end,
+                            Response
+                    end,
+                case EncryptParams of
+                    undefined ->
+                        RawFinalReply;
+                    {_OpenId, [_FromMsgSignature, WechatToken, Timestamp, Nonce], DecodedAESKey, AppId, EchoStr} ->
+                        EncodedReply = encode(RawFinalReply, DecodedAESKey, AppId),
+                        ToMsgSignature = list_to_binary(generate_signature([WechatToken, Timestamp, Nonce, EncodedReply])),
+                        ComposedReply = compose_encrypt_response(EncodedReply, ToMsgSignature, Timestamp, Nonce),
+%%                            error_logger:info_msg("ComposedReply:~p~n", [ComposedReply]),
+                        ComposedReply
+                end;
+            _HasEchoStr ->
+                error_logger:info_msg("Connectivity success~n", []),
+                EchoStr
         end,
     {FinalReply, UpdatedReq}.
 
@@ -542,7 +552,7 @@ parse_xml_request(Req) ->
     ReqParams =
         case Message of
             <<>> ->
-                parse_failed;
+                #wechat_post_params{};
             _Message ->
                 {ok, {"xml", [], Params}, _UpdatedOptions} = erlsom:simple_form(Message),
                 unmarshall_params(Params, #wechat_post_params{})
@@ -589,6 +599,8 @@ unmarshall_params([{"EventKey", [], [ParamValue]} | Tail], ParamsRecord) ->
     unmarshall_params(Tail, ParamsRecord#wechat_post_params{'EventKey' = unicode:characters_to_binary(ParamValue)});
 unmarshall_params([{"Encrypt", [], [ParamValue]} | Tail], ParamsRecord) ->
     unmarshall_params(Tail, ParamsRecord#wechat_post_params{'Encrypt' = unicode:characters_to_binary(ParamValue)});
+unmarshall_params([{"AgentID", [], [ParamValue]} | Tail], ParamsRecord) ->
+    unmarshall_params(Tail, ParamsRecord#wechat_post_params{'AgentID' = unicode:characters_to_binary(ParamValue)});
 unmarshall_params([{_Other, [], [_ParamValue]} | Tail], ParamsRecord) ->
     unmarshall_params(Tail, ParamsRecord).
 
@@ -602,12 +614,11 @@ unmarshall_params([{_Other, [], [_ParamValue]} | Tail], ParamsRecord) ->
 -spec gen_get_params(binary()) -> #wechat_get_params{}.
 gen_get_params(HeaderParams) ->
     #{
-        signature := Signature,
         timestamp := TimeStamp,
         nonce := Nonce
     } = ParamsMap = elib:gen_get_params(HeaderParams),
     {wechat_get_params,
-        Signature,
+        maps:get(signature, ParamsMap, undefined),
         TimeStamp,
         Nonce,
         maps:get(openid, ParamsMap, undefined),
@@ -632,7 +643,7 @@ execute_command(Module, Function, [DispatcherPid, Uid | CommandArgs] = FunctionA
         apply(Module, Function, FunctionArgs)
     catch
         Type:Reason:Stacktrace ->
-            ok = player_statem:response_content(Uid, [{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(atom_to_list(Module) ++ "_help")}], DispatcherPid),
+            {ok, _Pid} = player_statem:response_content(Uid, [{nls, invalid_argument}, CommandArgs, <<"\n\n">>, {nls, list_to_atom(atom_to_list(Module) ++ "_help")}], DispatcherPid),
             error_logger:error_msg("Type:~p~nReason:~p~nStackTrace:~p~n", [Type, Reason, Stacktrace]),
             throw(Reason)
     end.
@@ -718,3 +729,39 @@ handle_normal_input(Uid, RawInput) ->
         invalid_command ->
             nls_server:nls_content([{nls, invalid_command}, ModuleNameBin], ?Get_lang(Uid))
     end.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Encrypt and encode message.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec encode(FinalReply :: binary(), DecodedAESKey :: binary(), AppId :: binary()) -> EncodedReply :: binary().
+encode(FinalReply, DecodedAESKey, AppId) ->
+    {BIvec, _BNextIv} = split_binary(DecodedAESKey, 16),
+    RandomPrefix = crypto:strong_rand_bytes(16),
+    ReplyLen = size(FinalReply),
+    LenBin = <<ReplyLen:32>>,
+    RawReply = <<RandomPrefix/binary, LenBin/binary, FinalReply/binary, AppId/binary>>,
+    RawPackedReply = cm:pkcs7pad(RawReply),
+    EncryptedReply = crypto:block_encrypt(aes_cbc256, DecodedAESKey, BIvec, RawPackedReply),
+    base64:encode(EncryptedReply).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Decoded and decrypt message.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec decrypt(EncryptedContent :: binary(), DecodedAESKey :: binary(), AppId :: binary()) -> DecryptedContent :: binary().
+decrypt(EncryptedContent, DecodedAESKey, AppId) ->
+    32 = size(DecodedAESKey), % assertion
+    {Ivec, _NextIv} = split_binary(DecodedAESKey, 16),
+    DecodedContent = base64:mime_decode(EncryptedContent),
+    OriDecryptedContent = crypto:block_decrypt(aes_cbc256, DecodedAESKey, Ivec, DecodedContent),
+    {_Other, RawDecryptedContent} = split_binary(OriDecryptedContent, 20),
+    RawUnpaadedContent = cm:pkcs7unpad(RawDecryptedContent),
+    AppIdSize = byte_size(AppId),
+    ContentSize = byte_size(RawUnpaadedContent) - AppIdSize,
+    <<FinalContent:ContentSize/binary, AppId:AppIdSize/binary>> = RawUnpaadedContent,
+    FinalContent.

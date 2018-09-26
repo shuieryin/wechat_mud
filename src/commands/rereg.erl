@@ -40,10 +40,12 @@ exec(DispatcherPid, 'ogD_CvtfTf1fGpNV-dVrbgQ9I76c' = Uid, _RawInput) ->
         undefined ->
             login_server:register_uid(DispatcherPid, Uid);
         _Pid ->
-            player_statem:response_content(Uid, [{nls, please_logout_first}], DispatcherPid)
+            {ok, _Pid} = player_statem:response_content(Uid, [{nls, please_logout_first}], DispatcherPid),
+            ok
     end;
 exec(DispatcherPid, Uid, _RawInput) ->
-    player_statem:response_content(Uid, [{nls, invalid_command}], DispatcherPid).
+    {ok, _Pid} = player_statem:response_content(Uid, [{nls, invalid_command}], DispatcherPid),
+    ok.
 
 %%%===================================================================
 %%% Internal functions (N/A)

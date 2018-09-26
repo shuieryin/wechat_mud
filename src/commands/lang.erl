@@ -56,7 +56,8 @@ exec(DispatcherPid, Uid, RawInput, RawTargetLang) ->
                     },
                     cm:execute_command(Uid, CommandContext);
                 false ->
-                    player_statem:response_content(Uid, [{nls, invalid_lang}, RawTargetLang, <<"\n\n">>, {nls, lang_help}], DispatcherPid)
+                    {ok, _Pid} = player_statem:response_content(Uid, [{nls, invalid_lang}, RawTargetLang, <<"\n\n">>, {nls, lang_help}], DispatcherPid),
+                    ok
             end
     end.
 

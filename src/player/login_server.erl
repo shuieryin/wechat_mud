@@ -227,7 +227,7 @@ login(DispatcherPid, Uid) ->
                 end,
                 gb_sets:add(Uid, LoggedInUidsSet);
             true ->
-                ok = player_statem:response_content(Uid, [{nls, already_login}], DispatcherPid),
+                {ok, _Pid} = player_statem:response_content(Uid, [{nls, already_login}], DispatcherPid),
                 LoggedInUidsSet
         end,
 
@@ -258,9 +258,13 @@ is_uid_logged_in(Uid) ->
     Uid :: player_statem:uid().
 logout(DispatcherPid, Uid) ->
     State = login_state(),
-    ok = player_statem:response_content(Uid, [{nls, already_logout}], DispatcherPid),
-    UpdatedState = logout(internal, Uid, State),
-    gen_server:cast(?SERVER, {update_state, UpdatedState}).
+    {ok, Pid} = player_statem:response_content(Uid, [{nls, already_logout}], DispatcherPid),
+    MonitorRef = monitor(process, Pid),
+    receive
+        {'DOWN', MonitorRef, process, _, _} ->
+            UpdatedState = logout(internal, Uid, State),
+            gen_server:cast(?SERVER, {update_state, UpdatedState})
+    end.
 
 %%--------------------------------------------------------------------
 %% @doc

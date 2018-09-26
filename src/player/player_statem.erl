@@ -156,18 +156,18 @@ get_lang(Uid) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec response_content(Uid, ContentList, DispatcherPid) -> ok when
+-spec response_content(Uid, ContentList, DispatcherPid) -> {ok, pid()} when
     Uid :: uid(),
     ContentList :: [term()], % generic term
     DispatcherPid :: pid().
 response_content(Uid, ContentList, DispatcherPid) ->
-    spawn(
+    Pid = spawn(
         fun() ->
             PlayerState = player_state(Uid),
             UpdatedData = do_response_content(PlayerState, ContentList, DispatcherPid),
             update_data(UpdatedData)
         end),
-    ok.
+    {ok, Pid}.
 
 %%--------------------------------------------------------------------
 %% @doc

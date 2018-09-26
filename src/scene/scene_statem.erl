@@ -278,7 +278,8 @@ general_target(
             TargetSceneObject = grab_target_scene_objects(SceneObjectList, TargetId, Sequence),
             if
                 undefined == TargetSceneObject ->
-                    player_statem:response_content(SrcUid, [{nls, no_such_target}, TargetBin, <<"\n">>], DispatcherPid);
+                    {ok, _Pid} = player_statem:response_content(SrcUid, [{nls, no_such_target}, TargetBin, <<"\n">>], DispatcherPid),
+                    ok;
                 true ->
                     UpdatedCommandContext = CommandContext#command_context{
                         to = TargetSceneObject
@@ -762,7 +763,7 @@ do_show_scene(
         <<"\n">>,
         ExitsDescription
     ]),
-    ok = player_statem:response_content(Uid, ContentList, DispatcherPid),
+    {ok, _Pid} = player_statem:response_content(Uid, ContentList, DispatcherPid),
     {ok, IsCallerExist}.
 
 %%--------------------------------------------------------------------
