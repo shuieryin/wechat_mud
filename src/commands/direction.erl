@@ -34,7 +34,7 @@
 %% validated ahead in "command_dispatcher" module.
 %%
 %% This function returns "ok" immeidately and the scene info will
-%% be responsed to user from player_statem by sending responses to
+%% be respond to user from player_statem by sending responses to
 %% DispatcherPid process.
 %%
 %% @end
