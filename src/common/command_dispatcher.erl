@@ -614,17 +614,17 @@ unmarshall_params([{_Other, [], [_ParamValue]} | Tail], ParamsRecord) ->
 -spec gen_get_params(binary()) -> #wechat_get_params{}.
 gen_get_params(HeaderParams) ->
     #{
-        timestamp := TimeStamp,
-        nonce := Nonce
+        <<"timestamp">> := TimeStamp,
+        <<"nonce">> := Nonce
     } = ParamsMap = elib:gen_get_params(HeaderParams),
     {wechat_get_params,
-        maps:get(signature, ParamsMap, undefined),
+        maps:get(<<"signature">>, ParamsMap, undefined),
         TimeStamp,
         Nonce,
-        maps:get(openid, ParamsMap, undefined),
-        maps:get(encrypt_type, ParamsMap, undefined),
-        maps:get(msg_signature, ParamsMap, undefined),
-        maps:get(echostr, ParamsMap, undefined)
+        maps:get(<<"openid">>, ParamsMap, undefined),
+        maps:get(<<"encrypt_type">>, ParamsMap, undefined),
+        maps:get(<<"msg_signature">>, ParamsMap, undefined),
+        maps:get(<<"echostr">>, ParamsMap, undefined)
     }.
 
 %%--------------------------------------------------------------------
