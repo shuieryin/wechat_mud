@@ -48,3 +48,6 @@ edoc:
 # upgrade dependency
 updep:
 	@${PWD}/config/updep.sh ${lib}
+
+release:
+	${PWD}/config/rebar3 as prod release
