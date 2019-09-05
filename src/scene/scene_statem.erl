@@ -395,10 +395,7 @@ init(
     scene_state |
     {update_state, Data},
 
-    Reply :: SceneName | ok,
-
     Uid :: player_statem:uid(),
-    SceneName :: scene_name(),
     SceneInfo :: #scene_info{},
 
     Uid :: player_statem:uid(),

@@ -558,26 +558,14 @@ init({Uid, DispatcherPid}) ->
     {update_data, Data} |
     {update_statem, gen_statem:state_enter_result(player_state_name())},
 
-    Reply :: Lang |
-    scene_statem:scene_name() |
-    ok |
-    Data |
-    LangMap |
-    PlayerId,
-
     Message :: mail_object(),
     MailType :: mail_type(),
     Value :: integer(),
-    Lang :: nls_server:support_lang(),
-    PlayerId :: id(),
     ChangedLangMap :: nls_server:lang_map(),
     RemovedNlsSet :: gb_sets:set(atom()), % generic atom
-    LangMap :: nls_server:lang_map(),
     ChangedFilesStruct :: [csv_to_object:csv_data_struct()],
     DeletedFilesStruct :: [csv_to_object:csv_data_struct()],
-
     CommandContext :: #command_context{},
-
     Data :: #player_state{}.
 non_battle(
     cast,
@@ -693,8 +681,6 @@ non_battle(cast, {update_statem, StateFunctionResult}, _OldData) ->
     {execute_command | general_target, CommandContext} |
     {update_data, Data} |
     {update_statem, gen_statem:state_enter_result(player_state_name())},
-
-    Reply :: term(), % generic term
 
     Value :: integer(),
     CommandContext :: #command_context{},

@@ -174,9 +174,6 @@ init(NpcProfile) ->
     npc_state,
 
     CommandContext :: #command_context{},
-
-    Reply :: term(), % generic term
-
     Data :: #npc_state{}.
 non_battle(
     cast,

@@ -185,7 +185,7 @@ init({Uid, DispatcherPid, BornTypeInfoMap}) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec select_lang(EventType, EventContent, Data) -> StateFunctionResult when
+-spec select_lang(EventType, EventContent, #state{}) -> StateFunctionResult when
     EventType :: gen_statem:event_type(),
 
     EventContent :: {LangBin, DispatcherPid} |
@@ -193,12 +193,6 @@ init({Uid, DispatcherPid, BornTypeInfoMap}) ->
 
     LangBin :: binary(),
     DispatcherPid :: pid(),
-
-    State :: #state{},
-    Action :: gen_statem:reply_action() | {reply, From, Reply},
-    From :: gen_statem:from(),
-
-    Reply :: term(), % generic term
 
     StateFunctionResult :: gen_statem:state_enter_result(state_name()).
 select_lang(
@@ -241,7 +235,7 @@ select_lang(
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec input_id(EventType, EventContent, Data) -> StateFunctionResult when
+-spec input_id(EventType, EventContent, #state{}) -> StateFunctionResult when
     EventType :: gen_statem:event_type(),
 
     EventContent :: {RawId, DispatcherPid} |
@@ -249,12 +243,6 @@ select_lang(
 
     RawId :: binary(),
     DispatcherPid :: pid(),
-
-    State :: #state{},
-    Action :: gen_statem:reply_action() | {reply, From, Reply},
-    From :: gen_statem:from(),
-
-    Reply :: term(), % generic term
 
     StateFunctionResult :: gen_statem:state_enter_result(state_name()).
 input_id(
@@ -300,7 +288,7 @@ input_id(
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec input_gender(EventType, EventContent, Data) -> StateFunctionResult when
+-spec input_gender(EventType, EventContent, #state{}) -> StateFunctionResult when
     EventType :: gen_statem:event_type(),
 
     EventContent :: {RawGender, DispatcherPid} |
@@ -308,12 +296,6 @@ input_id(
 
     RawGender :: binary(),
     DispatcherPid :: pid(),
-
-    State :: #state{},
-    Action :: gen_statem:reply_action() | {reply, From, Reply},
-    From :: gen_statem:from(),
-
-    Reply :: term(), % generic term
 
     StateFunctionResult :: gen_statem:state_enter_result(state_name()).
 input_gender(cast, {RawGender, DispatcherPid}, #state{
@@ -371,7 +353,7 @@ input_gender(
 %%
 %% @end
 %%-------------------------------------------------------------------
--spec input_born_month(EventType, EventContent, Data) -> StateFunctionResult when
+-spec input_born_month(EventType, EventContent, #state{}) -> StateFunctionResult when
     EventType :: gen_statem:event_type(),
 
     EventContent :: {MonthBin, DispatcherPid} |
@@ -379,12 +361,6 @@ input_gender(
 
     MonthBin :: binary(),
     DispatcherPid :: pid(),
-
-    State :: #state{},
-    Action :: gen_statem:reply_action() | {reply, From, Reply},
-    From :: gen_statem:from(),
-
-    Reply :: term(), % generic term
 
     StateFunctionResult :: gen_statem:state_enter_result(state_name()).
 input_born_month(
@@ -433,7 +409,7 @@ input_born_month(
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec input_confirmation(EventType, EventContent, Data) -> StateFunctionResult when
+-spec input_confirmation(EventType, EventContent, #state{}) -> StateFunctionResult when
     EventType :: gen_statem:event_type(),
 
     EventContent :: {Answer, DispatcherPid} |
@@ -441,12 +417,6 @@ input_born_month(
 
     Answer :: binary(),
     DispatcherPid :: pid(),
-
-    State :: #state{},
-    Action :: gen_statem:reply_action() | {reply, From, Reply},
-    From :: gen_statem:from(),
-
-    Reply :: term(), % generic term
 
     StateFunctionResult :: gen_statem:state_enter_result(state_name()).
 input_confirmation(

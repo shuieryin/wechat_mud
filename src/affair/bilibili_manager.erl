@@ -225,11 +225,7 @@ feedback(State, #command_context{
 -spec handle_affair_input(PlayerState, DispatcherPid, RawInput) -> StateFunctionResult when
     PlayerState :: #player_state{},
     DispatcherPid :: pid(),
-    UpdatePlayerState :: PlayerState,
-
-    Action :: gen_statem:action(),
     RawInput :: term(),
-
     StateFunctionResult :: gen_statem:state_enter_result(player_statem:player_state_name()).
 handle_affair_input(#player_state{
     self = #player_profile{
@@ -491,11 +487,8 @@ request(Uid, {Event, EventParams}) ->
 %%--------------------------------------------------------------------
 -spec login_bilibili(PlayerState, DispatcherPid, IsReopenUrl) -> StateFunctionResult when
     PlayerState :: #player_state{},
-    UpdatedPlayerState :: PlayerState,
-    Action :: gen_statem:action(),
     DispatcherPid :: pid(),
     IsReopenUrl :: boolean(),
-
     StateFunctionResult :: gen_statem:state_enter_result(player_statem:player_state_name()).
 %%noinspection ErlangUnusedVariable
 login_bilibili(#player_state{
