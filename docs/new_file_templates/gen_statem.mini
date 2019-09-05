@@ -65,7 +65,7 @@ start_link() ->
     StateData :: #state{},
     Reason :: term(). % generic term
 init([]) ->
-    {ok, the_state_name, #state{}}.
+    {ok, normal_state, #state{}}.
 
 
 %%--------------------------------------------------------------------
