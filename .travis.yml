@@ -10,7 +10,6 @@ env:
 services:
     - redis-server
 
-#skip automated regression tests
 script:
     - mkdir misc
     - make
