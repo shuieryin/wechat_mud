@@ -13,7 +13,7 @@
 -export([
          init/1,
          format_status/2,
-         the_state_name/3,
+         normal_state/3,
          terminate/3,
          code_change/4,
          callback_mode/0
