@@ -1,24 +1,23 @@
 sudo: false
 install: true
 language:
-  erlang
+    erlang
 
 env:
-  global:
-  - TRAVIS_CI=true
+    global:
+        - TRAVIS_CI=true
 
 services:
-- redis-server
+    - redis-server
 
 #skip automated regression tests
 script:
-- make
-#  - make install_rebar3
-#  - make bc
+    - mkdir misc
+    - make
 
 notifications:
-  email:
-  - shuieryin@gmail.com
+    email:
+        - shuieryin@gmail.com
 
 otp_release:
-- 21.0
+    - 21.0
