@@ -73,16 +73,6 @@
 
 -type command_args() :: #perform_args{} | term(). % generic term
 -type player_state_name() :: non_battle | affair_menu.
--type action(Reply) :: gen_statem:reply_action() | {reply, gen_statem:from(), Reply}.
--type state_function_result(Reply) ::
-gen_statem:event_handler_result(#player_state{}) |
-{keep_state_and_data, action(Reply)} |
-{
-    next_state,
-    #player_state{},
-    player_state_name(),
-    action(Reply)
-}.
 
 -export_type([
     born_month/0,
@@ -471,7 +461,7 @@ update_data(#player_state{
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec update_statem(Uid :: uid(), state_function_result(ok)) -> ok.
+-spec update_statem(Uid :: uid(), gen_statem:state_enter_result(player_state_name())) -> ok.
 update_statem(Uid, StateFunctionResult) ->
     gen_statem:cast(Uid, {update_statem, StateFunctionResult}).
 
@@ -547,7 +537,7 @@ init({Uid, DispatcherPid}) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec non_battle(EventType, EventContent, Data) -> state_function_result(Reply) when
+-spec non_battle(EventType, EventContent, Data) -> gen_statem:state_enter_result(player_state_name()) when
 
     EventType :: gen_statem:event_type(),
 
@@ -566,7 +556,7 @@ init({Uid, DispatcherPid}) ->
     player_id |
     affair_name |
     {update_data, Data} |
-    {update_statem, state_function_result(Reply)},
+    {update_statem, gen_statem:state_enter_result(player_state_name())},
 
     Reply :: Lang |
     scene_statem:scene_name() |
@@ -692,7 +682,7 @@ non_battle(cast, {update_statem, StateFunctionResult}, _OldData) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec affair_menu(EventType, EventContent, Data) -> state_function_result(Reply) when
+-spec affair_menu(EventType, EventContent, Data) -> gen_statem:state_enter_result(player_state_name()) when
     EventType :: gen_statem:event_type(),
 
     EventContent ::
@@ -702,7 +692,7 @@ non_battle(cast, {update_statem, StateFunctionResult}, _OldData) ->
     logout | affair_name |
     {execute_command | general_target, CommandContext} |
     {update_data, Data} |
-    {update_statem, state_function_result(Reply)},
+    {update_statem, gen_statem:state_enter_result(player_state_name())},
 
     Reply :: term(), % generic term
 

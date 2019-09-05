@@ -200,9 +200,7 @@ init({Uid, DispatcherPid, BornTypeInfoMap}) ->
 
     Reply :: term(), % generic term
 
-    StateFunctionResult :: gen_statem:event_handler_result(Data) |
-    {keep_state_and_data, Action} |
-    {next_state, State, Data, {reply, From, Reply}}.
+    StateFunctionResult :: gen_statem:state_enter_result(state_name()).
 select_lang(
     cast,
     {LangBin, DispatcherPid},
@@ -258,9 +256,7 @@ select_lang(
 
     Reply :: term(), % generic term
 
-    StateFunctionResult :: gen_statem:event_handler_result(Data) |
-    {keep_state_and_data, Action} |
-    {next_state, State, Data, {reply, From, Reply}}.
+    StateFunctionResult :: gen_statem:state_enter_result(state_name()).
 input_id(
     cast,
     {RawId, DispatcherPid},
@@ -319,9 +315,7 @@ input_id(
 
     Reply :: term(), % generic term
 
-    StateFunctionResult :: gen_statem:event_handler_result(Data) |
-    {keep_state_and_data, Action} |
-    {next_state, State, Data, {reply, From, Reply}}.
+    StateFunctionResult :: gen_statem:state_enter_result(state_name()).
 input_gender(cast, {RawGender, DispatcherPid}, #state{
     self = #player_profile{
         lang = Lang
@@ -392,9 +386,7 @@ input_gender(
 
     Reply :: term(), % generic term
 
-    StateFunctionResult :: gen_statem:event_handler_result(Data) |
-    {keep_state_and_data, Action} |
-    {next_state, State, Data, {reply, From, Reply}}.
+    StateFunctionResult :: gen_statem:state_enter_result(state_name()).
 input_born_month(
     cast,
     {MonthBin, DispatcherPid},
@@ -456,9 +448,7 @@ input_born_month(
 
     Reply :: term(), % generic term
 
-    StateFunctionResult :: gen_statem:event_handler_result(Data) |
-    {keep_state_and_data, Action} |
-    {next_state, State, Data, {reply, From, Reply}}.
+    StateFunctionResult :: gen_statem:state_enter_result(state_name()).
 input_confirmation(
     cast,
     {Answer, DispatcherPid},

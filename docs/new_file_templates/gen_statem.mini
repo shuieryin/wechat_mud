@@ -109,7 +109,7 @@ format_status(_Opt, [_PDict, _StateName, _State]) ->
 %%                   {keep_state_and_data, Actions}
 %% @end
 %%--------------------------------------------------------------------
--spec normal_state(EventType, EventContent, Data) -> gen_statem:event_handler_result(the_state_name()) when
+-spec normal_state(EventType, EventContent, Data) -> gen_statem:state_enter_result(the_state_name()) when
     EventType :: gen_statem:event_type(),
     EventContent :: logout,
     Data :: term().

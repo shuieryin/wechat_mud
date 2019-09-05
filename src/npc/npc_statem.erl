@@ -39,16 +39,6 @@
 -type npc_name() :: nls_server:nls_object().
 
 -type npc_state_name() :: non_battle.
--type action(Reply) :: gen_statem:reply_action() | {reply, gen_statem:from(), Reply}.
--type state_function_result(Reply) ::
-gen_statem:event_handler_result(#npc_state{}) |
-{keep_state_and_data, action(Reply)} |
-{
-    next_state,
-    #npc_state{},
-    npc_state_name(),
-    action(Reply)
-}.
 
 -export_type([
     npc_uid/0,
@@ -177,7 +167,7 @@ init(NpcProfile) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec non_battle(EventType, EventContent, Data) -> state_function_result(Reply) when
+-spec non_battle(EventType, EventContent, Data) -> gen_statem:state_enter_result(npc_state_name()) when
     EventType :: gen_statem:event_type(),
 
     EventContent :: {execute_command, CommandContext} |

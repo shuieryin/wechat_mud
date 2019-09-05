@@ -62,17 +62,6 @@
     exits_description :: [nls_server:nls_object()]
 }).
 
--type action(Reply) :: gen_statem:reply_action() | {reply, gen_statem:from(), Reply}.
--type state_function_result(Reply) ::
-gen_statem:event_handler_result(#scene_state{}) |
-{keep_state_and_data, action(Reply)} |
-{
-    next_state,
-    #scene_state{},
-    scene_state_name(),
-    action(Reply)
-}.
-
 -export_type([
     scene_name/0,
     exits_map/0
@@ -396,7 +385,7 @@ init(
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec morning(EventType, EventContent, Data) -> state_function_result(Reply) when
+-spec morning(EventType, EventContent, Data) -> gen_statem:state_enter_result(scene_state_name()) when
     EventType :: gen_statem:event_type(),
 
     EventContent :: {execute_command, CommandContext} |

@@ -230,9 +230,7 @@ feedback(State, #command_context{
     Action :: gen_statem:action(),
     RawInput :: term(),
 
-    StateFunctionResult :: gen_statem:event_handler_result(Data) |
-    {keep_state_and_data, Action} |
-    {next_state, UpdatePlayerState, Data}.
+    StateFunctionResult :: gen_statem:state_enter_result(player_statem:player_state_name()).
 handle_affair_input(#player_state{
     self = #player_profile{
         uid = PlayerUid
@@ -498,9 +496,7 @@ request(Uid, {Event, EventParams}) ->
     DispatcherPid :: pid(),
     IsReopenUrl :: boolean(),
 
-    StateFunctionResult :: gen_statem:event_handler_result(PlayerState) |
-    {keep_state_and_data, Action} |
-    {next_state, gen_statem:state_name(), UpdatedPlayerState}.
+    StateFunctionResult :: gen_statem:state_enter_result(player_statem:player_state_name()).
 %%noinspection ErlangUnusedVariable
 login_bilibili(#player_state{
     self = #player_profile{
