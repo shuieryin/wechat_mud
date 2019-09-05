@@ -39,6 +39,7 @@
 start_link() ->
     gen_event:start_link({local, ?SERVER}).
 
+
 %%--------------------------------------------------------------------
 %% @doc
 %% Adds an event handler
@@ -53,6 +54,7 @@ start_link() ->
     Reason :: term(). % generic term
 add_handler() ->
     gen_event:add_handler(?SERVER, ?MODULE, []).
+
 
 %%%===================================================================
 %%% gen_event callbacks
@@ -76,6 +78,7 @@ add_handler() ->
     Reason :: term(). % generic term
 init([]) ->
     {ok, #state{}}.
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -101,6 +104,7 @@ init([]) ->
     Handler2 :: (atom() | {atom(), Id}).
 handle_event(_Event, State) ->
     {ok, State}.
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -130,6 +134,7 @@ handle_call(_Request, State) ->
     Reply = ok,
     {ok, Reply, State}.
 
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -155,6 +160,7 @@ handle_call(_Request, State) ->
 handle_info(_Info, State) ->
     {ok, State}.
 
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -172,6 +178,7 @@ handle_info(_Info, State) ->
 terminate(_Arg, _State) ->
     ok.
 
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -186,6 +193,7 @@ terminate(_Arg, _State) ->
     Extra :: term(). % generic term
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -204,6 +212,7 @@ code_change(_OldVsn, State, _Extra) ->
     Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_event:format_status(Opt, StatusData).
+
 
 %%%===================================================================
 %%% Internal functions (N/A)

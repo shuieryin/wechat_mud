@@ -24,15 +24,6 @@
 -record(state, {}).
 
 -type the_state_name() :: normal_state.
--type action(Reply) :: {reply, gen_statem:from(), Reply}.
--type state_function_result(Reply) ::
-{keep_state_and_data, action(Reply)} |
-{
-    next_state,
-    #state{},
-    scene_state_name(),
-    action(Reply)
-}.
 
 %%%===================================================================
 %%% API
@@ -49,6 +40,7 @@
 -spec start_link() -> gen:start_ret().
 start_link() ->
     gen_statem:start_link({local, ?SERVER}, ?MODULE, [], []).
+
 
 %%%===================================================================
 %%% gen_statem callbacks
@@ -75,6 +67,7 @@ start_link() ->
 init([]) ->
     {ok, the_state_name, #state{}}.
 
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -91,6 +84,7 @@ init([]) ->
 format_status(_Opt, [_PDict, _StateName, _State]) ->
     Status = some_term,
     Status.
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -115,15 +109,14 @@ format_status(_Opt, [_PDict, _StateName, _State]) ->
 %%                   {keep_state_and_data, Actions}
 %% @end
 %%--------------------------------------------------------------------
--spec normal_state(EventType, EventContent, Data) -> state_function_result(Reply) when
+-spec normal_state(EventType, EventContent, Data) -> gen_statem:event_handler_result(the_state_name()) when
     EventType :: gen_statem:event_type(),
     EventContent :: logout,
-
-    Data :: term(),
-    Reply :: term().
+    Data :: term().
 normal_state(_EventType, _EventContent, State) ->
     NextStateName = next_state,
     {next_state, NextStateName, State}.
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -142,6 +135,7 @@ normal_state(_EventType, _EventContent, State) ->
 terminate(_Reason, _StateName, _State) ->
     ok.
 
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -159,6 +153,7 @@ terminate(_Reason, _StateName, _State) ->
 code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
 
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -169,6 +164,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 -spec callback_mode() -> gen_statem:callback_mode_result().
 callback_mode() ->
     [state_functions].
+
 
 %%%===================================================================
 %%% Internal functions (N/A)

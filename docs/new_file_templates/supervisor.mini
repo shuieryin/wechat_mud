@@ -30,6 +30,7 @@
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
+
 %%--------------------------------------------------------------------
 %% @doc
 %% Starts the supervisor
@@ -40,6 +41,7 @@ start_link() ->
 start() ->
     gen_server:start({local, ?SERVER}, supervisor, {{local, ?SERVER}, ?MODULE, []}, []).
 
+
 %%--------------------------------------------------------------------
 %% @doc
 %% Stop supervisor.
@@ -49,6 +51,7 @@ start() ->
 -spec stop() -> true.
 stop() ->
     exit(whereis(?SERVER), normal).
+
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -81,6 +84,7 @@ init([]) ->
         Restart, Shutdown, Type, ['AModule']},
 
     {ok, {SupFlags, [AChild]}}.
+
 
 %%%===================================================================
 %%% Internal functions (N/A)

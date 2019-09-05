@@ -45,6 +45,7 @@
 start_link() ->
     gen_fsm:start_link({local, ?SERVER}, ?MODULE, [], []).
 
+
 %%--------------------------------------------------------------------
 %% @doc
 %% Same as start_link/0 but without link.
@@ -56,6 +57,7 @@ start_link() ->
 start() ->
     gen_fsm:start({local, ?SERVER}, ?MODULE, [], []).
 
+
 %%--------------------------------------------------------------------
 %% @doc
 %% Stop fsm server.
@@ -65,6 +67,7 @@ start() ->
 -spec stop() -> ok.
 stop() ->
     gen_fsm:send_all_state_event(?SERVER, stop).
+
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -90,6 +93,7 @@ stop() ->
 init([]) ->
     {ok, state_name, #state{}}.
 
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -113,6 +117,7 @@ init([]) ->
     Reason :: term(). % generic term
 state_name(_Event, State) ->
     {next_state, state_name, State}.
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -146,6 +151,7 @@ state_name(_Event, _From, State) ->
     Reply = ok,
     {reply, Reply, state_name, State}.
 
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -170,6 +176,7 @@ handle_event(_Event, StateName, State) ->
     {next_state, StateName, State};
 handle_event(stop, _StateName, State) ->
     {stop, normal, State}.
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -201,6 +208,7 @@ handle_sync_event(_Event, _From, StateName, State) ->
     Reply = ok,
     {reply, Reply, StateName, State}.
 
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -223,6 +231,7 @@ handle_sync_event(_Event, _From, StateName, State) ->
 handle_info(_Info, StateName, State) ->
     {next_state, StateName, State}.
 
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -239,6 +248,7 @@ handle_info(_Info, StateName, State) ->
     StateData :: term().
 terminate(_Reason, _StateName, _State) ->
     ok.
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -257,6 +267,7 @@ terminate(_Reason, _StateName, _State) ->
 code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
 
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -274,6 +285,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
     Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_fsm:format_status(Opt, StatusData).
+
 
 %%%===================================================================
 %%% Internal functions (N/A)

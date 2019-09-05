@@ -40,6 +40,7 @@
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
+
 %%--------------------------------------------------------------------
 %% @doc
 %% Starts server by setting module name as server name without link.
@@ -50,6 +51,7 @@ start_link() ->
 start() ->
     gen_server:start({local, ?SERVER}, ?MODULE, [], []).
 
+
 %%--------------------------------------------------------------------
 %% @doc
 %% Stop server.
@@ -59,6 +61,7 @@ start() ->
 -spec stop() -> ok.
 stop() ->
     gen_server:cast(?SERVER, stop).
+
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -87,6 +90,7 @@ stop() ->
 init([]) ->
     {ok, #state{}}.
 
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -112,6 +116,7 @@ init([]) ->
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -132,6 +137,7 @@ handle_cast(stop, State) ->
     {stop, normal, State};
 handle_cast(_Request, State) ->
     {noreply, State}.
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -155,6 +161,7 @@ handle_cast(_Request, State) ->
 handle_info(_Info, State) ->
     {noreply, State}.
 
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -171,6 +178,7 @@ handle_info(_Info, State) ->
     State :: #state{}.
 terminate(_Reason, _State) ->
     ok.
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -192,6 +200,7 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -209,6 +218,7 @@ code_change(_OldVsn, State, _Extra) ->
     Status :: term(). % generic term
 format_status(Opt, StatusData) ->
     gen_server:format_status(Opt, StatusData).
+
 
 %%%===================================================================
 %%% Internal functions (N/A)
