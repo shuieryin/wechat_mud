@@ -111,14 +111,7 @@ start(Req) ->
                 end,
             case PassFirstValidation of
                 true ->
-                    EncryptParams =
-                        case MsgSignature of
-                            undefined ->
-                                undefined;
-                            _HasMsgSignature ->
-                                {OpenId, [MsgSignature, WechatToken, Timestamp, Nonce], DecodedAESKey, AppId, EchoStr}
-                        end,
-                    process_request(Req, EncryptParams);
+                    process_request(Req, {OpenId, [MsgSignature, WechatToken, Timestamp, Nonce], DecodedAESKey, AppId, EchoStr});
                 false ->
                     {?EMPTY_CONTENT, Req}
             end
@@ -275,14 +268,7 @@ process_request(Req, EncryptParams) ->
                                 {parse_failed, undefined, undefined, undefined}
                         end;
                     _Connectivity ->
-                        UriDecodedEchoStr = http_uri:decode(RawEchoStr),
-                        case validate_signature(NextValidationParams ++ [UriDecodedEchoStr]) of
-                            true ->
-                                DecryptedEchoStr = decrypt(UriDecodedEchoStr, RawDecodedAESKey, RawAppId),
-                                {undefined, undefined, undefined, DecryptedEchoStr};
-                            _Other ->
-                                {parse_failed, undefined, undefined, undefined}
-                        end
+                        {undefined, undefined, undefined, RawEchoStr}
                 end
         end,
 
