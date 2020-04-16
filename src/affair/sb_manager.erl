@@ -25,7 +25,7 @@
 -include("../data_type/scene_info.hrl").
 -include("../data_type/ask.hrl").
 
--define(SB_NODE, 'starbound_support@127.0.0.1').
+-define(SB_NODE, 'starbound_support@192.168.1.111').
 -define(SB_GEN_SERVER, starbound_common_server).
 
 -record(player_info, {
